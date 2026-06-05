@@ -223,7 +223,6 @@ export default function App() {
             </button>
           </div>
 
-          {/* ✅ ONLY CHANGE IS HERE */}
           <div className="table-wrapper">
             <table>
               <thead>
@@ -289,13 +288,20 @@ export default function App() {
                         : "-"}
                     </td>
 
+                    {/* ✅ ONLY CHANGE: added AUTO_REFUNDED button */}
                     <td>
                       <button onClick={() => handleAction(t.id, "REFUNDED")}>
                         Refund
                       </button>
+
+                      <button onClick={() => handleAction(t.id, "AUTO_REFUNDED")}>
+                        Auto Refunded
+                      </button>
+
                       <button onClick={() => handleAction(t.id, "RESOLVED")}>
                         Resolve
                       </button>
+
                       <button onClick={() => deleteTicket(t.id)}>
                         Close
                       </button>

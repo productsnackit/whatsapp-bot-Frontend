@@ -200,3 +200,30 @@ td img {
 .login button {
   padding: 10px 20px;
 }
+
+
+/* ================= ADDED ONLY (NEW ACTION BUTTON SUPPORT) ================= */
+
+td button {
+  padding: 5px 8px;
+  margin: 2px;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: 0.2s;
+}
+
+td button:hover {
+  background: #f2f2f2;
+}
+
+td button:nth-child(2) {
+  border-color: #ff9800;
+  color: #ff9800;
+}
+
+td button:nth-child(2):hover {
+  background: #fff3e0;
+}
