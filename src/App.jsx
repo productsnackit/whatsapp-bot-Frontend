@@ -199,7 +199,6 @@ export default function App() {
         </button>
       </div>
 
-      {/* ================= TICKETS ================= */}
       {view === "tickets" && (
         <>
           <div className="controls">
@@ -288,24 +287,37 @@ export default function App() {
                         : "-"}
                     </td>
 
-                    {/* ✅ ONLY CHANGE: added AUTO_REFUNDED button */}
-                    <td>
-                      <button onClick={() => handleAction(t.id, "REFUNDED")}>
+                    {/* ✅ UPDATED ONLY HERE */}
+                    <td className="actions">
+                      <button
+                        className="btn red-outline"
+                        onClick={() => handleAction(t.id, "REFUNDED")}
+                      >
                         Refund
                       </button>
 
-                      <button onClick={() => handleAction(t.id, "AUTO_REFUNDED")}>
+                      <button
+                        className="btn red"
+                        onClick={() => handleAction(t.id, "AUTO_REFUNDED")}
+                      >
                         Auto Refunded
                       </button>
 
-                      <button onClick={() => handleAction(t.id, "RESOLVED")}>
+                      <button
+                        className="btn red-outline"
+                        onClick={() => handleAction(t.id, "RESOLVED")}
+                      >
                         Resolve
                       </button>
 
-                      <button onClick={() => deleteTicket(t.id)}>
+                      <button
+                        className="btn red-outline"
+                        onClick={() => deleteTicket(t.id)}
+                      >
                         Close
                       </button>
                     </td>
+
                   </tr>
                 ))}
               </tbody>
@@ -314,7 +326,6 @@ export default function App() {
         </>
       )}
 
-      {/* FEEDBACK */}
       {view === "feedback" && (
         <table>
           <thead>
@@ -345,7 +356,6 @@ export default function App() {
         </table>
       )}
 
-      {/* PRODUCTS */}
       {view === "products" && (
         <table>
           <thead>
