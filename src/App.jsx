@@ -1,10 +1,25 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line,
+} from "recharts";
 import "./styles.css";
 
 const API = axios.create({
   baseURL: "https://whatsapp-bot-1x9v.onrender.com",
 });
+
+const COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6"];
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token") || "");
@@ -12,6 +27,10 @@ export default function App() {
   const [tickets, setTickets] = useState([]);
   const [feedback, setFeedback] = useState([]);
   const [products, setProducts] = useState([]);
+
+  const [analyticsDaily, setAnalyticsDaily] = useState([]);
+  const [analyticsMonthly, setAnalyticsMonthly] = useState([]);
+  const [analyticsCategory, setAnalyticsCategory] = useState([]);
 
   const [view, setView] = useState("tickets");
 
@@ -90,12 +109,29 @@ export default function App() {
     }
   };
 
+  const fetchAnalytics = async () => {
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const daily = await API.get("/analytics/not-dispensed-daily", { headers });
+      const monthly = await API.get("/analytics/not-dispensed-monthly", { headers });
+      const category = await API.get("/analytics/issues-breakdown", { headers });
+
+      setAnalyticsDaily(Array.isArray(daily.data) ? daily.data : []);
+      setAnalyticsMonthly(Array.isArray(monthly.data) ? monthly.data : []);
+      setAnalyticsCategory(Array.isArray(category.data) ? category.data : []);
+    } catch (err) {
+      console.log("Analytics error:", err);
+    }
+  };
+
   useEffect(() => {
     if (!token) return;
 
     fetchTickets();
     fetchFeedback();
     fetchProducts();
+    fetchAnalytics();
 
     const interval = setInterval(() => {
       if (!token) return;
@@ -103,6 +139,7 @@ export default function App() {
       fetchTickets();
       fetchFeedback();
       fetchProducts();
+      fetchAnalytics();
     }, 5000);
 
     return () => clearInterval(interval);
@@ -183,15 +220,19 @@ export default function App() {
 
       <div className="controls">
         <button className="btn red" onClick={() => setView("tickets")}>
-          📄 Tickets
+          ðŸ“„ Tickets
         </button>
 
         <button className="btn red-outline" onClick={() => setView("feedback")}>
-          📝 Feedback
+          ðŸ“ Feedback
         </button>
 
         <button className="btn red-outline" onClick={() => setView("products")}>
-          📦 Products
+          ðŸ“¦ Products
+        </button>
+
+        <button className="btn red-outline" onClick={() => setView("analytics")}>
+          📊 Analytics
         </button>
 
         <button className="btn red-outline" onClick={logout}>
@@ -287,7 +328,7 @@ export default function App() {
                         : "-"}
                     </td>
 
-                    {/* ✅ UPDATED ONLY HERE */}
+                    {/* âœ… UPDATED ONLY HERE */}
                     <td className="actions">
                       <button
                         className="btn red-outline"
@@ -343,7 +384,7 @@ export default function App() {
               <tr key={f.id}>
                 <td>{f.id}</td>
                 <td>{f.phone}</td>
-                <td>⭐ {f.rating}/5</td>
+                <td>â­ {f.rating}/5</td>
                 <td>{f.comment}</td>
                 <td>
                   {f.created_at
@@ -382,6 +423,44 @@ export default function App() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {view === "analytics" && (
+        <div>
+          <h3>📊 Daily Not Dispensed</h3>
+          <BarChart width={600} height={300} data={analyticsDaily}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="date" />
+            <YAxis />
+            <Tooltip />
+            <Bar dataKey="count" fill="#ef4444" />
+          </BarChart>
+
+          <h3>📈 Monthly Trend</h3>
+          <LineChart width={600} height={300} data={analyticsMonthly}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="month" />
+            <YAxis />
+            <Tooltip />
+            <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} />
+          </LineChart>
+
+          <h3>🥧 Issue Breakdown</h3>
+          <PieChart width={400} height={300}>
+            <Pie
+              data={analyticsCategory}
+              dataKey="count"
+              nameKey="issue"
+              outerRadius={100}
+              label
+            >
+              {analyticsCategory.map((_, i) => (
+                <Cell key={i} fill={COLORS[i % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip />
+          </PieChart>
+        </div>
       )}
     </div>
   );
