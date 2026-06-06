@@ -247,15 +247,38 @@ export default function App() {
   });
 
   if (!token) {
-    return (
-      <div className="login">
-        <h2>Snackit Admin</h2>
-        <button className="btn red" onClick={login}>
-          Login
-        </button>
+  return (
+    <div style={{ display: "flex", height: "100vh" }}>
+      
+      {/* LEFT SIDE IMAGE */}
+      <div style={{ flex: 1 }}>
+        <img
+          src="/login.png"
+          alt="Snackit"
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+          }}
+        />
       </div>
-    );
-  }
+
+      {/* RIGHT SIDE LOGIN */}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          flexDirection: "column",
+        }}
+      >
+        <h2>Snackit Dashboard</h2>
+        <button onClick={login}>Login</button>
+      </div>
+    </div>
+  );
+}
 
   return (
     <div className="container">
