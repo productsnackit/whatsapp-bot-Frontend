@@ -146,6 +146,11 @@ td img {
 
 /* ================= BUTTON SYSTEM ================= */
 
+button svg {
+  margin-right: 8px;
+  vertical-align: middle;
+} 
+
 .btn {
   border: 1px solid #dc3545;
   padding: 6px 12px;

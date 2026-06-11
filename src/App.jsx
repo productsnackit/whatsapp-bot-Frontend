@@ -353,20 +353,32 @@ export default function App() {
 
       <div className="controls">
         <button className="btn red" onClick={() => setView("tickets")}>
-          ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ Tickets
-        </button>
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+    <path d="M4 6h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4V6z" stroke="currentColor" strokeWidth="2"/>
+  </svg>
+  Tickets
+</button>
 
         <button className="btn red-outline" onClick={() => setView("feedback")}>
-          ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â Feedback
-        </button>
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+    <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8z" stroke="currentColor" strokeWidth="2"/>
+  </svg>
+  Feedback
+</button>
 
         <button className="btn red-outline" onClick={() => setView("products")}>
-          ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â°ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¸ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ Products
-        </button>
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" stroke="currentColor" strokeWidth="2"/>
+  </svg>
+  Products
+</button>
 
-        <button className="btn red-outline" onClick={() => setView("analytics")}>
-          ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒâ€¦Ã‚Â  Analytics
-        </button>
+       <button className="btn red-outline" onClick={() => setView("analytics")}>
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+    <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" strokeWidth="2"/>
+  </svg>
+  Analytics
+</button>
 
         <button className="btn red-outline" onClick={logout}>
           Logout
@@ -461,7 +473,7 @@ export default function App() {
                         : "-"}
                     </td>
 
-                    {/* ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Â¦ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦ UPDATED ONLY HERE */}
+                    {/* UPDATED ONLY HERE */}
                     <td className="actions">
                       <button
                         className="btn red-outline"
@@ -516,7 +528,12 @@ export default function App() {
               <tr key={f.id}>
                 <td>{f.id}</td>
                 <td>{f.phone}</td>
-                <td>ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â­ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â {f.rating}/5</td>
+                <td>
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2l3 7 7 .5-5.5 4.5 2 7L12 17l-6.5 4 2-7L2 9.5 9 9l3-7z"/>
+  </svg>
+  {f.rating}/5
+</td>
                 <td>{f.comment}</td>
                 <td>
                   {f.created_at
@@ -576,7 +593,12 @@ export default function App() {
             ))}
           </BarChart>
 
-          <h3>ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œÃƒâ€¹Ã¢â‚¬Â  Monthly Trend</h3>
+          <h3>
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+    <path d="M3 17l6-6 4 4 7-7" stroke="currentColor" strokeWidth="2"/>
+  </svg>
+  Monthly Trend
+</h3>
           <LineChart width={600} height={300} data={analyticsMonthly}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="month" />
