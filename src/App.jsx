@@ -575,6 +575,7 @@ export default function App() {
       )}
 
       {view === "analytics" && (
+       
         <div>
           <h3>Daily Sub Issues</h3>
           <BarChart width={600} height={300} data={analyticsDaily}>
