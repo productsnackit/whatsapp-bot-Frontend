@@ -17,7 +17,7 @@ import {
 import "./styles.css";
 
 const API = axios.create({
-  baseURL: "https://whatsapp-bot-1x9v.onrender.com",
+  baseURL: "https://whatsapp-bot-backend-b3nb.onrender.com",
 });
 
 const COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6"];
