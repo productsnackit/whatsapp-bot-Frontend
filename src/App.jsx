@@ -472,11 +472,6 @@ export default function App() {
                       <button
                         className="btn red-outline"
                         onClick={() => handleAction(t.id, "REFUNDED")}
-                        disabled={ticket.state === "CLOSED"}
-                         style={{
-                         cursor: ticket.state === "CLOSED" ? "not-allowed" : "pointer",
-                         opacity: ticket.state === "CLOSED" ? 0.5 : 1
-                         }}
                       >
                         Refund
                       </button>
@@ -484,11 +479,6 @@ export default function App() {
                       <button
                         className="btn red"
                         onClick={() => handleAction(t.id, "AUTO_REFUNDED")}
-                        disabled={ticket.state === "CLOSED"}
-                        style={{
-                         cursor: ticket.state === "CLOSED" ? "not-allowed" : "pointer",
-                         opacity: ticket.state === "CLOSED" ? 0.5 : 1
-                         }}
                       >
                         Auto Refunded
                       </button>
@@ -496,11 +486,6 @@ export default function App() {
                       <button
                         className="btn red-outline"
                         onClick={() => handleAction(t.id, "RESOLVED")}
-                        disabled={ticket.state === "CLOSED"}
-                        style={{
-                         cursor: ticket.state === "CLOSED" ? "not-allowed" : "pointer",
-                         opacity: ticket.state === "CLOSED" ? 0.5 : 1
-                         }}
                       >
                         Resolve
                       </button>
@@ -508,11 +493,6 @@ export default function App() {
                       <button
                         className="btn red-outline"
                         onClick={() => handleAction(t.id, "CLOSED")}
-                        disabled={ticket.state === "CLOSED"}
-                        style={{
-                         cursor: ticket.state === "CLOSED" ? "not-allowed" : "pointer",
-                         opacity: ticket.state === "CLOSED" ? 0.5 : 1
-                         }}
                       >
                         Close
                       </button>
