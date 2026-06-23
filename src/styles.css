@@ -146,8 +146,8 @@ td img {
 
 /* ================= BUTTON SYSTEM ================= */
 .action-btn {
-  border: 1px solid #ff4d4f;
-  color: #ff4d4f;
+  border: 1px solid #ef4444;
+  color: #ef4444;
   background: transparent;
   padding: 6px 10px;
   border-radius: 6px;
@@ -155,11 +155,10 @@ td img {
 }
 
 .action-btn:hover {
-  background: #ff4d4f;
+  background: #ef4444;
   color: white;
 }
 
-/* 🔴 Disabled state */
 .disabled-btn {
   cursor: not-allowed;
   opacity: 0.5;
@@ -170,6 +169,10 @@ td img {
 .disabled-btn:hover {
   background: transparent;
   color: #aaa;
+}
+
+.closed-row {
+  opacity: 0.6;
 }
 
 
