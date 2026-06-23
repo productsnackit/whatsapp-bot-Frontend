@@ -17,7 +17,7 @@ import {
 import "./styles.css";
 
 const API = axios.create({
-  baseURL: "https://whatsapp-bot-backend-b3nb.onrender.com",
+  baseURL: "https://whatsapp-bot-backend-b3nb.onrender.com"
 });
 
 const COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6"];
@@ -202,10 +202,10 @@ export default function App() {
     setLoadingId(id);
 
     await API.post(
-      "/ticket/action",
-      { ticketId: id, action },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+  "https://whatsapp-bot-backend-b3nb.onrender.com/ticket/action",
+  { ticketId: id, action },
+  { headers: { Authorization: `Bearer ${token}` } }
+);
 
     // ✅ ADD THIS LINE (MESSAGE FOR ADMIN)
     alert(`Action "${action}" completed successfully`);
