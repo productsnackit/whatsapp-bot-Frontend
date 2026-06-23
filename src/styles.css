@@ -278,11 +278,13 @@ td button:hover {
   background: #f2f2f2;
 }
 
-td button:nth-child(2) {
-  border-color: #ff9800;
-  color: #ff9800;
+
+.action-btn {
+  border: 1px solid #ef4444 !important;
+  color: #ef4444 !important;
 }
 
-td button:nth-child(2):hover {
-  background: #fff3e0;
+.action-btn:hover {
+  background: #ef4444 !important;
+  color: white !important;
 }
