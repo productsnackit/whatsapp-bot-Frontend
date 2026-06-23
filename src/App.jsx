@@ -423,91 +423,85 @@ export default function App() {
               </thead>
 
               <tbody>
-                {filteredTickets.map((t, i) => (
-                  <tr key={t.id}>
-                    <td>{i + 1}</td>
-                    <td>{t.phone}</td>
-                    <td>{t.main_issue || "-"}</td>
-                    <td>{t.sub_issue || "-"}</td>
-                    
-                    <td>{t.location || "-"}</td>
-                    <td>{t.upi_id || "-"}</td>
+  {filteredTickets.map((t, i) => {
+    const isClosed = t.state === "CLOSED"; // ✅ FIX
 
-                    <td>
-                      {t.image ? (
-                        <img
-                          src={t.image}
-                          alt="img"
-                          style={{ width: "60px", cursor: "pointer" }}
-                          onClick={() => window.open(t.image, "_blank")}
-                        />
-                      ) : (
-                        "-"
-                      )}
-                    </td>
+    return (
+      <tr key={t.id} className={isClosed ? "closed-row" : ""}>
+        <td>{i + 1}</td>
+        <td>{t.phone}</td>
+        <td>{t.main_issue || "-"}</td>
+        <td>{t.sub_issue || "-"}</td>
+        <td>{t.location || "-"}</td>
+        <td>{t.upi_id || "-"}</td>
 
-                    <td>
-                      {t.upi_image ? (
-                        <img
-                          src={t.upi_image}
-                          alt="upi"
-                          style={{ width: "60px", cursor: "pointer" }}
-                          onClick={() => window.open(t.upi_image, "_blank")}
-                        />
-                      ) : (
-                        "-"
-                      )}
-                    </td>
+        <td>
+          {t.image ? (
+            <img
+              src={t.image}
+              alt="img"
+              style={{ width: "60px", cursor: "pointer" }}
+              onClick={() => window.open(t.image, "_blank")}
+            />
+          ) : "-"}
+        </td>
 
-                    <td>{t.status || "-"}</td>
-                    <td>{t.state}</td>
-                    <td>
-                      {t.created_at
-                        ? new Date(t.created_at).toLocaleString()
-                        : "-"}
-                    </td>
+        <td>
+          {t.upi_image ? (
+            <img
+              src={t.upi_image}
+              alt="upi"
+              style={{ width: "60px", cursor: "pointer" }}
+              onClick={() => window.open(t.upi_image, "_blank")}
+            />
+          ) : "-"}
+        </td>
 
-                    {/* UPDATED ONLY HERE */}
-                    <td className="actions">
-                      <button
-                        className="btn red-outline"
-                        onClick={() => handleAction(t.id, "REFUNDED")}
-                        disabled={isClosed}
-                        className={`action-btn ${isClosed ? "disabled-btn" : ""}`}
-                      >
-                        Refund
-                      </button>
+        <td>{t.status || "-"}</td>
+        <td>{t.state}</td>
+        <td>
+          {t.created_at
+            ? new Date(t.created_at).toLocaleString()
+            : "-"}
+        </td>
 
-                      <button
-                        className="btn red"
-                        onClick={() => handleAction(t.id, "AUTO_REFUNDED")}
-                        disabled={isClosed}
-                        className={`action-btn ${isClosed ? "disabled-btn" : ""}`}
-                      >
-                        Auto Refunded
-                      </button>
+        <td className="actions">
+          <button
+            onClick={() => handleAction(t.id, "REFUNDED")}
+            disabled={isClosed}
+            className={`action-btn ${isClosed ? "disabled-btn" : ""}`}
+          >
+            Refund
+          </button>
 
-                      <button
-                        className="btn red-outline"
-                        onClick={() => handleAction(t.id, "RESOLVED")}
-                        disabled={isClosed}
-                        className={`action-btn ${isClosed ? "disabled-btn" : ""}`}
-                      >
-                        Resolve
-                      </button>
+          <button
+            onClick={() => handleAction(t.id, "AUTO_REFUNDED")}
+            disabled={isClosed}
+            className={`action-btn ${isClosed ? "disabled-btn" : ""}`}
+          >
+            Auto Refunded
+          </button>
 
-                      <button
-                        className="btn red-outline"
-                        onClick={() => handleAction(t.id, "CLOSED")}
-                        disabled={isClosed}
-                        className={`action-btn ${isClosed ? "disabled-btn" : ""}`}
-                      >
-                        Close
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+          <button
+            onClick={() => handleAction(t.id, "RESOLVED")}
+            disabled={isClosed}
+            className={`action-btn ${isClosed ? "disabled-btn" : ""}`}
+          >
+            Resolve
+          </button>
+
+          <button
+            onClick={() => handleAction(t.id, "CLOSED")}
+            disabled={isClosed}
+            className={`action-btn ${isClosed ? "disabled-btn" : ""}`}
+          >
+            Close
+          </button>
+        </td>
+      </tr>
+    );
+  })}
+</tbody>
             </table>
           </div>
         </>
