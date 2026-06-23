@@ -198,11 +198,11 @@ export default function App() {
   }, [token]);
 
  const handleAction = async (id, action) => {
+   console.log("🔥 Button clicked:", id, action);
   try {
     setLoadingId(id);
 
     await API.post(
-  "https://whatsapp-bot-backend-b3nb.onrender.com/ticket/action",
   { ticketId: id, action },
   { headers: { Authorization: `Bearer ${token}` } }
 );
@@ -491,7 +491,7 @@ export default function App() {
 
                       <button
                         className="btn red-outline"
-                        onClick={() => deleteTicket(t.id)}
+                        onClick={() => handleAction(t.id, "CLOSED")}
                       >
                         Close
                       </button>
