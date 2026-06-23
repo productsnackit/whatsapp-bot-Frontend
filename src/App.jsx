@@ -203,6 +203,7 @@ export default function App() {
     setLoadingId(id);
 
     await API.post(
+       "/action", 
   { ticketId: id, action },
   { headers: { Authorization: `Bearer ${token}` } }
 );
