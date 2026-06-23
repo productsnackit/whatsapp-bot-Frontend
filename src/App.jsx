@@ -197,35 +197,28 @@ export default function App() {
     return () => clearInterval(interval);
   }, [token]);
 
-  const handleAction = async (id, action) => {
-    try {
-      setLoadingId(id);
+ const handleAction = async (id, action) => {
+  try {
+    setLoadingId(id);
 
-      await API.post(
-        "/ticket/action",
-        { ticketId: id, action },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+    await API.post(
+      "/ticket/action",
+      { ticketId: id, action },
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
 
-      fetchTickets();
-    } finally {
-      setLoadingId(null);
-    }
-  };
+    // ✅ ADD THIS LINE (MESSAGE FOR ADMIN)
+    alert(`Action "${action}" completed successfully`);
 
-  const deleteTicket = async (id) => {
-    try {
-      setLoadingId(id);
-
-      await API.delete(`/tickets/${id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      fetchTickets();
-    } finally {
-      setLoadingId(null);
-    }
-  };
+    fetchTickets();
+  } catch (err) {
+    // ✅ ADD ERROR MESSAGE
+    alert("Action failed. Check backend.");
+    console.log(err);
+  } finally {
+    setLoadingId(null);
+  }
+};
 
   const filteredTickets = tickets.filter((t) => {
     const s = search.toLowerCase();
