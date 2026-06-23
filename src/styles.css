@@ -145,6 +145,33 @@ td img {
 }
 
 /* ================= BUTTON SYSTEM ================= */
+.action-btn {
+  border: 1px solid #ff4d4f;
+  color: #ff4d4f;
+  background: transparent;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.action-btn:hover {
+  background: #ff4d4f;
+  color: white;
+}
+
+/* 🔴 Disabled state */
+.disabled-btn {
+  cursor: not-allowed;
+  opacity: 0.5;
+  border-color: #ccc;
+  color: #aaa;
+}
+
+.disabled-btn:hover {
+  background: transparent;
+  color: #aaa;
+}
+
 
 button svg {
   margin-right: 8px;

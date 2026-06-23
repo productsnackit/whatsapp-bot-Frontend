@@ -472,6 +472,8 @@ export default function App() {
                       <button
                         className="btn red-outline"
                         onClick={() => handleAction(t.id, "REFUNDED")}
+                        disabled={isClosed}
+                        className={`action-btn ${isClosed ? "disabled-btn" : ""}`}
                       >
                         Refund
                       </button>
@@ -479,6 +481,8 @@ export default function App() {
                       <button
                         className="btn red"
                         onClick={() => handleAction(t.id, "AUTO_REFUNDED")}
+                        disabled={isClosed}
+                        className={`action-btn ${isClosed ? "disabled-btn" : ""}`}
                       >
                         Auto Refunded
                       </button>
@@ -486,6 +490,8 @@ export default function App() {
                       <button
                         className="btn red-outline"
                         onClick={() => handleAction(t.id, "RESOLVED")}
+                        disabled={isClosed}
+                        className={`action-btn ${isClosed ? "disabled-btn" : ""}`}
                       >
                         Resolve
                       </button>
@@ -493,6 +499,8 @@ export default function App() {
                       <button
                         className="btn red-outline"
                         onClick={() => handleAction(t.id, "CLOSED")}
+                        disabled={isClosed}
+                        className={`action-btn ${isClosed ? "disabled-btn" : ""}`}
                       >
                         Close
                       </button>
