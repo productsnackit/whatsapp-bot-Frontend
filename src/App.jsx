@@ -410,7 +410,7 @@ export default function App() {
                   <th>Phone</th>
                   <th>Main</th>
                   <th>Sub</th>
-                  <th>Issue</th>
+                  
                   <th>Location</th>
                   <th>UPI</th>
                   <th>Image</th>
@@ -429,7 +429,7 @@ export default function App() {
                     <td>{t.phone}</td>
                     <td>{t.main_issue || "-"}</td>
                     <td>{t.sub_issue || "-"}</td>
-                    <td>{t.issue || "-"}</td>
+                    
                     <td>{t.location || "-"}</td>
                     <td>{t.upi_id || "-"}</td>
 
