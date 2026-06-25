@@ -192,7 +192,6 @@ export default function App() {
     }
   };
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
 
 useEffect(() => {
   if (!token) return;
@@ -210,11 +209,15 @@ useEffect(() => {
 
   return () => clearInterval(interval);
 }, [token]);
-
+// eslint-disable-next-line react-hooks/exhaustive-deps
 useEffect(() => {
   if (!activeChat?.id) return;
 
-  fetchMessages(activeChat.id);
+  const loadMessages = async () => {
+    await fetchMessages(activeChat.id);
+  };
+
+  loadMessages(); // ✅ safe now
 
   const interval = setInterval(() => {
     fetchMessages(activeChat.id);
