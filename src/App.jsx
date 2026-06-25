@@ -181,25 +181,22 @@ export default function App() {
     }
   };
 
-  useEffect(() => {
-    if (!token) return;
+useEffect(() => {
+  if (!token) return;
 
-    fetchTickets();
-    fetchFeedback();
-    fetchProducts();
-    fetchAnalytics();
+  const loadAll = async () => {
+    await fetchTickets();
+    await fetchFeedback();
+    await fetchProducts();
+    await fetchAnalytics();
+  };
 
-    const interval = setInterval(() => {
-      if (!token) return;
+  loadAll();
 
-      fetchTickets();
-      fetchFeedback();
-      fetchProducts();
-      fetchAnalytics();
-    }, 5000);
+  const interval = setInterval(loadAll, 5000);
 
-    return () => clearInterval(interval);
-  }, [token]);
+  return () => clearInterval(interval);
+}, [token]);
 
  const handleAction = async (id, action) => {
    console.log("🔥 Button clicked:", id, action);
@@ -235,6 +232,48 @@ const fetchMessages = async (ticketId) => {
   } catch (err) {
     console.log("Message fetch error:", err);
   }
+};
+
+const takeover = async () => {
+  if (!activeChat) return;
+
+  await API.post(
+    "/admin/takeover",
+    { phone: activeChat.phone },
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+
+  alert("Admin takeover enabled");
+  fetchTickets();
+};
+
+const release = async () => {
+  if (!activeChat) return;
+
+  await API.post(
+    "/admin/release",
+    { phone: activeChat.phone },
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+
+  alert("Bot resumed");
+  fetchTickets();
+};
+
+const sendMessage = async () => {
+  if (!activeChat || !chatInput) return;
+
+  await API.post(
+    "/admin/send",
+    {
+      phone: activeChat.phone,
+      message: chatInput,
+    },
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+
+  setChatInput("");
+  fetchMessages(activeChat.id);
 };
 
   const filteredTickets = tickets.filter((t) => {
@@ -483,40 +522,50 @@ const fetchMessages = async (ticketId) => {
 
         <td className="actions">
           <button
-            onClick={() => handleAction(t.id, "REFUNDED")}
-            disabled={isClosed}
-            className={`action-btn ${isClosed ? "disabled-btn" : ""}`}
-          >
-            Refund
-          </button>
+  onClick={() => handleAction(t.id, "REFUNDED")}
+  disabled={loadingId === t.id}
+>
+  {loadingId === t.id ? "..." : "Refunded"}
+</button>
 
           <button
             onClick={() => handleAction(t.id, "AUTO_REFUNDED")}
-            disabled={isClosed}
-            className={`action-btn ${isClosed ? "disabled-btn" : ""}`}
-          >
-            Auto Refunded
-          </button>
+            disabled={loadingId === t.id}
+>
+  {loadingId === t.id ? "..." : "Auto Refunded"}
+</button>
 
           <button
             onClick={() => handleAction(t.id, "RESOLVED")}
-            disabled={isClosed}
-            className={`action-btn ${isClosed ? "disabled-btn" : ""}`}
-          >
-            Resolve
-          </button>
+             disabled={loadingId === t.id}
+>
+  {loadingId === t.id ? "..." : "Resolve"}
+</button>
 
           <button
             onClick={() => handleAction(t.id, "CLOSED")}
-            disabled={isClosed}
-            className={`action-btn ${isClosed ? "disabled-btn" : ""}`}
-          >
-            Close
-          </button>
+            disabled={loadingId === t.id}
+>
+  {loadingId === t.id ? "..." : "Close"}
+</button>
           <button
   onClick={() => {
-    setActiveChat(t);
-    fetchMessages(t.id);
+   setActiveChat(t);
+fetchMessages(t.id);
+
+useEffect(() => {
+  if (!activeChat) return;
+
+  fetchMessages(activeChat.id);
+
+  const interval = setInterval(() => {
+    fetchMessages(activeChat.id);
+  }, 3000);
+
+  return () => clearInterval(interval);
+}, [activeChat]);
+
+
   }}
   className="action-btn"
 >
@@ -690,8 +739,8 @@ const fetchMessages = async (ticketId) => {
       <span>{activeChat.phone}</span>
 
       <div>
-        <button onClick={takeOver}>Takeover</button>
-        <button onClick={release}>Release</button>
+        <button onClick={takeover}>Takeover</button>
+<button onClick={release}>Release</button>
         <button onClick={() => setActiveChat(null)}>Close</button>
       </div>
     </div>
