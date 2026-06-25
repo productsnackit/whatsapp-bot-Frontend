@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState , useCallback } from "react";
 import axios from "axios";
 import {
   BarChart,
@@ -69,6 +69,17 @@ export default function App() {
     localStorage.removeItem("token");
     setToken("");
   };
+
+ const fetchMessages = useCallback(async (ticketId) => {
+  try {
+    const res = await API.get(`/admin/messages/${ticketId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setMessages(res.data);
+  } catch (err) {
+    console.error(err);
+  }
+}, [token]);
 
   const fetchTickets = async () => {
     try {
@@ -181,6 +192,8 @@ export default function App() {
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+
 useEffect(() => {
   if (!token) return;
 
@@ -208,7 +221,7 @@ useEffect(() => {
   }, 3000);
 
   return () => clearInterval(interval);
-}, [activeChat?.id]);
+}, [activeChat?.id, fetchMessages]);
 
  const handleAction = async (id, action) => {
    console.log("🔥 Button clicked:", id, action);
@@ -234,17 +247,7 @@ useEffect(() => {
   }
 };
 
-const fetchMessages = async (ticketId) => {
-  try {
-    const res = await API.get(`/admin/messages/${ticketId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
 
-    setMessages(res.data || []);
-  } catch (err) {
-    console.log("Message fetch error:", err);
-  }
-};
 
 const takeover = async () => {
   if (!activeChat) return;
