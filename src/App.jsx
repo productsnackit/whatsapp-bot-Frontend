@@ -198,6 +198,18 @@ useEffect(() => {
   return () => clearInterval(interval);
 }, [token]);
 
+useEffect(() => {
+  if (!activeChat?.id) return;
+
+  fetchMessages(activeChat.id);
+
+  const interval = setInterval(() => {
+    fetchMessages(activeChat.id);
+  }, 3000);
+
+  return () => clearInterval(interval);
+}, [activeChat?.id]);
+
  const handleAction = async (id, action) => {
    console.log("🔥 Button clicked:", id, action);
   try {
@@ -548,26 +560,10 @@ const sendMessage = async () => {
 >
   {loadingId === t.id ? "..." : "Close"}
 </button>
-          <button
+         <button
   onClick={() => {
-   setActiveChat(t);
-fetchMessages(t.id);
-
-useEffect(() => {
-  if (!activeChat) return;
-
-  fetchMessages(activeChat.id);
-
-  const interval = setInterval(() => {
-    fetchMessages(activeChat.id);
-  }, 3000);
-
-  return () => clearInterval(interval);
-}, [activeChat]);
-
-
+    setActiveChat(t);
   }}
-  className="action-btn"
 >
   Chat
 </button>
