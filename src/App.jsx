@@ -32,6 +32,10 @@ export default function App() {
   const [feedback, setFeedback] = useState([]);
   const [products, setProducts] = useState([]);
 
+  const [activeChat, setActiveChat] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+
   const [analyticsDaily, setAnalyticsDaily] = useState([]);
   const [analyticsDailyKeys, setAnalyticsDailyKeys] = useState([]);
   const [analyticsMonthly, setAnalyticsMonthly] = useState([]);
@@ -218,6 +222,18 @@ export default function App() {
     console.log(err);
   } finally {
     setLoadingId(null);
+  }
+};
+
+const fetchMessages = async (ticketId) => {
+  try {
+    const res = await API.get(`/admin/messages/${ticketId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    setMessages(res.data || []);
+  } catch (err) {
+    console.log("Message fetch error:", err);
   }
 };
 
@@ -497,6 +513,15 @@ export default function App() {
           >
             Close
           </button>
+          <button
+  onClick={() => {
+    setActiveChat(t);
+    fetchMessages(t.id);
+  }}
+  className="action-btn"
+>
+  Chat
+</button>
         </td>
       </tr>
     );
@@ -657,6 +682,44 @@ export default function App() {
           </div>
         </div>
       )}
+      {activeChat && (
+  <div className="chat-panel">
+
+    {/* HEADER */}
+    <div className="chat-header">
+      <span>{activeChat.phone}</span>
+
+      <div>
+        <button onClick={takeOver}>Takeover</button>
+        <button onClick={release}>Release</button>
+        <button onClick={() => setActiveChat(null)}>Close</button>
+      </div>
+    </div>
+
+    {/* MESSAGES */}
+    <div className="chat-body">
+      {messages.map((m, i) => (
+        <div
+          key={i}
+          className={m.sender === "admin" ? "msg admin" : "msg user"}
+        >
+          {m.message}
+        </div>
+      ))}
+    </div>
+
+    {/* INPUT */}
+    <div className="chat-input">
+      <input
+        value={chatInput}
+        onChange={(e) => setChatInput(e.target.value)}
+        placeholder="Type message..."
+      />
+      <button onClick={sendMessage}>Send</button>
+    </div>
+
+  </div>
+)}
     </div>
   );
 }
