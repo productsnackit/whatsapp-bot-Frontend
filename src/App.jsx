@@ -1,7 +1,7 @@
 import { useEffect, useState , useCallback } from "react";
 import axios from "axios";
 import { useRef } from "react";
-const chatEndRef = useRef(null);
+
 import {
   BarChart,
   Bar,
@@ -29,7 +29,7 @@ export default function App() {
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-
+  const chatEndRef = useRef(null);
   const [tickets, setTickets] = useState([]);
   const [feedback, setFeedback] = useState([]);
   const [products, setProducts] = useState([]);
@@ -83,7 +83,7 @@ export default function App() {
   }
 }, [token]);
 
-  const fetchTickets = async () => {
+  const fetchTickets =async () => {
     try {
       const res = await API.get("/tickets", {
         headers: { Authorization: `Bearer ${token}` },
@@ -195,7 +195,9 @@ export default function App() {
   };
 
   useEffect(() => {
-  chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  setTimeout(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, 100);
 }, [messages]);
 
 useEffect(() => {
@@ -214,7 +216,8 @@ useEffect(() => {
 
   return () => clearInterval(interval);
 }, [token]);
-// eslint-disable-next-line react-hooks/exhaustive-deps
+
+
 useEffect(() => {
   if (!activeChat?.id) return;
 
@@ -773,6 +776,8 @@ const sendMessage = async () => {
           {m.message}
         </div>
       ))}
+      <div ref={chatEndRef}></div>
+
     </div>
 
     {/* INPUT */}
