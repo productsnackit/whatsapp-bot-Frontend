@@ -1,5 +1,7 @@
 import { useEffect, useState , useCallback } from "react";
 import axios from "axios";
+import { useRef } from "react";
+const chatEndRef = useRef(null);
 import {
   BarChart,
   Bar,
@@ -192,6 +194,9 @@ export default function App() {
     }
   };
 
+  useEffect(() => {
+  chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+}, [messages]);
 
 useEffect(() => {
   if (!token) return;
@@ -262,6 +267,9 @@ const takeover = async () => {
   );
 
   alert("Admin takeover enabled");
+
+  // ✅ ADD THESE
+  fetchMessages(activeChat.id);
   fetchTickets();
 };
 
@@ -291,7 +299,9 @@ const sendMessage = async () => {
   );
 
   setChatInput("");
-  fetchMessages(activeChat.id);
+
+  // ✅ FORCE UPDATE
+  await fetchMessages(activeChat.id);
 };
 
   const filteredTickets = tickets.filter((t) => {
@@ -749,10 +759,16 @@ const sendMessage = async () => {
 
     {/* MESSAGES */}
     <div className="chat-body">
-      {messages.map((m, i) => (
-        <div
-          key={i}
-          className={m.sender === "admin" ? "msg admin" : "msg user"}
+      {messages.map((m) => (
+  <div
+    key={m.id || m.created_at}
+          className={
+  m.sender === "admin"
+    ? "msg admin"
+    : m.sender === "bot"
+    ? "msg bot"
+    : "msg user"
+}
         >
           {m.message}
         </div>
