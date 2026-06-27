@@ -215,14 +215,10 @@ export default function App() {
   }, 2000);
 
   return () => clearInterval(interval);
-}, [activeChat]);
+}, [activeChat,fetchMessages]);// eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── FIX: sync activeChat from tickets list so takeover flag stays current ───
-  useEffect(() => {
-    if (!activeChat) return;
-    const updated = tickets.find((t) => t.id === activeChat.id);
-    if (updated) setActiveChat(updated);
-  }, [tickets]); // eslint-disable-line react-hooks/exhaustive-deps
+  
 
   /* =========================================================================
      ACTIONS
