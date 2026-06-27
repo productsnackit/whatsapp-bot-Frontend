@@ -188,32 +188,34 @@ export default function App() {
 
   // ─── Main polling: tickets + ancillary data every 5s ────────────────────────
   useEffect(() => {
-    if (!token) return;
-    fetchTickets();
-    fetchFeedback();
-    fetchProducts();
-    fetchAnalytics();
-    const interval = setInterval(() => {
-      fetchTickets();
-      fetchFeedback();
-      fetchProducts();
-      fetchAnalytics();
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!token) return;
+
+  const loadData = async () => {
+    await fetchTickets();
+    await fetchProducts();
+    await fetchAnalytics();
+    await fetchFeedback();
+  };
+
+  loadData();
+}, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── FIX: message polling — only runs when activeChat is set, passes id ──────
   useEffect(() => {
-    if (!activeChat?.id) return;
+  if (!activeChat?.id) return;
 
-    fetchMessages(activeChat.id); // immediate load on chat open
+  const loadMessages = async () => {
+    await fetchMessages(activeChat.id);
+  };
 
-    const interval = setInterval(() => {
-      fetchMessages(activeChat.id);
-    }, 3000);
+  loadMessages();
 
-    return () => clearInterval(interval);
-  }, [activeChat?.id, fetchMessages]);
+  const interval = setInterval(() => {
+    loadMessages();
+  }, 2000);
+
+  return () => clearInterval(interval);
+}, [activeChat]);
 
   // ─── FIX: sync activeChat from tickets list so takeover flag stays current ───
   useEffect(() => {
