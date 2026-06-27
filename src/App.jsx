@@ -2,7 +2,8 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
-  PieChart, Pie, Cell, LineChart, Line, Legend,
+  PieChart, Pie, Cell, LineChart, Line, Legend, ResponsiveContainer,
+  AreaChart, Area,
 } from "recharts";
 import "./styles.css";
 
@@ -10,61 +11,93 @@ const API = axios.create({
   baseURL: "https://whatsapp-bot-backend-b3nb.onrender.com",
 });
 
-const COLORS = ["#e8192c", "#3b82f6", "#f59e0b", "#22c55e", "#8b5cf6"];
+const COLORS = ["#e8192c", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4", "#f97316"];
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 const Icon = {
   ticket: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4 6h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4V6z" />
     </svg>
   ),
   feedback: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8z" />
     </svg>
   ),
   product: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
     </svg>
   ),
   analytics: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M18 20V10M12 20V4M6 20v-6" />
     </svg>
   ),
   logout: (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
     </svg>
   ),
   search: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
     </svg>
   ),
   send: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
     </svg>
   ),
   refresh: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" />
       <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
     </svg>
   ),
   close: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   ),
   chat: (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
     </svg>
   ),
+  trendUp: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" />
+    </svg>
+  ),
+};
+
+// ─── Custom Tooltip ───────────────────────────────────────────────────────────
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{
+        background: "#fff",
+        border: "1px solid #e4e8f0",
+        borderRadius: "10px",
+        padding: "10px 14px",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.10)",
+        fontSize: "12.5px",
+        minWidth: "120px",
+      }}>
+        <div style={{ fontWeight: 700, color: "#0d1117", marginBottom: 6, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px", color: "#9ba4b8" }}>{label}</div>
+        {payload.map((p, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.fill || p.stroke, flexShrink: 0, display: "inline-block" }} />
+            <span style={{ color: "#5a6478" }}>{p.name}:</span>
+            <span style={{ fontWeight: 700, color: "#0d1117", marginLeft: "auto", paddingLeft: 8 }}>{p.value}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return null;
 };
 
 export default function App() {
@@ -347,6 +380,15 @@ export default function App() {
   const closedCount = tickets.filter((t) => t.state === "CLOSED").length;
   const adminCount = tickets.filter((t) => t.takeover).length;
   const refundedCount = tickets.filter((t) => t.status === "refunded" || t.status === "auto_refunded").length;
+
+  // Analytics summary stats
+  const totalIssues = analyticsCategory.reduce((sum, c) => sum + c.count, 0);
+  const topIssue = analyticsCategory.length > 0
+    ? analyticsCategory.reduce((a, b) => a.count > b.count ? a : b)
+    : null;
+  const avgMonthly = analyticsMonthly.length > 0
+    ? Math.round(analyticsMonthly.reduce((s, m) => s + m.count, 0) / analyticsMonthly.length)
+    : 0;
 
   /* =========================================================================
      LOGIN SCREEN
@@ -678,76 +720,187 @@ export default function App() {
 
         {/* ── ANALYTICS VIEW ──────────────────────────────────────────────── */}
         {view === "analytics" && (
-          <div className="analytics-grid">
-            <div className="analytics-card full-width">
-              <div className="analytics-card-header">
-                <h3>Daily Sub-Issues</h3>
-                <span className="chart-badge">Stacked</span>
+          <>
+            {/* Analytics KPI strip */}
+            <div className="stat-cards" style={{ marginBottom: 24 }}>
+              <div className="stat-card">
+                <div className="stat-icon red"><span>📋</span></div>
+                <div>
+                  <div className="stat-num">{totalIssues}</div>
+                  <div className="stat-label">Total Issues</div>
+                </div>
               </div>
-              <BarChart width={700} height={280} data={analyticsDaily} style={{ fontFamily: "Inter, sans-serif" }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="date" tick={{ fontSize: 12, fill: "#6b7280" }} />
-                <YAxis tick={{ fontSize: 12, fill: "#6b7280" }} />
-                <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid #e5e7eb", fontSize: "13px" }} />
-                <Legend />
-                {analyticsDailyKeys.map((key, i) => (
-                  <Bar key={key} dataKey={key} stackId="subIssues" fill={COLORS[i % COLORS.length]} radius={i === analyticsDailyKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
-                ))}
-              </BarChart>
-            </div>
-
-            <div className="analytics-card">
-              <div className="analytics-card-header">
-                <h3>Monthly Trend</h3>
-                <span className="chart-badge">Line</span>
+              <div className="stat-card">
+                <div className="stat-icon amber"><span>⚠️</span></div>
+                <div>
+                  <div className="stat-num">{analyticsCategory.length}</div>
+                  <div className="stat-label">Issue Types</div>
+                </div>
               </div>
-              <LineChart width={450} height={260} data={analyticsMonthly} style={{ fontFamily: "Inter, sans-serif" }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#6b7280" }} />
-                <YAxis tick={{ fontSize: 12, fill: "#6b7280" }} />
-                <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid #e5e7eb", fontSize: "13px" }} />
-                <Line type="monotone" dataKey="count" stroke="#e8192c" strokeWidth={2.5} dot={{ fill: "#e8192c", r: 4 }} activeDot={{ r: 6 }} />
-              </LineChart>
-            </div>
-
-            <div className="analytics-card">
-              <div className="analytics-card-header">
-                <h3>Issue Breakdown</h3>
-                <span className="chart-badge">Pie</span>
+              <div className="stat-card">
+                <div className="stat-icon blue"><span>📅</span></div>
+                <div>
+                  <div className="stat-num">{avgMonthly}</div>
+                  <div className="stat-label">Avg / Month</div>
+                </div>
               </div>
-              <div className="pie-container">
-                <PieChart width={220} height={220}>
-                  <Pie
-                    data={selectedIssue === "ALL" ? analyticsCategory : analyticsCategory.filter((i) => i.issue === selectedIssue)}
-                    dataKey="count" nameKey="issue" outerRadius={95} innerRadius={40}
-                  >
-                    {(selectedIssue === "ALL" ? analyticsCategory : analyticsCategory.filter((i) => i.issue === selectedIssue))
-                      .map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                  </Pie>
-                  <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid #e5e7eb", fontSize: "13px" }} formatter={(value, name) => [`${value}`, name]} />
-                </PieChart>
-                <div className="pie-legend">
-                  <button
-                    className={`legend-btn ${selectedIssue === "ALL" ? "active" : ""}`}
-                    onClick={() => setSelectedIssue("ALL")}
-                  >
-                    All Issues
-                  </button>
-                  {analyticsCategory.map((item, i) => (
-                    <button
-                      key={item.issue}
-                      className={`legend-btn ${selectedIssue === item.issue ? "active" : ""}`}
-                      onClick={() => setSelectedIssue(item.issue)}
-                      style={{ "--dot-color": COLORS[i % COLORS.length] }}
-                    >
-                      <span className="legend-dot" style={{ background: COLORS[i % COLORS.length] }} />
-                      {item.issue}: <strong>{item.count}</strong>
-                    </button>
-                  ))}
+              <div className="stat-card">
+                <div className="stat-icon green"><span>🏆</span></div>
+                <div>
+                  <div className="stat-num" style={{ fontSize: 14, letterSpacing: "-0.3px", marginTop: 2 }}>
+                    {topIssue ? topIssue.count : "—"}
+                  </div>
+                  <div className="stat-label">Top Issue Count</div>
                 </div>
               </div>
             </div>
-          </div>
+
+            <div className="analytics-grid">
+
+              {/* ── Daily Sub-Issues Stacked Bar ── */}
+              <div className="analytics-card full-width">
+                <div className="analytics-card-header">
+                  <div className="analytics-card-header-left">
+                    <span className="analytics-card-eyebrow">Daily Breakdown</span>
+                    <h3>Sub-Issues Over Time</h3>
+                  </div>
+                  <span className="chart-badge">Stacked Bar</span>
+                </div>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={analyticsDaily} barCategoryGap="28%" margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f2f7" vertical={false} />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fontSize: 11, fill: "#9ba4b8", fontFamily: "Inter" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: "#9ba4b8", fontFamily: "Inter" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend
+                      wrapperStyle={{ fontSize: 12, color: "#5a6478", fontFamily: "Inter", paddingTop: 16 }}
+                      iconType="circle"
+                      iconSize={8}
+                    />
+                    {analyticsDailyKeys.map((key, i) => (
+                      <Bar
+                        key={key}
+                        dataKey={key}
+                        stackId="subIssues"
+                        fill={COLORS[i % COLORS.length]}
+                        radius={i === analyticsDailyKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                      />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* ── Monthly Trend Area Chart ── */}
+              <div className="analytics-card">
+                <div className="analytics-card-header">
+                  <div className="analytics-card-header-left">
+                    <span className="analytics-card-eyebrow">Trend</span>
+                    <h3>Monthly Volume</h3>
+                  </div>
+                  <span className="chart-badge">Area</span>
+                </div>
+                <ResponsiveContainer width="100%" height={240}>
+                  <AreaChart data={analyticsMonthly} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#e8192c" stopOpacity={0.15} />
+                        <stop offset="95%" stopColor="#e8192c" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f2f7" vertical={false} />
+                    <XAxis
+                      dataKey="month"
+                      tick={{ fontSize: 11, fill: "#9ba4b8", fontFamily: "Inter" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: "#9ba4b8", fontFamily: "Inter" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area
+                      type="monotone"
+                      dataKey="count"
+                      stroke="#e8192c"
+                      strokeWidth={2.5}
+                      fill="url(#areaGrad)"
+                      dot={{ fill: "#e8192c", r: 4, strokeWidth: 2, stroke: "#fff" }}
+                      activeDot={{ r: 6, stroke: "#e8192c", strokeWidth: 2, fill: "#fff" }}
+                      name="Issues"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* ── Issue Breakdown Donut + Legend ── */}
+              <div className="analytics-card">
+                <div className="analytics-card-header">
+                  <div className="analytics-card-header-left">
+                    <span className="analytics-card-eyebrow">Composition</span>
+                    <h3>Issue Breakdown</h3>
+                  </div>
+                  <span className="chart-badge">Donut</span>
+                </div>
+                <div className="pie-container">
+                  <PieChart width={200} height={200}>
+                    <Pie
+                      data={selectedIssue === "ALL"
+                        ? analyticsCategory
+                        : analyticsCategory.filter((i) => i.issue === selectedIssue)}
+                      dataKey="count"
+                      nameKey="issue"
+                      outerRadius={90}
+                      innerRadius={48}
+                      paddingAngle={2}
+                    >
+                      {(selectedIssue === "ALL"
+                        ? analyticsCategory
+                        : analyticsCategory.filter((i) => i.issue === selectedIssue)
+                      ).map((_, i) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="none" />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      content={<CustomTooltip />}
+                      formatter={(value, name) => [`${value}`, name]}
+                    />
+                  </PieChart>
+
+                  <div className="pie-legend">
+                    <button
+                      className={`legend-btn ${selectedIssue === "ALL" ? "active" : ""}`}
+                      onClick={() => setSelectedIssue("ALL")}
+                    >
+                      All Issues
+                    </button>
+                    {analyticsCategory.map((item, i) => (
+                      <button
+                        key={item.issue}
+                        className={`legend-btn ${selectedIssue === item.issue ? "active" : ""}`}
+                        onClick={() => setSelectedIssue(item.issue)}
+                      >
+                        <span className="legend-dot" style={{ background: COLORS[i % COLORS.length] }} />
+                        <span style={{ flex: 1 }}>{item.issue}</span>
+                        <strong style={{ marginLeft: 6, color: "#0d1117", fontSize: 12 }}>{item.count}</strong>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </>
         )}
       </main>
 
@@ -827,3 +980,4 @@ export default function App() {
     </div>
   );
 }
+
