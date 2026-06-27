@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
-  PieChart, Pie, Cell, LineChart, Line, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend, ResponsiveContainer,
   AreaChart, Area,
 } from "recharts";
 import "./styles.css";
@@ -86,7 +86,7 @@ const CustomTooltip = ({ active, payload, label }) => {
         fontSize: "12.5px",
         minWidth: "120px",
       }}>
-        <div style={{ fontWeight: 700, color: "#0d1117", marginBottom: 6, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px", color: "#9ba4b8" }}>{label}</div>
+        <div style={{ fontWeight: 700, color: "#9ba4b8", marginBottom: 6, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</div>
         {payload.map((p, i) => (
           <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}>
             <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.fill || p.stroke, flexShrink: 0, display: "inline-block" }} />
@@ -980,4 +980,3 @@ export default function App() {
     </div>
   );
 }
-
