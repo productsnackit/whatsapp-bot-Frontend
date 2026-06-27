@@ -79,19 +79,29 @@ const CustomTooltip = ({ active, payload, label }) => {
     return (
       <div style={{
         background: "#fff",
-        border: "1px solid #e4e8f0",
-        borderRadius: "10px",
-        padding: "10px 14px",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.10)",
+        border: "1px solid #e2e6ef",
+        borderRadius: "12px",
+        padding: "12px 16px",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
         fontSize: "12.5px",
-        minWidth: "120px",
+        minWidth: "130px",
       }}>
-        <div style={{ fontWeight: 700, color: "#9ba4b8", marginBottom: 6, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.5px" }}>{label}</div>
+        <div style={{
+          fontWeight: 700, color: "#8c96ae", marginBottom: 8,
+          fontSize: 10, textTransform: "uppercase", letterSpacing: "0.8px"
+        }}>
+          {label}
+        </div>
         {payload.map((p, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3 }}>
-            <span style={{ width: 8, height: 8, borderRadius: "50%", background: p.fill || p.stroke, flexShrink: 0, display: "inline-block" }} />
-            <span style={{ color: "#5a6478" }}>{p.name}:</span>
-            <span style={{ fontWeight: 700, color: "#0d1117", marginLeft: "auto", paddingLeft: 8 }}>{p.value}</span>
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 4 }}>
+            <span style={{
+              width: 9, height: 9, borderRadius: "50%",
+              background: p.fill || p.stroke, flexShrink: 0, display: "inline-block"
+            }} />
+            <span style={{ color: "#4a5468", fontSize: 12 }}>{p.name}:</span>
+            <span style={{ fontWeight: 700, color: "#0b0f1a", marginLeft: "auto", paddingLeft: 10 }}>
+              {p.value}
+            </span>
           </div>
         ))}
       </div>
@@ -403,6 +413,20 @@ export default function App() {
             <img src="/logo.png" alt="logo" className="login-logo" />
             <h1>Snackit</h1>
             <p>Operations Dashboard</p>
+            <div className="login-stats">
+              <div className="login-stat">
+                <span className="login-stat-num">1000+</span>
+                <span className="login-stat-label">Machines</span>
+              </div>
+              <div className="login-stat">
+                <span className="login-stat-num">500+</span>
+                <span className="login-stat-label">Cities</span>
+              </div>
+              <div className="login-stat">
+                <span className="login-stat-num">24/7</span>
+                <span className="login-stat-label">Support</span>
+              </div>
+            </div>
           </div>
         </div>
         <div className="login-right">
@@ -459,6 +483,7 @@ export default function App() {
         </div>
 
         <nav className="sidebar-nav">
+          <div className="sidebar-section-label">Main Menu</div>
           <button
             className={`nav-item ${view === "tickets" ? "active" : ""}`}
             onClick={() => setView("tickets")}
@@ -481,6 +506,9 @@ export default function App() {
             {Icon.product}
             <span>Products</span>
           </button>
+
+          <div className="sidebar-divider" />
+          <div className="sidebar-section-label">Insights</div>
           <button
             className={`nav-item ${view === "analytics" ? "active" : ""}`}
             onClick={() => setView("analytics")}
@@ -722,7 +750,7 @@ export default function App() {
         {view === "analytics" && (
           <>
             {/* Analytics KPI strip */}
-            <div className="stat-cards" style={{ marginBottom: 24 }}>
+            <div className="stat-cards analytics-kpi" style={{ marginBottom: 28 }}>
               <div className="stat-card">
                 <div className="stat-icon red"><span>📋</span></div>
                 <div>
@@ -747,7 +775,7 @@ export default function App() {
               <div className="stat-card">
                 <div className="stat-icon green"><span>🏆</span></div>
                 <div>
-                  <div className="stat-num" style={{ fontSize: 14, letterSpacing: "-0.3px", marginTop: 2 }}>
+                  <div className="stat-num" style={{ fontSize: 16, letterSpacing: "-0.4px", marginTop: 3 }}>
                     {topIssue ? topIssue.count : "—"}
                   </div>
                   <div className="stat-label">Top Issue Count</div>
@@ -766,23 +794,23 @@ export default function App() {
                   </div>
                   <span className="chart-badge">Stacked Bar</span>
                 </div>
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={analyticsDaily} barCategoryGap="28%" margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={analyticsDaily} barCategoryGap="30%" margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f2f7" vertical={false} />
                     <XAxis
                       dataKey="date"
-                      tick={{ fontSize: 11, fill: "#9ba4b8", fontFamily: "Inter" }}
+                      tick={{ fontSize: 11, fill: "#8c96ae", fontFamily: "Inter" }}
                       axisLine={false}
                       tickLine={false}
                     />
                     <YAxis
-                      tick={{ fontSize: 11, fill: "#9ba4b8", fontFamily: "Inter" }}
+                      tick={{ fontSize: 11, fill: "#8c96ae", fontFamily: "Inter" }}
                       axisLine={false}
                       tickLine={false}
                     />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend
-                      wrapperStyle={{ fontSize: 12, color: "#5a6478", fontFamily: "Inter", paddingTop: 16 }}
+                      wrapperStyle={{ fontSize: 12, color: "#4a5468", fontFamily: "Inter", paddingTop: 20 }}
                       iconType="circle"
                       iconSize={8}
                     />
@@ -792,7 +820,7 @@ export default function App() {
                         dataKey={key}
                         stackId="subIssues"
                         fill={COLORS[i % COLORS.length]}
-                        radius={i === analyticsDailyKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+                        radius={i === analyticsDailyKeys.length - 1 ? [5, 5, 0, 0] : [0, 0, 0, 0]}
                       />
                     ))}
                   </BarChart>
@@ -808,23 +836,23 @@ export default function App() {
                   </div>
                   <span className="chart-badge">Area</span>
                 </div>
-                <ResponsiveContainer width="100%" height={240}>
+                <ResponsiveContainer width="100%" height={260}>
                   <AreaChart data={analyticsMonthly} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
                     <defs>
                       <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#e8192c" stopOpacity={0.15} />
+                        <stop offset="5%" stopColor="#e8192c" stopOpacity={0.18} />
                         <stop offset="95%" stopColor="#e8192c" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f2f7" vertical={false} />
                     <XAxis
                       dataKey="month"
-                      tick={{ fontSize: 11, fill: "#9ba4b8", fontFamily: "Inter" }}
+                      tick={{ fontSize: 11, fill: "#8c96ae", fontFamily: "Inter" }}
                       axisLine={false}
                       tickLine={false}
                     />
                     <YAxis
-                      tick={{ fontSize: 11, fill: "#9ba4b8", fontFamily: "Inter" }}
+                      tick={{ fontSize: 11, fill: "#8c96ae", fontFamily: "Inter" }}
                       axisLine={false}
                       tickLine={false}
                     />
@@ -853,15 +881,15 @@ export default function App() {
                   <span className="chart-badge">Donut</span>
                 </div>
                 <div className="pie-container">
-                  <PieChart width={200} height={200}>
+                  <PieChart width={210} height={210}>
                     <Pie
                       data={selectedIssue === "ALL"
                         ? analyticsCategory
                         : analyticsCategory.filter((i) => i.issue === selectedIssue)}
                       dataKey="count"
                       nameKey="issue"
-                      outerRadius={90}
-                      innerRadius={48}
+                      outerRadius={95}
+                      innerRadius={52}
                       paddingAngle={2}
                     >
                       {(selectedIssue === "ALL"
@@ -892,7 +920,7 @@ export default function App() {
                       >
                         <span className="legend-dot" style={{ background: COLORS[i % COLORS.length] }} />
                         <span style={{ flex: 1 }}>{item.issue}</span>
-                        <strong style={{ marginLeft: 6, color: "#0d1117", fontSize: 12 }}>{item.count}</strong>
+                        <strong style={{ marginLeft: 6, color: "#0b0f1a", fontSize: 12 }}>{item.count}</strong>
                       </button>
                     ))}
                   </div>
