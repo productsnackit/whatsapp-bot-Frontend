@@ -10,7 +10,62 @@ const API = axios.create({
   baseURL: "https://whatsapp-bot-backend-b3nb.onrender.com",
 });
 
-const COLORS = ["#ef4444", "#3b82f6", "#22c55e", "#f59e0b", "#8b5cf6"];
+const COLORS = ["#e8192c", "#3b82f6", "#f59e0b", "#22c55e", "#8b5cf6"];
+
+// ─── Icons ───────────────────────────────────────────────────────────────────
+const Icon = {
+  ticket: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 6h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4V6z" />
+    </svg>
+  ),
+  feedback: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8z" />
+    </svg>
+  ),
+  product: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+    </svg>
+  ),
+  analytics: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 20V10M12 20V4M6 20v-6" />
+    </svg>
+  ),
+  logout: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />
+    </svg>
+  ),
+  search: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+    </svg>
+  ),
+  send: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+    </svg>
+  ),
+  refresh: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" />
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+    </svg>
+  ),
+  close: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+    </svg>
+  ),
+  chat: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  ),
+};
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token") || "");
@@ -18,24 +73,20 @@ export default function App() {
   const [password, setPassword] = useState("");
   const chatEndRef = useRef(null);
 
-  // ─── Data state ─────────────────────────────────────────────────────────────
   const [tickets, setTickets] = useState([]);
   const [feedback, setFeedback] = useState([]);
   const [products, setProducts] = useState([]);
 
-  // ─── Chat state ─────────────────────────────────────────────────────────────
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
 
-  // ─── Analytics state ────────────────────────────────────────────────────────
   const [analyticsDaily, setAnalyticsDaily] = useState([]);
   const [analyticsDailyKeys, setAnalyticsDailyKeys] = useState([]);
   const [analyticsMonthly, setAnalyticsMonthly] = useState([]);
   const [analyticsCategory, setAnalyticsCategory] = useState([]);
   const [selectedIssue, setSelectedIssue] = useState("ALL");
 
-  // ─── UI state ───────────────────────────────────────────────────────────────
   const [view, setView] = useState("tickets");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("");
@@ -71,15 +122,12 @@ export default function App() {
     [token]
   );
 
-  // ─── FIX: no recursive call on error; returns silently so polling continues ─
   const fetchTickets = useCallback(async () => {
     if (!token) return;
     try {
       const res = await API.get("/tickets", { headers: authHeaders() });
-      // ─── FIX: merge new data instead of replacing — prevents blank flash ───
       setTickets((prev) => {
         const incoming = Array.isArray(res.data) ? res.data : [];
-        // Only update state if something actually changed (avoids unnecessary re-renders)
         const prevStr = JSON.stringify(prev.map((t) => ({ id: t.id, status: t.status, state: t.state, takeover: t.takeover })));
         const nextStr = JSON.stringify(incoming.map((t) => ({ id: t.id, status: t.status, state: t.state, takeover: t.takeover })));
         return prevStr === nextStr ? prev : incoming;
@@ -91,7 +139,6 @@ export default function App() {
         alert("Session expired. Please login again.");
         logout();
       }
-      // ─── FIX: NO recursive fetchTickets() call here — was causing infinite loop
     }
   }, [token, authHeaders, sessionExpired]);
 
@@ -115,7 +162,6 @@ export default function App() {
     }
   }, [token, authHeaders]);
 
-  // ─── FIX: fetchMessages requires ticketId — guard against undefined ──────────
   const fetchMessages = useCallback(async (ticketId) => {
     if (!token || !ticketId) return;
     try {
@@ -180,45 +226,28 @@ export default function App() {
   /* =========================================================================
      EFFECTS
   ========================================================================= */
-
-  // ─── Scroll to bottom when messages change ───────────────────────────────────
   useEffect(() => {
     setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
   }, [messages]);
 
-  // ─── Main polling: tickets + ancillary data every 5s ────────────────────────
   useEffect(() => {
-  if (!token) return;
+    if (!token) return;
+    const loadData = async () => {
+      await fetchTickets();
+      await fetchProducts();
+      await fetchAnalytics();
+      await fetchFeedback();
+    };
+    loadData();
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const loadData = async () => {
-    await fetchTickets();
-    await fetchProducts();
-    await fetchAnalytics();
-    await fetchFeedback();
-  };
-
-  loadData();
-}, [token]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ─── FIX: message polling — only runs when activeChat is set, passes id ──────
   useEffect(() => {
-  if (!activeChat?.id) return;
-
-  const loadMessages = async () => {
-    await fetchMessages(activeChat.id);
-  };
-
-  loadMessages();
-
-  const interval = setInterval(() => {
+    if (!activeChat?.id) return;
+    const loadMessages = async () => { await fetchMessages(activeChat.id); };
     loadMessages();
-  }, 2000);
-
-  return () => clearInterval(interval);
-}, [activeChat,fetchMessages]);// eslint-disable-line react-hooks/exhaustive-deps
-
-  // ─── FIX: sync activeChat from tickets list so takeover flag stays current ───
-  
+    const interval = setInterval(() => { loadMessages(); }, 2000);
+    return () => clearInterval(interval);
+  }, [activeChat, fetchMessages]);
 
   /* =========================================================================
      ACTIONS
@@ -226,11 +255,7 @@ export default function App() {
   const handleAction = async (id, action) => {
     try {
       setLoadingId(id);
-      await API.post(
-        "/ticket/action",
-        { ticketId: id, action },
-        { headers: authHeaders() }
-      );
+      await API.post("/ticket/action", { ticketId: id, action }, { headers: authHeaders() });
       alert(`Action "${action}" completed successfully`);
       await fetchTickets();
     } catch (err) {
@@ -241,19 +266,12 @@ export default function App() {
     }
   };
 
-  // ─── FIX: takeover updates activeChat from response instead of full reload ───
   const takeover = async () => {
     if (!activeChat) return;
     try {
-      const res = await API.post(
-        "/admin/takeover",
-        { phone: activeChat.phone },
-        { headers: authHeaders() }
-      );
-      // Update activeChat immediately from response — no blank flash
+      const res = await API.post("/admin/takeover", { phone: activeChat.phone }, { headers: authHeaders() });
       if (res.data?.ticket) setActiveChat(res.data.ticket);
       await fetchMessages(activeChat.id);
-      // Background refresh tickets list without blocking UI
       fetchTickets();
     } catch (err) {
       alert("Takeover failed");
@@ -261,15 +279,10 @@ export default function App() {
     }
   };
 
-  // ─── FIX: release also updates activeChat from response ─────────────────────
   const release = async () => {
     if (!activeChat) return;
     try {
-      const res = await API.post(
-        "/admin/release",
-        { phone: activeChat.phone },
-        { headers: authHeaders() }
-      );
+      const res = await API.post("/admin/release", { phone: activeChat.phone }, { headers: authHeaders() });
       if (res.data?.ticket) setActiveChat(res.data.ticket);
       fetchTickets();
     } catch (err) {
@@ -278,23 +291,20 @@ export default function App() {
     }
   };
 
-  // ─── FIX: passes ticketId alongside phone for reliable message saving ────────
   const sendMessage = async () => {
     if (!activeChat || !chatInput.trim()) return;
     const messageText = chatInput.trim();
-    setChatInput(""); // clear immediately for snappy UX
-
+    setChatInput("");
     try {
       await API.post(
         "/admin/send",
         { phone: activeChat.phone, message: messageText, ticketId: activeChat.id },
         { headers: authHeaders() }
       );
-      // Force immediate refresh
       await fetchMessages(activeChat.id);
     } catch (err) {
       alert("Send failed");
-      setChatInput(messageText); // restore on error
+      setChatInput(messageText);
       console.log(err);
     }
   };
@@ -331,34 +341,61 @@ export default function App() {
   });
 
   /* =========================================================================
+     STATS
+  ========================================================================= */
+  const openCount = tickets.filter((t) => t.state === "OPEN").length;
+  const closedCount = tickets.filter((t) => t.state === "CLOSED").length;
+  const adminCount = tickets.filter((t) => t.takeover).length;
+  const refundedCount = tickets.filter((t) => t.status === "refunded" || t.status === "auto_refunded").length;
+
+  /* =========================================================================
      LOGIN SCREEN
   ========================================================================= */
   if (!token) {
     return (
-      <div style={{ display: "flex", height: "100vh" }}>
-        <div style={{ flex: 1 }}>
-          <img src="/login.png" alt="Snackit" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      <div className="login-page">
+        <div className="login-left">
+          <img src="/login.png" alt="Snackit" />
+          <div className="login-overlay" />
+          <div className="login-brand">
+            <img src="/logo.png" alt="logo" className="login-logo" />
+            <h1>Snackit</h1>
+            <p>Operations Dashboard</p>
+          </div>
         </div>
-        <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", background: "#fff" }}>
-          <div style={{ width: "320px", padding: "40px", borderRadius: "12px", boxShadow: "0 10px 30px rgba(0,0,0,0.1)", textAlign: "center" }}>
-            <h2 style={{ color: "#ef4444", marginBottom: "20px" }}>Admin Login</h2>
-            <input
-              type="text" placeholder="Username" value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && login()}
-              style={{ width: "100%", padding: "12px", marginBottom: "15px", borderRadius: "8px", border: "1px solid #ddd", outline: "none" }}
-            />
-            <input
-              type="password" placeholder="Password" value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && login()}
-              style={{ width: "100%", padding: "12px", marginBottom: "20px", borderRadius: "8px", border: "1px solid #ddd", outline: "none" }}
-            />
-            <button
-              onClick={login}
-              style={{ width: "100%", padding: "12px", background: "#ef4444", color: "#fff", border: "none", borderRadius: "8px", fontWeight: "bold", cursor: "pointer" }}
-            >
-              Login
+        <div className="login-right">
+          <div className="login-card">
+            <div className="login-card-header">
+              <div className="login-dot" />
+              <span>Admin Portal</span>
+            </div>
+            <h2>Welcome back</h2>
+            <p className="login-sub">Sign in to manage tickets, feedback, and analytics.</p>
+            <div className="login-field">
+              <label>Username</label>
+              <input
+                type="text"
+                placeholder="Enter username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && login()}
+              />
+            </div>
+            <div className="login-field">
+              <label>Password</label>
+              <input
+                type="password"
+                placeholder="Enter password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && login()}
+              />
+            </div>
+            <button className="login-btn" onClick={login}>
+              Sign In
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
             </button>
           </div>
         </div>
@@ -370,281 +407,419 @@ export default function App() {
      MAIN DASHBOARD
   ========================================================================= */
   return (
-    <div className="container">
-      <div className="header">
-        <img src="/logo.png" alt="logo" />
-        <h2>Snackit Dashboard</h2>
-      </div>
+    <div className="dashboard">
 
-      <div className="controls">
-        <button className="btn red" onClick={() => setView("tickets")}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <path d="M4 6h16v4a2 2 0 0 0 0 4v4H4v-4a2 2 0 0 0 0-4V6z" stroke="currentColor" strokeWidth="2" />
-          </svg>
-          Tickets
-        </button>
-        <button className="btn red-outline" onClick={() => setView("feedback")}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8z" stroke="currentColor" strokeWidth="2" />
-          </svg>
-          Feedback
-        </button>
-        <button className="btn red-outline" onClick={() => setView("products")}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" stroke="currentColor" strokeWidth="2" />
-          </svg>
-          Products
-        </button>
-        <button className="btn red-outline" onClick={() => setView("analytics")}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-            <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" strokeWidth="2" />
-          </svg>
-          Analytics
-        </button>
-        <button className="btn red-outline" onClick={logout}>Logout</button>
-      </div>
+      {/* ── SIDEBAR ─────────────────────────────────────────────────────────── */}
+      <aside className="sidebar">
+        <div className="sidebar-brand">
+          <img src="/logo.png" alt="logo" />
+          <span>Snackit</span>
+        </div>
 
-      {/* ── TICKETS VIEW ────────────────────────────────────────────────────── */}
-      {view === "tickets" && (
-        <>
-          <div className="controls">
-            <input placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} />
-            <select onChange={(e) => setFilter(e.target.value)}>
-              <option value="">All</option>
-              <option value="OPEN">Open</option>
-              <option value="CLOSED">Closed</option>
-              <option value="refunded">Refunded</option>
-              <option value="auto_refunded">Auto Refunded</option>
-              <option value="resolved">Resolved</option>
-            </select>
-            <button className="btn red" onClick={fetchTickets}>Refresh</button>
+        <nav className="sidebar-nav">
+          <button
+            className={`nav-item ${view === "tickets" ? "active" : ""}`}
+            onClick={() => setView("tickets")}
+          >
+            {Icon.ticket}
+            <span>Tickets</span>
+            {openCount > 0 && <span className="nav-badge">{openCount}</span>}
+          </button>
+          <button
+            className={`nav-item ${view === "feedback" ? "active" : ""}`}
+            onClick={() => setView("feedback")}
+          >
+            {Icon.feedback}
+            <span>Feedback</span>
+          </button>
+          <button
+            className={`nav-item ${view === "products" ? "active" : ""}`}
+            onClick={() => setView("products")}
+          >
+            {Icon.product}
+            <span>Products</span>
+          </button>
+          <button
+            className={`nav-item ${view === "analytics" ? "active" : ""}`}
+            onClick={() => setView("analytics")}
+          >
+            {Icon.analytics}
+            <span>Analytics</span>
+          </button>
+        </nav>
+
+        <button className="sidebar-logout" onClick={logout}>
+          {Icon.logout}
+          <span>Logout</span>
+        </button>
+      </aside>
+
+      {/* ── MAIN CONTENT ────────────────────────────────────────────────────── */}
+      <main className={`main-content ${activeChat ? "chat-open" : ""}`}>
+
+        {/* ── PAGE HEADER ─────────────────────────────────────────────────── */}
+        <div className="page-header">
+          <div className="page-title">
+            <h1>
+              {view === "tickets" && "Support Tickets"}
+              {view === "feedback" && "Customer Feedback"}
+              {view === "products" && "Product Leads"}
+              {view === "analytics" && "Analytics"}
+            </h1>
+            <p className="page-sub">
+              {view === "tickets" && `${filteredTickets.length} tickets · ${openCount} open`}
+              {view === "feedback" && `${feedback.length} responses collected`}
+              {view === "products" && `${products.length} product leads`}
+              {view === "analytics" && "Issue breakdown and trends"}
+            </p>
           </div>
+          <div className="page-live">
+            <span className="live-dot" />
+            <span className="live-text">Live</span>
+          </div>
+        </div>
 
+        {/* ── STAT CARDS (only on tickets) ────────────────────────────────── */}
+        {view === "tickets" && (
+          <div className="stat-cards">
+            <div className="stat-card">
+              <div className="stat-icon red"><span>🔴</span></div>
+              <div>
+                <div className="stat-num">{openCount}</div>
+                <div className="stat-label">Open Tickets</div>
+              </div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-icon green"><span>✅</span></div>
+              <div>
+                <div className="stat-num">{closedCount}</div>
+                <div className="stat-label">Closed</div>
+              </div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-icon amber"><span>👤</span></div>
+              <div>
+                <div className="stat-num">{adminCount}</div>
+                <div className="stat-label">Admin Mode</div>
+              </div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-icon blue"><span>💸</span></div>
+              <div>
+                <div className="stat-num">{refundedCount}</div>
+                <div className="stat-label">Refunded</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── TICKETS VIEW ────────────────────────────────────────────────── */}
+        {view === "tickets" && (
+          <>
+            <div className="toolbar">
+              <div className="search-box">
+                {Icon.search}
+                <input
+                  placeholder="Search by phone, issue, location..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <select className="filter-select" onChange={(e) => setFilter(e.target.value)}>
+                <option value="">All Status</option>
+                <option value="OPEN">Open</option>
+                <option value="CLOSED">Closed</option>
+                <option value="refunded">Refunded</option>
+                <option value="auto_refunded">Auto Refunded</option>
+                <option value="resolved">Resolved</option>
+              </select>
+              <button className="btn-icon" onClick={fetchTickets} title="Refresh">
+                {Icon.refresh}
+                Refresh
+              </button>
+            </div>
+
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Phone</th>
+                    <th>Issue</th>
+                    <th>Sub Issue</th>
+                    <th>Location</th>
+                    <th>UPI ID</th>
+                    <th>Image</th>
+                    <th>UPI Screenshot</th>
+                    <th>Status</th>
+                    <th>State</th>
+                    <th>Mode</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTickets.map((t, i) => {
+                    const isClosed = t.state === "CLOSED";
+                    return (
+                      <tr key={t.id} className={isClosed ? "row-closed" : ""}>
+                        <td><span className="row-num">{i + 1}</span></td>
+                        <td><span className="phone-tag">{t.phone}</span></td>
+                        <td>{t.main_issue || <span className="na">—</span>}</td>
+                        <td>{t.sub_issue || <span className="na">—</span>}</td>
+                        <td>{t.location || <span className="na">—</span>}</td>
+                        <td>{t.upi_id || <span className="na">—</span>}</td>
+                        <td>
+                          {t.image ? (
+                            <img src={t.image} alt="img" className="thumb" onClick={() => window.open(t.image, "_blank")} />
+                          ) : <span className="na">—</span>}
+                        </td>
+                        <td>
+                          {t.upi_image ? (
+                            <img src={t.upi_image} alt="upi" className="thumb" onClick={() => window.open(t.upi_image, "_blank")} />
+                          ) : <span className="na">—</span>}
+                        </td>
+                        <td>
+                          <span className={`status-badge status-${(t.status || "").replace("_", "-")}`}>
+                            {t.status || "—"}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`state-pill ${t.state === "OPEN" ? "state-open" : "state-closed"}`}>
+                            {t.state}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`mode-pill ${t.takeover ? "mode-admin" : "mode-bot"}`}>
+                            {t.takeover ? "👤 Admin" : "🤖 Bot"}
+                          </span>
+                        </td>
+                        <td className="date-cell">
+                          {t.created_at ? new Date(t.created_at).toLocaleString() : "—"}
+                        </td>
+                        <td>
+                          <div className="action-group">
+                            {["REFUNDED", "AUTO_REFUNDED", "RESOLVED", "CLOSED"].map((action) => (
+                              <button
+                                key={action}
+                                className="action-pill"
+                                onClick={() => handleAction(t.id, action)}
+                                disabled={loadingId === t.id}
+                              >
+                                {loadingId === t.id ? "…" : action.replace("_", " ")}
+                              </button>
+                            ))}
+                            <button
+                              className="action-pill chat-pill"
+                              onClick={() => { setActiveChat(t); setMessages([]); }}
+                            >
+                              {Icon.chat} Chat
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        {/* ── FEEDBACK VIEW ───────────────────────────────────────────────── */}
+        {view === "feedback" && (
           <div className="table-wrapper">
             <table>
               <thead>
                 <tr>
-                  <th>ID</th><th>Phone</th><th>Main</th><th>Sub</th>
-                  <th>Location</th><th>UPI</th><th>Image</th><th>UPI Screenshot</th>
-                  <th>Status</th><th>State</th><th>Bot</th><th>Date</th><th>Action</th>
+                  <th>#</th><th>Phone</th><th>Rating</th><th>Comment</th><th>Date</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredTickets.map((t, i) => {
-                  const isClosed = t.state === "CLOSED";
-                  return (
-                    <tr key={t.id} className={isClosed ? "closed-row" : ""}>
-                      <td>{i + 1}</td>
-                      <td>{t.phone}</td>
-                      <td>{t.main_issue || "-"}</td>
-                      <td>{t.sub_issue || "-"}</td>
-                      <td>{t.location || "-"}</td>
-                      <td>{t.upi_id || "-"}</td>
-                      <td>
-                        {t.image ? (
-                          <img src={t.image} alt="img" style={{ width: "60px", cursor: "pointer" }} onClick={() => window.open(t.image, "_blank")} />
-                        ) : "-"}
-                      </td>
-                      <td>
-                        {t.upi_image ? (
-                          <img src={t.upi_image} alt="upi" style={{ width: "60px", cursor: "pointer" }} onClick={() => window.open(t.upi_image, "_blank")} />
-                        ) : "-"}
-                      </td>
-                      <td>{t.status || "-"}</td>
-                      <td>{t.state}</td>
-                      {/* ─── FIX: show takeover status in table ─────────────── */}
-                      <td>
-                        <span style={{
-                          padding: "2px 8px", borderRadius: "10px", fontSize: "11px", fontWeight: "bold",
-                          background: t.takeover ? "#fef3c7" : "#dcfce7",
-                          color: t.takeover ? "#92400e" : "#166534",
-                        }}>
-                          {t.takeover ? "Admin" : "Bot"}
-                        </span>
-                      </td>
-                      <td>{t.created_at ? new Date(t.created_at).toLocaleString() : "-"}</td>
-                      <td className="actions">
-                        {["REFUNDED", "AUTO_REFUNDED", "RESOLVED", "CLOSED"].map((action) => (
-                          <button
-                            key={action}
-                            onClick={() => handleAction(t.id, action)}
-                            disabled={loadingId === t.id}
-                          >
-                            {loadingId === t.id ? "..." : action.replace("_", " ")}
-                          </button>
-                        ))}
-                        <button onClick={() => { setActiveChat(t); setMessages([]); }}>
-                          Chat
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {feedback.map((f, i) => (
+                  <tr key={f.id}>
+                    <td><span className="row-num">{i + 1}</span></td>
+                    <td><span className="phone-tag">{f.phone}</span></td>
+                    <td>
+                      <div className="star-rating">
+                        {"★".repeat(f.rating)}{"☆".repeat(5 - f.rating)}
+                        <span className="rating-num">{f.rating}/5</span>
+                      </div>
+                    </td>
+                    <td>{f.comment}</td>
+                    <td className="date-cell">{f.created_at ? new Date(f.created_at).toLocaleString() : "—"}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-        </>
-      )}
+        )}
 
-      {/* ── FEEDBACK VIEW ───────────────────────────────────────────────────── */}
-      {view === "feedback" && (
-        <table>
-          <thead>
-            <tr><th>ID</th><th>Phone</th><th>Rating</th><th>Comment</th><th>Date</th></tr>
-          </thead>
-          <tbody>
-            {feedback.map((f) => (
-              <tr key={f.id}>
-                <td>{f.id}</td>
-                <td>{f.phone}</td>
-                <td>⭐ {f.rating}/5</td>
-                <td>{f.comment}</td>
-                <td>{f.created_at ? new Date(f.created_at).toLocaleString() : "-"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      {/* ── PRODUCTS VIEW ───────────────────────────────────────────────────── */}
-      {view === "products" && (
-        <table>
-          <thead>
-            <tr><th>ID</th><th>Phone</th><th>Type</th><th>Date</th></tr>
-          </thead>
-          <tbody>
-            {products.map((p) => (
-              <tr key={p.id}>
-                <td>{p.id}</td>
-                <td>{p.phone}</td>
-                <td>{p.type}</td>
-                <td>{p.created_at ? new Date(p.created_at).toLocaleString() : "-"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-
-      {/* ── ANALYTICS VIEW ──────────────────────────────────────────────────── */}
-      {view === "analytics" && (
-        <div>
-          <h3>Daily Sub Issues</h3>
-          <BarChart width={600} height={300} data={analyticsDaily}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" /><YAxis /><Tooltip /><Legend />
-            {analyticsDailyKeys.map((key, i) => (
-              <Bar key={key} dataKey={key} stackId="subIssues" fill={COLORS[i % COLORS.length]} />
-            ))}
-          </BarChart>
-
-          <h3>Monthly Trend</h3>
-          <LineChart width={600} height={300} data={analyticsMonthly}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="month" /><YAxis /><Tooltip />
-            <Line type="monotone" dataKey="count" stroke="#3b82f6" strokeWidth={2} />
-          </LineChart>
-
-          <h3>Issue Breakdown</h3>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: "30px" }}>
-            <PieChart width={500} height={350}>
-              <Pie
-                data={selectedIssue === "ALL" ? analyticsCategory : analyticsCategory.filter((i) => i.issue === selectedIssue)}
-                dataKey="count" nameKey="issue" outerRadius={120}
-              >
-                {(selectedIssue === "ALL" ? analyticsCategory : analyticsCategory.filter((i) => i.issue === selectedIssue))
-                  .map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-              </Pie>
-              <Tooltip formatter={(value, name) => [`${value}`, name]} />
-            </PieChart>
-            <div style={{ minWidth: "280px", maxWidth: "360px" }}>
-              <button className={selectedIssue === "ALL" ? "btn red" : "btn red-outline"} onClick={() => setSelectedIssue("ALL")} style={{ marginBottom: "10px" }}>
-                All Issues
-              </button>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {analyticsCategory.map((item, i) => (
-                  <button
-                    key={item.issue}
-                    className={selectedIssue === item.issue ? "btn red" : "btn red-outline"}
-                    onClick={() => setSelectedIssue(item.issue)}
-                    style={{ textAlign: "left", whiteSpace: "normal", color: COLORS[i % COLORS.length] }}
-                  >
-                    {item.issue}: {item.count}
-                  </button>
+        {/* ── PRODUCTS VIEW ───────────────────────────────────────────────── */}
+        {view === "products" && (
+          <div className="table-wrapper">
+            <table>
+              <thead>
+                <tr><th>#</th><th>Phone</th><th>Type</th><th>Date</th></tr>
+              </thead>
+              <tbody>
+                {products.map((p, i) => (
+                  <tr key={p.id}>
+                    <td><span className="row-num">{i + 1}</span></td>
+                    <td><span className="phone-tag">{p.phone}</span></td>
+                    <td><span className="type-tag">{p.type}</span></td>
+                    <td className="date-cell">{p.created_at ? new Date(p.created_at).toLocaleString() : "—"}</td>
+                  </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* ── ANALYTICS VIEW ──────────────────────────────────────────────── */}
+        {view === "analytics" && (
+          <div className="analytics-grid">
+            <div className="analytics-card full-width">
+              <div className="analytics-card-header">
+                <h3>Daily Sub-Issues</h3>
+                <span className="chart-badge">Stacked</span>
+              </div>
+              <BarChart width={700} height={280} data={analyticsDaily} style={{ fontFamily: "Inter, sans-serif" }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="date" tick={{ fontSize: 12, fill: "#6b7280" }} />
+                <YAxis tick={{ fontSize: 12, fill: "#6b7280" }} />
+                <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid #e5e7eb", fontSize: "13px" }} />
+                <Legend />
+                {analyticsDailyKeys.map((key, i) => (
+                  <Bar key={key} dataKey={key} stackId="subIssues" fill={COLORS[i % COLORS.length]} radius={i === analyticsDailyKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                ))}
+              </BarChart>
+            </div>
+
+            <div className="analytics-card">
+              <div className="analytics-card-header">
+                <h3>Monthly Trend</h3>
+                <span className="chart-badge">Line</span>
+              </div>
+              <LineChart width={450} height={260} data={analyticsMonthly} style={{ fontFamily: "Inter, sans-serif" }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#6b7280" }} />
+                <YAxis tick={{ fontSize: 12, fill: "#6b7280" }} />
+                <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid #e5e7eb", fontSize: "13px" }} />
+                <Line type="monotone" dataKey="count" stroke="#e8192c" strokeWidth={2.5} dot={{ fill: "#e8192c", r: 4 }} activeDot={{ r: 6 }} />
+              </LineChart>
+            </div>
+
+            <div className="analytics-card">
+              <div className="analytics-card-header">
+                <h3>Issue Breakdown</h3>
+                <span className="chart-badge">Pie</span>
+              </div>
+              <div className="pie-container">
+                <PieChart width={220} height={220}>
+                  <Pie
+                    data={selectedIssue === "ALL" ? analyticsCategory : analyticsCategory.filter((i) => i.issue === selectedIssue)}
+                    dataKey="count" nameKey="issue" outerRadius={95} innerRadius={40}
+                  >
+                    {(selectedIssue === "ALL" ? analyticsCategory : analyticsCategory.filter((i) => i.issue === selectedIssue))
+                      .map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip contentStyle={{ borderRadius: "8px", border: "1px solid #e5e7eb", fontSize: "13px" }} formatter={(value, name) => [`${value}`, name]} />
+                </PieChart>
+                <div className="pie-legend">
+                  <button
+                    className={`legend-btn ${selectedIssue === "ALL" ? "active" : ""}`}
+                    onClick={() => setSelectedIssue("ALL")}
+                  >
+                    All Issues
+                  </button>
+                  {analyticsCategory.map((item, i) => (
+                    <button
+                      key={item.issue}
+                      className={`legend-btn ${selectedIssue === item.issue ? "active" : ""}`}
+                      onClick={() => setSelectedIssue(item.issue)}
+                      style={{ "--dot-color": COLORS[i % COLORS.length] }}
+                    >
+                      <span className="legend-dot" style={{ background: COLORS[i % COLORS.length] }} />
+                      {item.issue}: <strong>{item.count}</strong>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </main>
 
       {/* ── CHAT PANEL ──────────────────────────────────────────────────────── */}
       {activeChat && (
         <div className="chat-panel">
           <div className="chat-header">
-            <div>
-              <span style={{ fontWeight: "bold" }}>{activeChat.phone}</span>
-              {/* ─── FIX: show live takeover status in chat header ─────────── */}
-              <span style={{
-                marginLeft: "10px", padding: "2px 10px", borderRadius: "10px",
-                fontSize: "12px", fontWeight: "bold",
-                background: activeChat.takeover ? "#fef3c7" : "#dcfce7",
-                color: activeChat.takeover ? "#92400e" : "#166534",
-              }}>
-                {activeChat.takeover ? "👤 Admin Mode" : "🤖 Bot Mode"}
-              </span>
+            <div className="chat-header-info">
+              <div className="chat-avatar">
+                {activeChat.phone?.slice(-2)}
+              </div>
+              <div>
+                <div className="chat-phone">{activeChat.phone}</div>
+                <span className={`chat-mode-badge ${activeChat.takeover ? "badge-admin" : "badge-bot"}`}>
+                  {activeChat.takeover ? "👤 Admin Mode" : "🤖 Bot Mode"}
+                </span>
+              </div>
             </div>
-            <div style={{ display: "flex", gap: "8px" }}>
+            <div className="chat-header-actions">
               {!activeChat.takeover ? (
-                <button
-                  onClick={takeover}
-                  style={{ background: "#f59e0b", color: "#fff", border: "none", borderRadius: "6px", padding: "6px 12px", cursor: "pointer" }}
-                >
+                <button className="chat-takeover-btn" onClick={takeover}>
                   Take Over
                 </button>
               ) : (
-                <button
-                  onClick={release}
-                  style={{ background: "#22c55e", color: "#fff", border: "none", borderRadius: "6px", padding: "6px 12px", cursor: "pointer" }}
-                >
-                  Release to Bot
+                <button className="chat-release-btn" onClick={release}>
+                  Release
                 </button>
               )}
-              <button
-                onClick={() => { setActiveChat(null); setMessages([]); }}
-                style={{ background: "#6b7280", color: "#fff", border: "none", borderRadius: "6px", padding: "6px 12px", cursor: "pointer" }}
-              >
-                Close
+              <button className="chat-close-btn" onClick={() => { setActiveChat(null); setMessages([]); }}>
+                {Icon.close}
               </button>
             </div>
           </div>
 
           <div className="chat-body">
             {messages.length === 0 && (
-              <div style={{ textAlign: "center", color: "#9ca3af", padding: "20px" }}>No messages yet</div>
+              <div className="chat-empty">
+                <div className="chat-empty-icon">💬</div>
+                <p>No messages yet</p>
+              </div>
             )}
             {messages.map((m, idx) => (
               <div
                 key={m.id || `${m.created_at}-${idx}`}
-                className={m.sender === "admin" ? "msg admin" : m.sender === "bot" ? "msg bot" : "msg user"}
+                className={`msg ${m.sender === "admin" ? "msg-admin" : m.sender === "bot" ? "msg-bot" : "msg-user"}`}
               >
-                {/* ─── FIX: field is `message` in DB, not `text` ──────────── */}
-                {m.message || m.text || ""}
+                <div className="msg-bubble">{m.message || m.text || ""}</div>
+                {m.created_at && (
+                  <div className="msg-time">
+                    {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </div>
+                )}
               </div>
             ))}
             <div ref={chatEndRef} />
           </div>
 
-          <div className="chat-input">
+          <div className="chat-input-area">
             <input
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={handleChatKeyDown}
-              placeholder={activeChat.takeover ? "Type message... (Enter to send)" : "Take over first to send messages"}
+              placeholder={activeChat.takeover ? "Type a message…" : "Take over to send messages"}
               disabled={!activeChat.takeover}
-              style={{ opacity: activeChat.takeover ? 1 : 0.5 }}
+              className={!activeChat.takeover ? "input-disabled" : ""}
             />
-            <button onClick={sendMessage} disabled={!activeChat.takeover || !chatInput.trim()}>
-              Send
+            <button
+              className="send-btn"
+              onClick={sendMessage}
+              disabled={!activeChat.takeover || !chatInput.trim()}
+            >
+              {Icon.send}
             </button>
           </div>
         </div>
