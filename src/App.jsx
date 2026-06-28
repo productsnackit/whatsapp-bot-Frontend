@@ -123,6 +123,7 @@ export default function App() {
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
   const [chatInput, setChatInput] = useState("");
+  const [typing, setTyping] = useState(false);
 
   const [analyticsDaily, setAnalyticsDaily] = useState([]);
   const [analyticsDailyKeys, setAnalyticsDailyKeys] = useState([]);
@@ -135,6 +136,10 @@ export default function App() {
   const [filter, setFilter] = useState("");
   const [loadingId, setLoadingId] = useState(null);
   const [sessionExpired, setSessionExpired] = useState(false);
+
+  // ✅ Track previous message count and typing timeout for indicator
+  const prevMessageCountRef = useRef(0);
+  const typingTimeoutRef = useRef(null);
 
   /* =========================================================================
      AUTH
@@ -205,13 +210,29 @@ export default function App() {
     }
   }, [token, authHeaders]);
 
+  // ✅ FIX: Added typing indicator logic
   const fetchMessages = useCallback(async (ticketId) => {
     if (!token || !ticketId) return;
     try {
       const res = await API.get(`/admin/messages/${ticketId}`, {
         headers: authHeaders(),
       });
-      setMessages(Array.isArray(res.data) ? res.data : []);
+      const newMessages = Array.isArray(res.data) ? res.data : [];
+      
+      // Check if new user message arrived
+      if (newMessages.length > prevMessageCountRef.current) {
+        const lastMsg = newMessages[newMessages.length - 1];
+        if (lastMsg.sender === 'user') {
+          setTyping(true);
+          // Clear existing timeout
+          if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+          // Show typing indicator for 2 seconds
+          typingTimeoutRef.current = setTimeout(() => setTyping(false), 2000);
+        }
+      }
+      
+      prevMessageCountRef.current = newMessages.length;
+      setMessages(newMessages);
     } catch (err) {
       console.error("fetchMessages error:", err);
     }
@@ -271,7 +292,7 @@ export default function App() {
   ========================================================================= */
   useEffect(() => {
     setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-  }, [messages]);
+  }, [messages, typing]);
 
   useEffect(() => {
     if (!token) return;
@@ -409,25 +430,6 @@ export default function App() {
         <div className="login-left">
           <img src="/login.png" alt="Snackit" />
           <div className="login-overlay" />
-          <div className="login-brand">
-            <img src="/logo.png" alt="logo" className="login-logo" />
-            <h1>Snackit</h1>
-            <p>Operations Dashboard</p>
-            <div className="login-stats">
-              <div className="login-stat">
-                <span className="login-stat-num">1000+</span>
-                <span className="login-stat-label">Machines</span>
-              </div>
-              <div className="login-stat">
-                <span className="login-stat-num">500+</span>
-                <span className="login-stat-label">Cities</span>
-              </div>
-              <div className="login-stat">
-                <span className="login-stat-num">24/7</span>
-                <span className="login-stat-label">Support</span>
-              </div>
-            </div>
-          </div>
         </div>
         <div className="login-right">
           <div className="login-card">
@@ -964,7 +966,7 @@ export default function App() {
           </div>
 
           <div className="chat-body">
-            {messages.length === 0 && (
+            {messages.length === 0 && !typing && (
               <div className="chat-empty">
                 <div className="chat-empty-icon">💬</div>
                 <p>No messages yet</p>
@@ -983,6 +985,14 @@ export default function App() {
                 )}
               </div>
             ))}
+            {/* ✅ FIX: Show typing indicator when user is typing */}
+            {typing && (
+              <div className="msg msg-user">
+                <div className="msg-bubble typing-indicator">
+                  <span></span><span></span><span></span>
+                </div>
+              </div>
+            )}
             <div ref={chatEndRef} />
           </div>
 

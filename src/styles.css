@@ -1,7 +1,8 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   SNACKIT DASHBOARD — styles.css v3.0
+   SNACKIT DASHBOARD — styles.css v3.1
    Design: Midnight Obsidian sidebar · Pure white canvas · Crimson pulse
    Font: Inter + JetBrains Mono
+   ✅ Updated: Typing indicator + Login image only (no logo overlay)
 ═══════════════════════════════════════════════════════════════════════════ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap');
@@ -150,11 +151,9 @@ body {
   opacity: 0.5;
 }
 
+/* ✅ FIX: Hide logo brand overlay on login page */
 .login-brand {
-  position: absolute;
-  bottom: 60px;
-  left: 56px;
-  color: #fff;
+  display: none !important;
 }
 
 .login-logo {
@@ -1369,6 +1368,39 @@ tbody tr:hover { background: var(--surface-2); }
   color: rgba(255,255,255,0.88);
   border-bottom-right-radius: 4px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.16);
+}
+
+/* ✅ FIX: Typing indicator animation styles */
+.typing-indicator {
+  padding: 10px 16px !important;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 20px;
+}
+
+.typing-indicator span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  animation: typing-bounce 1.4s infinite;
+  display: inline-block;
+}
+
+.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typing-bounce {
+  0%, 60%, 100% { 
+    opacity: 0.3; 
+    transform: translateY(0);
+  }
+  30% { 
+    opacity: 1; 
+    transform: translateY(-8px);
+  }
 }
 
 .msg-time {
