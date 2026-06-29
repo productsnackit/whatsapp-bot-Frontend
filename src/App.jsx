@@ -130,6 +130,13 @@ export default function App() {
   const [analyticsMonthly, setAnalyticsMonthly] = useState([]);
   const [analyticsCategory, setAnalyticsCategory] = useState([]);
   const [selectedIssue, setSelectedIssue] = useState("ALL");
+  const [refundDaily, setRefundDaily] = useState([]);
+
+const [refundMonthly, setRefundMonthly] = useState([]);
+const [editingRefundId, setEditingRefundId] = useState(null);
+const [refundAmountInput, setRefundAmountInput] = useState("");
+const [totalRefundToday, setTotalRefundToday] = useState(0);
+const [totalRefundMonth, setTotalRefundMonth] = useState(0);
 
   const [view, setView] = useState("tickets");
   const [search, setSearch] = useState("");
@@ -287,6 +294,47 @@ export default function App() {
     }
   }, [token, authHeaders]);
 
+  const fetchRefundAnalytics = useCallback(async () => {
+    if (!token) return;
+    try {
+      const headers = authHeaders();
+      const [daily, monthly] = await Promise.all([
+        API.get("/analytics/refunds-daily", { headers }),
+        API.get("/analytics/refunds-monthly", { headers }),
+      ]);
+
+      setRefundDaily(Array.isArray(daily.data) ? daily.data : []);
+      setRefundMonthly(Array.isArray(monthly.data) ? monthly.data : []);
+
+      // Calculate totals
+      const todayTotal = daily.data?.[daily.data.length - 1]?.total_refund || 0;
+      const monthTotal = monthly.data?.reduce((sum, m) => sum + (m.total_refund || 0), 0) || 0;
+
+      setTotalRefundToday(todayTotal);
+      setTotalRefundMonth(monthTotal);
+    } catch (err) {
+      console.log("Refund analytics error:", err);
+    }
+  }, [token, authHeaders]);
+
+  const updateRefundAmount = async (ticketId, amount) => {
+    try {
+      await API.post(
+        `/tickets/${ticketId}/refund-amount`,
+        { refund_amount: amount },
+        { headers: authHeaders() }
+      );
+      alert("Refund amount updated!");
+      setEditingRefundId(null);
+      setRefundAmountInput("");
+      await fetchTickets();
+      await fetchRefundAnalytics();
+    } catch (err) {
+      alert("Failed to update refund amount");
+      console.log(err);
+    }
+  };
+
   /* =========================================================================
      EFFECTS
   ========================================================================= */
@@ -300,10 +348,13 @@ export default function App() {
       await fetchTickets();
       await fetchProducts();
       await fetchAnalytics();
+      await fetchRefundAnalytics(); 
       await fetchFeedback();
     };
     loadData();
   }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  
 
   useEffect(() => {
     if (!activeChat?.id) return;
@@ -632,6 +683,7 @@ export default function App() {
                     <th>UPI ID</th>
                     <th>Image</th>
                     <th>UPI Screenshot</th>
+                    <th>Refund Amount</th>
                     <th>Status</th>
                     <th>State</th>
                     <th>Mode</th>
@@ -660,6 +712,78 @@ export default function App() {
                             <img src={t.upi_image} alt="upi" className="thumb" onClick={() => window.open(t.upi_image, "_blank")} />
                           ) : <span className="na">—</span>}
                         </td>
+                        <td>
+  {editingRefundId === t.id ? (
+    <div style={{ display: "flex", gap: "5px", alignItems: "center" }}>
+      <input
+        type="number"
+        value={refundAmountInput}
+        onChange={(e) => setRefundAmountInput(e.target.value)}
+        placeholder="Amount"
+        style={{
+          padding: "5px",
+          borderRadius: "5px",
+          border: "1px solid #e2e6ef",
+          width: "80px",
+          fontSize: "12px",
+        }}
+      />
+      <button
+        onClick={() => updateRefundAmount(t.id, refundAmountInput)}
+        style={{
+          padding: "4px 10px",
+          background: "#10b981",
+          color: "#fff",
+          border: "none",
+          borderRadius: "5px",
+          cursor: "pointer",
+          fontSize: "11px",
+          fontWeight: "600",
+        }}
+      >
+        Save
+      </button>
+      <button
+        onClick={() => setEditingRefundId(null)}
+        style={{
+          padding: "4px 10px",
+          background: "#8c96ae",
+          color: "#fff",
+          border: "none",
+          borderRadius: "5px",
+          cursor: "pointer",
+          fontSize: "11px",
+        }}
+      >
+        Cancel
+      </button>
+    </div>
+  ) : (
+    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+      <span style={{ fontWeight: "600", color: "#0b0f1a" }}>
+        ₹{t.refund_amount || "0"}
+      </span>
+      <button
+        onClick={() => {
+          setEditingRefundId(t.id);
+          setRefundAmountInput(t.refund_amount || "");
+        }}
+        style={{
+          padding: "3px 8px",
+          background: "#e8192c",
+          color: "#fff",
+          border: "none",
+          borderRadius: "5px",
+          cursor: "pointer",
+          fontSize: "10px",
+          fontWeight: "600",
+        }}
+      >
+        Edit
+      </button>
+    </div>
+  )}
+</td>
                         <td>
                           <span className={`status-badge status-${(t.status || "").replace("_", "-")}`}>
                             {t.status || "—"}
@@ -791,6 +915,99 @@ export default function App() {
                   </div>
                   <div className="stat-label">Top Issue Count</div>
                 </div>
+              </div>
+            </div>
+
+            {/* Refund Analytics */}
+            <div className="stat-cards" style={{ marginBottom: 28 }}>
+              <div className="stat-card">
+                <div className="stat-icon green"><span>💰</span></div>
+                <div>
+                  <div className="stat-num">₹{totalRefundToday || "0"}</div>
+                  <div className="stat-label">Refunds Today</div>
+                </div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-icon blue"><span>📊</span></div>
+                <div>
+                  <div className="stat-num">₹{totalRefundMonth || "0"}</div>
+                  <div className="stat-label">Refunds This Month</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Refund Charts */}
+            <div className="analytics-grid">
+              {/* Daily Refunds Chart */}
+              <div className="analytics-card full-width">
+                <div className="analytics-card-header">
+                  <div className="analytics-card-header-left">
+                    <span className="analytics-card-eyebrow">Daily</span>
+                    <h3>Refunds Per Day</h3>
+                  </div>
+                  <span className="chart-badge">Bar</span>
+                </div>
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={refundDaily} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f2f7" vertical={false} />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fontSize: 11, fill: "#8c96ae", fontFamily: "Inter" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: "#8c96ae", fontFamily: "Inter" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar dataKey="total_refund" fill="#10b981" radius={[5, 5, 0, 0]} name="Refund Amount" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              {/* Monthly Refunds Chart */}
+              <div className="analytics-card full-width">
+                <div className="analytics-card-header">
+                  <div className="analytics-card-header-left">
+                    <span className="analytics-card-eyebrow">Monthly</span>
+                    <h3>Refunds Per Month</h3>
+                  </div>
+                  <span className="chart-badge">Area</span>
+                </div>
+                <ResponsiveContainer width="100%" height={250}>
+                  <AreaChart data={refundMonthly} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="refundGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.18} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f2f7" vertical={false} />
+                    <XAxis
+                      dataKey="month"
+                      tick={{ fontSize: 11, fill: "#8c96ae", fontFamily: "Inter" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: "#8c96ae", fontFamily: "Inter" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area
+                      type="monotone"
+                      dataKey="total_refund"
+                      stroke="#10b981"
+                      strokeWidth={2.5}
+                      fill="url(#refundGrad)"
+                      dot={{ fill: "#10b981", r: 4, strokeWidth: 2, stroke: "#fff" }}
+                      name="Monthly Refunds"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
             </div>
 
