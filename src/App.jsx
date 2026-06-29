@@ -307,13 +307,22 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       setRefundMonthly(Array.isArray(monthly.data) ? monthly.data : []);
 
       // Calculate totals
-     const todayDate = new Date().toLocaleDateString("en-CA");
+      const todayDate = new Date().toLocaleDateString("en-CA");
 
 const todayTotal =
   daily.data?.find((d) => {
     const formattedDate = new Date(d.date)
       .toLocaleDateString("en-CA");
     return formattedDate === todayDate;
+  })?.total_refund || 0;
+      const currentMonth = new Date().toLocaleDateString("en-CA").slice(0, 7); // YYYY-MM
+
+const monthTotal =
+  monthly.data?.find((m) => {
+    const formattedMonth = new Date(m.month)
+      .toLocaleDateString("en-CA")
+      .slice(0, 7);
+    return formattedMonth === currentMonth;
   })?.total_refund || 0;
 
       setTotalRefundToday(todayTotal);
