@@ -427,10 +427,19 @@ export default function App() {
   if (!token) {
     return (
       <div className="login-page">
-        <div className="login-left">
-          <img src="/login.png" alt="Snackit" />
-          <div className="login-overlay" />
-        </div>
+       <div className="login-left">
+  {/* ✅ CHANGED: From <img> to <video> */}
+  <video 
+    autoPlay 
+    muted 
+    loop 
+    playsInline
+    className="login-bg-video"
+  >
+    <source src="/login.mp4" type="video/mp4" />
+  </video>
+  <div className="login-overlay" />
+</div>
         <div className="login-right">
           <div className="login-card">
             <div className="login-card-header">

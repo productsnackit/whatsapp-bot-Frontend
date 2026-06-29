@@ -122,6 +122,16 @@ body {
   min-width: 0;
 }
 
+/* ✅ CHANGED: From .login-left img to .login-bg-video */
+.login-bg-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  filter: brightness(0.55) saturate(0.75);
+}
+
+/* Keep old img rule for fallback (optional) */
 .login-left img {
   width: 100%;
   height: 100%;
