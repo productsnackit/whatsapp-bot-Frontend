@@ -307,11 +307,14 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       setRefundMonthly(Array.isArray(monthly.data) ? monthly.data : []);
 
       // Calculate totals
-      const todayDate = new Date().toLocaleDateString("en-CA");
+     const todayDate = new Date().toLocaleDateString("en-CA");
 
 const todayTotal =
-  daily.data?.find((d) => d.date === todayDate)?.total_refund || 0;
-      const monthTotal = monthly.data?.reduce((sum, m) => sum + (m.total_refund || 0), 0) || 0;
+  daily.data?.find((d) => {
+    const formattedDate = new Date(d.date)
+      .toLocaleDateString("en-CA");
+    return formattedDate === todayDate;
+  })?.total_refund || 0;
 
       setTotalRefundToday(todayTotal);
       setTotalRefundMonth(monthTotal);
