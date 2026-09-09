@@ -532,7 +532,7 @@ const monthTotal =
   const takeover = async () => {
     if (!activeChat) return;
     try {
-      const res = await API.post("/admin/takeover", { phone: activeChat.phone }, { headers: authHeaders() });
+      const res = await API.post("/admin/takeover", { phone: activeChat.phone, ticketId: activeChat.id }, { headers: authHeaders() });
       if (res.data?.ticket) setActiveChat(res.data.ticket);
       await fetchMessages(activeChat.id);
       fetchTickets();
@@ -545,7 +545,7 @@ const monthTotal =
   const release = async () => {
     if (!activeChat) return;
     try {
-      const res = await API.post("/admin/release", { phone: activeChat.phone }, { headers: authHeaders() });
+      const res = await API.post("/admin/release", { phone: activeChat.phone, ticketId: activeChat.id }, { headers: authHeaders() });
       if (res.data?.ticket) setActiveChat(res.data.ticket);
       fetchTickets();
     } catch (err) {
