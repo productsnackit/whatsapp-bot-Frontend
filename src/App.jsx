@@ -624,6 +624,11 @@ const monthTotal =
   const avgMonthly = analyticsMonthly.length > 0
     ? Math.round(analyticsMonthly.reduce((s, m) => s + m.count, 0) / analyticsMonthly.length)
     : 0;
+  const resolvedCount = tickets.filter((t) => ["resolved", "refunded", "auto_refunded"].includes(t.status)).length;
+  const closureRate = tickets.length ? Math.round(((resolvedCount + closedCount + autoClosedCount) / tickets.length) * 100) : 0;
+  const automationRate = tickets.length ? Math.round((autoClosedCount / tickets.length) * 100) : 0;
+  const topIssueLabel = topIssue?.issue?.split(" - ")[0] || "No data yet";
+  const latestMonth = analyticsMonthly[analyticsMonthly.length - 1];
 
   /* =========================================================================
      LOGIN SCREEN
@@ -1138,6 +1143,46 @@ const monthTotal =
         {/* ── ANALYTICS VIEW ──────────────────────────────────────────────── */}
         {view === "analytics" && (
           <>
+            <section className="analytics-hero">
+              <div className="analytics-hero-copy">
+                <div className="analytics-eyebrow"><span className="analytics-status-dot" /> Operations intelligence</div>
+                <h2>Understand every customer moment.</h2>
+                <p>Monitor demand, resolution health, and refund movement from one focused workspace.</p>
+              </div>
+              <div className="analytics-hero-meta">
+                <span className="analytics-meta-label">Reporting window</span>
+                <strong>All available activity</strong>
+                <span className="analytics-meta-date">Updated {new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</span>
+              </div>
+            </section>
+
+            <div className="analytics-signal-grid">
+              <div className="analytics-signal-card signal-primary">
+                <div className="signal-label">Resolution health</div>
+                <div className="signal-value">{closureRate}%</div>
+                <div className="signal-foot">Closed, resolved, or refunded</div>
+                <div className="signal-progress"><span style={{ width: `${Math.min(100, closureRate)}%` }} /></div>
+              </div>
+              <div className="analytics-signal-card">
+                <div className="signal-label">Open workload</div>
+                <div className="signal-value">{openCount}</div>
+                <div className="signal-foot">Tickets needing attention now</div>
+                <div className="signal-accent accent-blue" />
+              </div>
+              <div className="analytics-signal-card">
+                <div className="signal-label">Automation share</div>
+                <div className="signal-value">{automationRate}%</div>
+                <div className="signal-foot">Tickets closed by inactivity rule</div>
+                <div className="signal-accent accent-amber" />
+              </div>
+              <div className="analytics-signal-card">
+                <div className="signal-label">Leading demand</div>
+                <div className="signal-value signal-value-text">{topIssueLabel}</div>
+                <div className="signal-foot">{topIssue?.count || 0} reported cases</div>
+                <div className="signal-accent accent-green" />
+              </div>
+            </div>
+
             {/* Analytics KPI strip */}
             <div className="stat-cards analytics-kpi" style={{ marginBottom: 28 }}>
               <div className="stat-card">
@@ -1168,6 +1213,13 @@ const monthTotal =
                     {topIssue ? topIssue.count : "—"}
                   </div>
                   <div className="stat-label">Top Issue Count</div>
+                </div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-icon purple"><span>↗</span></div>
+                <div>
+                  <div className="stat-num">{latestMonth?.count || 0}</div>
+                  <div className="stat-label">Latest Month</div>
                 </div>
               </div>
             </div>
