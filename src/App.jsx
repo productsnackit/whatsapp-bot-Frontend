@@ -147,13 +147,16 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const [settings, setSettings] = useState({
     paytm_verification_enabled: false,
     auto_close_inactive_tickets: true,
+    auto_close_minutes: 5,
     premium_message_mode: true,
   });
   const [showSettings, setShowSettings] = useState(false);
+  const [ticketDraft, setTicketDraft] = useState({ priority: "normal", assigned_to: "", admin_notes: "" });
 
   // ✅ Track previous message count and typing timeout for indicator
   const prevMessageCountRef = useRef(0);
   const typingTimeoutRef = useRef(null);
+  const ticketsLoadedRef = useRef(false);
 
   /* =========================================================================
      AUTH
@@ -190,8 +193,18 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       const res = await API.get("/tickets", { headers: authHeaders() });
       setTickets((prev) => {
         const incoming = Array.isArray(res.data) ? res.data : [];
-        const prevStr = JSON.stringify(prev.map((t) => ({ id: t.id, status: t.status, state: t.state, takeover: t.takeover })));
-        const nextStr = JSON.stringify(incoming.map((t) => ({ id: t.id, status: t.status, state: t.state, takeover: t.takeover })));
+        const previousIds = new Set(prev.map((ticket) => ticket.id));
+        const hasNewTicket = incoming.some((ticket) => !previousIds.has(ticket.id));
+        if (ticketsLoadedRef.current && hasNewTicket && document.visibilityState === "visible" && "Notification" in window) {
+          if (Notification.permission === "granted") {
+            new Notification("New support ticket", { body: "A new customer request needs attention." });
+          } else if (Notification.permission === "default") {
+            Notification.requestPermission();
+          }
+        }
+        ticketsLoadedRef.current = true;
+        const prevStr = JSON.stringify(prev.map((t) => ({ id: t.id, status: t.status, state: t.state, takeover: t.takeover, priority: t.priority, assigned_to: t.assigned_to, admin_notes: t.admin_notes })));
+        const nextStr = JSON.stringify(incoming.map((t) => ({ id: t.id, status: t.status, state: t.state, takeover: t.takeover, priority: t.priority, assigned_to: t.assigned_to, admin_notes: t.admin_notes })));
         return prevStr === nextStr ? prev : incoming;
       });
       setSessionExpired(false);
@@ -211,6 +224,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       const nextSettings = {
         paytm_verification_enabled: Boolean(res.data?.paytm_verification_enabled),
         auto_close_inactive_tickets: Boolean(res.data?.auto_close_inactive_tickets),
+        auto_close_minutes: Number(res.data?.auto_close_minutes) || 5,
         premium_message_mode: Boolean(res.data?.premium_message_mode),
       };
       setSettings(nextSettings);
@@ -384,6 +398,7 @@ const monthTotal =
       const nextSettings = {
         paytm_verification_enabled: Boolean(res.data?.paytm_verification_enabled),
         auto_close_inactive_tickets: Boolean(res.data?.auto_close_inactive_tickets),
+        auto_close_minutes: Number(res.data?.auto_close_minutes) || 5,
         premium_message_mode: Boolean(res.data?.premium_message_mode),
       };
 
@@ -406,6 +421,7 @@ const monthTotal =
       const nextSettings = {
         paytm_verification_enabled: Boolean(res.data?.paytm_verification_enabled),
         auto_close_inactive_tickets: Boolean(res.data?.auto_close_inactive_tickets),
+        auto_close_minutes: Number(res.data?.auto_close_minutes) || 5,
         premium_message_mode: Boolean(res.data?.premium_message_mode),
       };
 
@@ -415,6 +431,46 @@ const monthTotal =
       alert("Failed to update bot settings");
       console.log(err);
     }
+  };
+
+  const updateTicketDetails = async () => {
+    if (!activeChat?.id) return;
+    try {
+      const res = await API.patch(`/admin/tickets/${activeChat.id}`, ticketDraft, { headers: authHeaders() });
+      setActiveChat(res.data.ticket);
+      await fetchTickets();
+    } catch (err) {
+      alert("Failed to update ticket details");
+      console.log(err);
+    }
+  };
+
+  const reopenTicket = async () => {
+    if (!activeChat?.id) return;
+    try {
+      const res = await API.post(`/admin/tickets/${activeChat.id}/reopen`, {}, { headers: authHeaders() });
+      setActiveChat(res.data.ticket);
+      setMessages([]);
+      await fetchTickets();
+    } catch (err) {
+      alert("Failed to reopen ticket");
+      console.log(err);
+    }
+  };
+
+  const exportTickets = () => {
+    const columns = ["id", "phone", "main_issue", "sub_issue", "location", "status", "state", "priority", "assigned_to", "created_at"];
+    const escapeCsv = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+    const csv = [
+      columns.join(","),
+      ...filteredTickets.map((ticket) => columns.map((column) => escapeCsv(ticket[column])).join(",")),
+    ].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `snackit-tickets-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   /* =========================================================================
@@ -446,6 +502,15 @@ const monthTotal =
     const interval = setInterval(() => { loadMessages(); }, 2000);
     return () => clearInterval(interval);
   }, [activeChat, fetchMessages]);
+
+  useEffect(() => {
+    if (!activeChat) return;
+    setTicketDraft({
+      priority: activeChat.priority || "normal",
+      assigned_to: activeChat.assigned_to || "",
+      admin_notes: activeChat.admin_notes || "",
+    });
+  }, [activeChat?.id]);
 
   /* =========================================================================
      ACTIONS
@@ -533,6 +598,8 @@ const monthTotal =
       matchFilter = t.state?.toUpperCase() === filter;
     } else if (filter === "AUTO_CLOSED") {
       matchFilter = t.status === "auto_closed";
+    } else if (["low", "normal", "high", "urgent"].includes(filter)) {
+      matchFilter = (t.priority || "normal") === filter;
     } else if (filter) {
       matchFilter = t.status === filter;
     }
@@ -758,6 +825,10 @@ const monthTotal =
                 <option value="refunded">Refunded</option>
                 <option value="auto_refunded">Auto Refunded</option>
                 <option value="resolved">Resolved</option>
+                <option value="urgent">Urgent priority</option>
+                <option value="high">High priority</option>
+                <option value="normal">Normal priority</option>
+                <option value="low">Low priority</option>
               </select>
               <button
                 type="button"
@@ -778,6 +849,9 @@ const monthTotal =
               <button className="btn-icon" onClick={fetchTickets} title="Refresh">
                 {Icon.refresh}
                 Refresh
+              </button>
+              <button className="btn-icon export-btn" onClick={exportTickets} title="Export tickets">
+                Export CSV
               </button>
             </div>
 
@@ -810,6 +884,24 @@ const monthTotal =
                     >
                       <span className="mini-toggle-thumb" />
                     </button>
+                  </div>
+
+                  <div className="setting-row setting-row-input">
+                    <div>
+                      <div className="setting-title">Auto-close after</div>
+                      <div className="setting-desc">Choose how long an inactive ticket stays open.</div>
+                    </div>
+                    <div className="setting-number-control">
+                      <input
+                        type="number"
+                        min="1"
+                        max="1440"
+                        value={settings.auto_close_minutes}
+                        onChange={(e) => setSettings((prev) => ({ ...prev, auto_close_minutes: e.target.value }))}
+                        onBlur={() => updateSettingsState("auto_close_minutes", Number(settings.auto_close_minutes))}
+                      />
+                      <span>minutes</span>
+                    </div>
                   </div>
 
                   <div className="setting-row">
@@ -946,6 +1038,9 @@ const monthTotal =
                         <td>
                           <span className={`status-badge status-${(t.status || "").replace("_", "-")}`}>
                             {t.status === "auto_closed" ? "Auto Closed" : t.status || "—"}
+                          </span>
+                          <span className={`priority-badge priority-${t.priority || "normal"}`}>
+                            {t.priority || "normal"}
                           </span>
                         </td>
                         <td>
@@ -1347,6 +1442,46 @@ const monthTotal =
               <button className="chat-close-btn" onClick={() => { setActiveChat(null); setMessages([]); }}>
                 {Icon.close}
               </button>
+            </div>
+          </div>
+
+          <div className="chat-ticket-tools">
+            <div className="chat-tool-row">
+              <label>
+                Priority
+                <select
+                  value={ticketDraft.priority}
+                  onChange={(e) => setTicketDraft((prev) => ({ ...prev, priority: e.target.value }))}
+                >
+                  <option value="low">Low</option>
+                  <option value="normal">Normal</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </label>
+              <label>
+                Assigned to
+                <input
+                  value={ticketDraft.assigned_to}
+                  onChange={(e) => setTicketDraft((prev) => ({ ...prev, assigned_to: e.target.value }))}
+                  placeholder="Agent name"
+                />
+              </label>
+            </div>
+            <label className="chat-notes-field">
+              Internal notes
+              <textarea
+                value={ticketDraft.admin_notes}
+                onChange={(e) => setTicketDraft((prev) => ({ ...prev, admin_notes: e.target.value }))}
+                placeholder="Visible only to your support team"
+                rows="2"
+              />
+            </label>
+            <div className="chat-tool-actions">
+              <button type="button" className="chat-save-btn" onClick={updateTicketDetails}>Save details</button>
+              {(activeChat.state === "CLOSED" || activeChat.status === "auto_closed") && (
+                <button type="button" className="chat-reopen-btn" onClick={reopenTicket}>Reopen ticket</button>
+              )}
             </div>
           </div>
 
