@@ -758,6 +758,40 @@ body {
   box-shadow: var(--shadow-red);
 }
 
+.paytm-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-xs);
+}
+
+.paytm-toggle-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  display: inline-block;
+}
+
+.paytm-toggle-on {
+  background: #ecfdf5;
+  border-color: #86efac;
+  color: #065f46;
+}
+
+.paytm-toggle-on .paytm-toggle-dot {
+  background: #10b981;
+}
+
 .btn-icon {
   display: flex;
   align-items: center;
@@ -780,6 +814,96 @@ body {
   background: var(--obsidian-edge);
   color: #fff;
   box-shadow: 0 4px 16px rgba(0,0,0,0.20);
+}
+
+.settings-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-xs);
+}
+
+.settings-trigger:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.settings-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 18px;
+  padding: 18px 20px;
+}
+
+.setting-group {
+  display: grid;
+  gap: 12px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.setting-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.setting-desc {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.mini-toggle {
+  position: relative;
+  width: 46px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #e2e8f0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mini-toggle-thumb {
+  position: absolute;
+  top: 3px;
+  left: 4px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.18);
+  transition: all 0.2s ease;
+}
+
+.mini-toggle-on {
+  background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+.mini-toggle-on .mini-toggle-thumb {
+  left: 22px;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -835,6 +959,11 @@ tbody tr {
 tbody tr:hover { background: var(--surface-2); }
 
 .row-closed { opacity: 0.40; }
+.row-auto-closed {
+  opacity: 0.80;
+  background: rgba(251, 146, 60, 0.08);
+  border-left: 3px solid #f97316;
+}
 
 .row-num {
   display: inline-flex;
@@ -903,6 +1032,7 @@ tbody tr:hover { background: var(--surface-2); }
 .status-badge.status-refunded     { background: #eff6ff; color: var(--blue); border-color: #bfdbfe; }
 .status-badge.status-auto-refunded { background: #f5f3ff; color: var(--purple); border-color: #ddd6fe; }
 .status-badge.status-resolved     { background: #f0fdf8; color: var(--green); border-color: #a7f3d0; }
+.status-badge.status-auto-closed  { background: #fff7ed; color: #c2410c; border-color: #fdba74; }
 
 .state-pill {
   display: inline-block;

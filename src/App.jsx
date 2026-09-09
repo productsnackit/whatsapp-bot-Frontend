@@ -143,6 +143,13 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const [filter, setFilter] = useState("");
   const [loadingId, setLoadingId] = useState(null);
   const [sessionExpired, setSessionExpired] = useState(false);
+  const [paytmVerificationEnabled, setPaytmVerificationEnabled] = useState(false);
+  const [settings, setSettings] = useState({
+    paytm_verification_enabled: false,
+    auto_close_inactive_tickets: true,
+    premium_message_mode: true,
+  });
+  const [showSettings, setShowSettings] = useState(false);
 
   // ✅ Track previous message count and typing timeout for indicator
   const prevMessageCountRef = useRef(0);
@@ -196,6 +203,22 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       }
     }
   }, [token, authHeaders, sessionExpired]);
+
+  const fetchSettings = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await API.get("/admin/settings", { headers: authHeaders() });
+      const nextSettings = {
+        paytm_verification_enabled: Boolean(res.data?.paytm_verification_enabled),
+        auto_close_inactive_tickets: Boolean(res.data?.auto_close_inactive_tickets),
+        premium_message_mode: Boolean(res.data?.premium_message_mode),
+      };
+      setSettings(nextSettings);
+      setPaytmVerificationEnabled(nextSettings.paytm_verification_enabled);
+    } catch (err) {
+      console.log("Settings error:", err);
+    }
+  }, [token, authHeaders]);
 
   const fetchFeedback = useCallback(async () => {
     if (!token) return;
@@ -350,6 +373,50 @@ const monthTotal =
     }
   };
 
+  const updatePaytmSetting = async (nextEnabled) => {
+    try {
+      const res = await API.post(
+        "/admin/settings",
+        { ...settings, paytm_verification_enabled: nextEnabled },
+        { headers: authHeaders() }
+      );
+
+      const nextSettings = {
+        paytm_verification_enabled: Boolean(res.data?.paytm_verification_enabled),
+        auto_close_inactive_tickets: Boolean(res.data?.auto_close_inactive_tickets),
+        premium_message_mode: Boolean(res.data?.premium_message_mode),
+      };
+
+      setSettings(nextSettings);
+      setPaytmVerificationEnabled(nextSettings.paytm_verification_enabled);
+      alert(`Paytm verification ${nextSettings.paytm_verification_enabled ? "enabled" : "disabled"}`);
+    } catch (err) {
+      alert("Failed to update Paytm verification setting");
+      console.log(err);
+    }
+  };
+
+  const updateSettingsState = async (nextKey, nextValue) => {
+    try {
+      const payload = {
+        ...settings,
+        [nextKey]: nextValue,
+      };
+      const res = await API.post("/admin/settings", payload, { headers: authHeaders() });
+      const nextSettings = {
+        paytm_verification_enabled: Boolean(res.data?.paytm_verification_enabled),
+        auto_close_inactive_tickets: Boolean(res.data?.auto_close_inactive_tickets),
+        premium_message_mode: Boolean(res.data?.premium_message_mode),
+      };
+
+      setSettings(nextSettings);
+      setPaytmVerificationEnabled(nextSettings.paytm_verification_enabled);
+    } catch (err) {
+      alert("Failed to update bot settings");
+      console.log(err);
+    }
+  };
+
   /* =========================================================================
      EFFECTS
   ========================================================================= */
@@ -365,6 +432,7 @@ const monthTotal =
       await fetchAnalytics();
       await fetchRefundAnalytics(); 
       await fetchFeedback();
+      await fetchSettings();
     };
     loadData();
   }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -463,6 +531,8 @@ const monthTotal =
     let matchFilter = true;
     if (filter === "OPEN" || filter === "CLOSED") {
       matchFilter = t.state?.toUpperCase() === filter;
+    } else if (filter === "AUTO_CLOSED") {
+      matchFilter = t.status === "auto_closed";
     } else if (filter) {
       matchFilter = t.status === filter;
     }
@@ -475,6 +545,7 @@ const monthTotal =
   ========================================================================= */
   const openCount = tickets.filter((t) => t.state === "OPEN").length;
   const closedCount = tickets.filter((t) => t.state === "CLOSED").length;
+  const autoClosedCount = tickets.filter((t) => t.status === "auto_closed").length;
   const adminCount = tickets.filter((t) => t.takeover).length;
   const refundedCount = tickets.filter((t) => t.status === "refunded" || t.status === "auto_refunded").length;
 
@@ -644,6 +715,13 @@ const monthTotal =
               </div>
             </div>
             <div className="stat-card">
+              <div className="stat-icon orange"><span>⏱️</span></div>
+              <div>
+                <div className="stat-num">{autoClosedCount}</div>
+                <div className="stat-label">Auto Closed</div>
+              </div>
+            </div>
+            <div className="stat-card">
               <div className="stat-icon amber"><span>👤</span></div>
               <div>
                 <div className="stat-num">{adminCount}</div>
@@ -676,15 +754,80 @@ const monthTotal =
                 <option value="">All Status</option>
                 <option value="OPEN">Open</option>
                 <option value="CLOSED">Closed</option>
+                <option value="AUTO_CLOSED">Auto Closed</option>
                 <option value="refunded">Refunded</option>
                 <option value="auto_refunded">Auto Refunded</option>
                 <option value="resolved">Resolved</option>
               </select>
+              <button
+                type="button"
+                className="settings-trigger"
+                onClick={() => setShowSettings((prev) => !prev)}
+              >
+                Bot Settings
+              </button>
+              <button
+                type="button"
+                className={`paytm-toggle ${paytmVerificationEnabled ? "paytm-toggle-on" : ""}`}
+                onClick={() => updatePaytmSetting(!paytmVerificationEnabled)}
+                title="Toggle Paytm verification"
+              >
+                <span className="paytm-toggle-dot" />
+                <span>{paytmVerificationEnabled ? "Paytm ON" : "Paytm OFF"}</span>
+              </button>
               <button className="btn-icon" onClick={fetchTickets} title="Refresh">
                 {Icon.refresh}
                 Refresh
               </button>
             </div>
+
+            {showSettings && (
+              <div className="settings-panel">
+                <div className="setting-group">
+                  <div className="setting-row">
+                    <div>
+                      <div className="setting-title">Paytm verification</div>
+                      <div className="setting-desc">Require payment validation before ticket submission.</div>
+                    </div>
+                    <button
+                      type="button"
+                      className={`mini-toggle ${settings.paytm_verification_enabled ? "mini-toggle-on" : ""}`}
+                      onClick={() => updateSettingsState("paytm_verification_enabled", !settings.paytm_verification_enabled)}
+                    >
+                      <span className="mini-toggle-thumb" />
+                    </button>
+                  </div>
+
+                  <div className="setting-row">
+                    <div>
+                      <div className="setting-title">Auto-close inactive tickets</div>
+                      <div className="setting-desc">Close tickets automatically if there is no customer reply.</div>
+                    </div>
+                    <button
+                      type="button"
+                      className={`mini-toggle ${settings.auto_close_inactive_tickets ? "mini-toggle-on" : ""}`}
+                      onClick={() => updateSettingsState("auto_close_inactive_tickets", !settings.auto_close_inactive_tickets)}
+                    >
+                      <span className="mini-toggle-thumb" />
+                    </button>
+                  </div>
+
+                  <div className="setting-row">
+                    <div>
+                      <div className="setting-title">Premium message mode</div>
+                      <div className="setting-desc">Keep WhatsApp replies cleaner and more premium with minimal symbols.</div>
+                    </div>
+                    <button
+                      type="button"
+                      className={`mini-toggle ${settings.premium_message_mode ? "mini-toggle-on" : ""}`}
+                      onClick={() => updateSettingsState("premium_message_mode", !settings.premium_message_mode)}
+                    >
+                      <span className="mini-toggle-thumb" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="table-wrapper">
               <table>
@@ -709,8 +852,9 @@ const monthTotal =
                 <tbody>
                   {filteredTickets.map((t, i) => {
                     const isClosed = t.state === "CLOSED";
+                    const isAutoClosed = t.status === "auto_closed";
                     return (
-                      <tr key={t.id} className={isClosed ? "row-closed" : ""}>
+                      <tr key={t.id} className={isAutoClosed ? "row-auto-closed" : isClosed ? "row-closed" : ""}>
                         <td><span className="row-num">{i + 1}</span></td>
                         <td><span className="phone-tag">{t.phone}</span></td>
                         <td>{t.main_issue || <span className="na">—</span>}</td>
@@ -801,12 +945,12 @@ const monthTotal =
 </td>
                         <td>
                           <span className={`status-badge status-${(t.status || "").replace("_", "-")}`}>
-                            {t.status || "—"}
+                            {t.status === "auto_closed" ? "Auto Closed" : t.status || "—"}
                           </span>
                         </td>
                         <td>
                           <span className={`state-pill ${t.state === "OPEN" ? "state-open" : "state-closed"}`}>
-                            {t.state}
+                            {isAutoClosed ? "AUTO CLOSED" : t.state}
                           </span>
                         </td>
                         <td>
