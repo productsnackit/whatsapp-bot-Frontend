@@ -514,20 +514,31 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
     }
   };
 
-  const saveAdminProfile = () => {
+  const saveAdminProfile = async () => {
     const nextProfile = {
       ...adminProfile,
       displayName: adminProfile.displayName.trim() || "Snackit Admin",
       email: adminProfile.email.trim(),
     };
-    localStorage.setItem("adminDisplayName", nextProfile.displayName);
-    localStorage.setItem("adminEmail", nextProfile.email);
-    localStorage.setItem("adminLogo", nextProfile.logo);
-    localStorage.setItem("adminCompactMode", String(nextProfile.compactMode));
-    setAdminProfile(nextProfile);
-    setCurrentUserName(nextProfile.displayName);
-    localStorage.setItem("userName", nextProfile.displayName);
-    alert("Admin settings saved");
+    try {
+      const response = await API.post(
+        "/admin/settings",
+        { admin_logo: nextProfile.logo },
+        { headers: authHeaders() }
+      );
+      const savedLogo = response.data?.admin_logo || nextProfile.logo;
+      const savedProfile = { ...nextProfile, logo: savedLogo };
+      localStorage.setItem("adminDisplayName", savedProfile.displayName);
+      localStorage.setItem("adminEmail", savedProfile.email);
+      localStorage.setItem("adminLogo", savedProfile.logo);
+      localStorage.setItem("adminCompactMode", String(savedProfile.compactMode));
+      setAdminProfile(savedProfile);
+      setCurrentUserName(savedProfile.displayName);
+      localStorage.setItem("userName", savedProfile.displayName);
+      alert("Admin settings saved");
+    } catch (err) {
+      alert(err.response?.data?.error || "Could not save admin settings");
+    }
   };
 
   const handleAdminLogoChange = (event) => {
@@ -612,6 +623,10 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       };
       setSettings(nextSettings);
       setPaytmVerificationEnabled(nextSettings.paytm_verification_enabled);
+      if (res.data?.admin_logo) {
+        setAdminProfile((profile) => ({ ...profile, logo: res.data.admin_logo }));
+        localStorage.setItem("adminLogo", res.data.admin_logo);
+      }
     } catch (err) {
       console.log("Settings error:", err);
     }
