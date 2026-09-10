@@ -1062,6 +1062,7 @@ const monthTotal =
                 <div className="internal-chat-header">
                   <div>
                     <h3>{selectedInternalChat ? selectedInternalChat.title : `${selectedDepartment} chat`}</h3>
+                    <p>{departmentUsers.length} team members · Messages are visible to this department</p>
                     <span className={`priority-badge priority-${(selectedInternalChat?.priority || internalPriority)}`}>
                       {(selectedInternalChat?.priority || internalPriority)} priority
                     </span>
@@ -1095,16 +1096,30 @@ const monthTotal =
                 </div>
 
                 <div className="internal-composer">
-                  <select value={internalTag} onChange={(event) => setInternalTag(event.target.value)}>
-                    {departmentTags.length ? departmentTags.map((tag) => (
-                      <option value={tag} key={tag}>#{tag}</option>
-                    )) : <option value="general">#general</option>}
-                  </select>
-                  <select value={internalPriority} onChange={(event) => setInternalPriority(event.target.value)}>
-                    <option value="low">Low priority</option>
-                    <option value="medium">Medium priority</option>
-                    <option value="urgent">Urgent priority</option>
-                  </select>
+                  <div className="priority-picker" aria-label="Message priority">
+                    <span className="composer-label">Priority</span>
+                    {[
+                      { value: "low", label: "Low", color: "green" },
+                      { value: "medium", label: "Medium", color: "yellow" },
+                      { value: "urgent", label: "Urgent", color: "red" },
+                    ].map((priority) => (
+                      <button
+                        key={priority.value}
+                        type="button"
+                        className={`priority-choice ${priority.color} ${internalPriority === priority.value ? "selected" : ""}`}
+                        onClick={() => setInternalPriority(priority.value)}
+                      >
+                        <span className="priority-dot" />
+                        {priority.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="message-compose-row">
+                    <select value={internalTag} onChange={(event) => setInternalTag(event.target.value)} aria-label="Message tag">
+                      {departmentTags.length ? departmentTags.map((tag) => (
+                        <option value={tag} key={tag}>#{tag}</option>
+                      )) : <option value="general">#general</option>}
+                    </select>
                   <input
                     type="text"
                     value={internalMessage}
@@ -1115,7 +1130,7 @@ const monthTotal =
                         handleSendInternalMessage();
                       }
                     }}
-                    placeholder="Type a message…"
+                    placeholder={`Message ${selectedDepartment}...`}
                   />
                   <label className="internal-file-picker">
                     <input
@@ -1123,9 +1138,13 @@ const monthTotal =
                       multiple
                       onChange={(event) => setAttachedFiles(Array.from(event.target.files || []))}
                     />
-                    + File
+                    Attach file
                   </label>
-                  <button type="button" onClick={handleSendInternalMessage}>Send</button>
+                  <button className="internal-send-button" type="button" onClick={handleSendInternalMessage}>
+                    {Icon.send}
+                    Send
+                  </button>
+                  </div>
                 </div>
 
                 {attachedFiles.length > 0 && (
@@ -1137,7 +1156,10 @@ const monthTotal =
                 )}
 
                 <div className="internal-recipient-box">
-                  <div className="internal-panel-header">Tag people</div>
+                  <div className="recipient-heading">
+                    <div className="internal-panel-header">Tag people</div>
+                    <span>{selectedRecipients.length ? `${selectedRecipients.length} selected` : "Notify the whole department if none selected"}</span>
+                  </div>
                   <div className="internal-recipient-list">
                     {departmentUsers.length ? departmentUsers.map((user) => (
                       <label key={user.id} className="recipient-check">
