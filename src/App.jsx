@@ -277,6 +277,11 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
         reader.readAsDataURL(file);
       })));
 
+      const serializedSize = serializedAttachments.reduce((total, file) => total + (file.dataUrl?.length || 0), 0);
+      if (serializedSize > 18_000_000) {
+        throw new Error("Attachments are too large together. Remove a file or send them separately.");
+      }
+
       const response = await API.post(
         `/internal/chats/${activeChat.id}/messages`,
         {
