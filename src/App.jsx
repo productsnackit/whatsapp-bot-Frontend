@@ -155,26 +155,16 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const [ticketDraft, setTicketDraft] = useState({ priority: "normal", assigned_to: "", admin_notes: "" });
 
   const departments = ["Accounts", "Product", "Audit", "Technical", "Orders"];
-  const [internalUsers, setInternalUsers] = useState([
-    { id: 1, name: "Aisha Khan", department: "Accounts", role: "Manager", tags: ["finance", "audit"], isAdmin: true },
-    { id: 2, name: "Rohit Nair", department: "Product", role: "Lead", tags: ["product", "roadmap"], isAdmin: true },
-    { id: 3, name: "Nandini Rao", department: "Audit", role: "Compliance", tags: ["audit", "risk"], isAdmin: true },
-    { id: 4, name: "Vikram Singh", department: "Technical", role: "Engineer", tags: ["backend", "api"], isAdmin: true },
-    { id: 5, name: "Priya Shah", department: "Orders", role: "Ops", tags: ["shipping", "dispatch"], isAdmin: true },
-    { id: 6, name: "Rahul Verma", department: "Accounts", role: "Analyst", tags: ["finance", "reconciliation"], isAdmin: false },
-    { id: 7, name: "Mehul Das", department: "Product", role: "Designer", tags: ["product", "ux"], isAdmin: false },
-    { id: 8, name: "Tanya Iyer", department: "Technical", role: "QA", tags: ["testing", "api"], isAdmin: false },
-  ]);
-  const [internalChats, setInternalChats] = useState([
-    { id: 1, department: "Accounts", title: "Invoice follow-up", priority: "urgent", participants: ["Aisha Khan", "Rahul Verma"], unread: 2, messages: [{ id: 1, sender: "Aisha Khan", text: "Need immediate verification for invoice #4021", time: "09:18 AM", tag: "finance" }, { id: 2, sender: "Rahul Verma", text: "I have matched the bank proof and will send the final check in 10 min.", time: "09:22 AM", tag: "reconciliation" }] },
-    { id: 2, department: "Product", title: "Launch checklist", priority: "medium", participants: ["Rohit Nair", "Mehul Das"], unread: 1, messages: [{ id: 1, sender: "Rohit Nair", text: "Please confirm the release notes before traffic goes live.", time: "08:55 AM", tag: "product" }] },
-    { id: 3, department: "Technical", title: "API outage review", priority: "urgent", participants: ["Vikram Singh", "Tanya Iyer"], unread: 3, messages: [{ id: 1, sender: "Vikram Singh", text: "The payment callback API is failing with 502 errors.", time: "07:40 AM", tag: "backend" }] },
-    { id: 4, department: "Orders", title: "Dispatch conflict", priority: "low", participants: ["Priya Shah"], unread: 0, messages: [{ id: 1, sender: "Priya Shah", text: "Pending shipments are waiting for warehouse confirmation.", time: "Yesterday", tag: "shipping" }] },
-  ]);
+  const [isAdmin, setIsAdmin] = useState(true);
+  const [internalUsers, setInternalUsers] = useState([]);
+  const [internalChats, setInternalChats] = useState([]);
   const [selectedDepartment, setSelectedDepartment] = useState("Accounts");
-  const [selectedInternalChatId, setSelectedInternalChatId] = useState(1);
+  const [selectedInternalChatId, setSelectedInternalChatId] = useState(null);
   const [internalMessage, setInternalMessage] = useState("");
-  const [internalTag, setInternalTag] = useState("finance");
+  const [internalTag, setInternalTag] = useState("general");
+  const [internalPriority, setInternalPriority] = useState("medium");
+  const [selectedRecipients, setSelectedRecipients] = useState([]);
+  const [attachedFiles, setAttachedFiles] = useState([]);
   const [notificationToast, setNotificationToast] = useState(null);
   const [newEmployee, setNewEmployee] = useState({ name: "", department: "Accounts", role: "Analyst", tags: "finance, operations" });
   const socketRef = useRef(null);
@@ -209,36 +199,61 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   }, [departmentTags, internalTag]);
 
   const handleSendInternalMessage = async () => {
-    if (!selectedInternalChat || !internalMessage.trim()) return;
-
     const messageText = internalMessage.trim();
+    const hasAttachment = attachedFiles.length > 0;
+    if (!messageText && !hasAttachment) return;
 
     try {
+      let activeChat = selectedInternalChat;
+      if (!activeChat) {
+        const createdChat = await API.post(
+          "/internal/chats",
+          {
+            department: selectedDepartment,
+            title: `${selectedDepartment} chat`,
+            priority: internalPriority,
+            participants: departmentUsers.map((user) => user.name),
+          },
+          { headers: authHeaders() }
+        );
+
+        if (createdChat.data?.chat) {
+          setInternalChats((prev) => [createdChat.data.chat, ...prev]);
+          activeChat = createdChat.data.chat;
+          setSelectedInternalChatId(createdChat.data.chat.id);
+        }
+      }
+
+      if (!activeChat) return;
+
       const response = await API.post(
-        `/internal/chats/${selectedInternalChat.id}/messages`,
+        `/internal/chats/${activeChat.id}/messages`,
         {
-          sender: "You",
+          sender: "Admin",
           text: messageText,
           tag: internalTag,
-          priority: selectedInternalChat.priority || "medium",
-          sourceUser: "You",
+          priority: internalPriority,
+          sourceUser: "Admin",
+          attachments: attachedFiles.map((file) => ({ name: file.name, type: file.type, size: file.size })),
+          recipientIds: selectedRecipients.length ? selectedRecipients : departmentUsers.map((user) => String(user.id)),
         },
         { headers: authHeaders() }
       );
 
       if (response.data?.chat) {
         setInternalChats((prev) => prev.map((chat) =>
-          chat.id === response.data.chat.id ? response.data.chat : chat
+          String(chat.id) === String(response.data.chat.id) ? response.data.chat : chat
         ));
       }
 
       triggerInternalNotification(
         `${selectedDepartment} update`,
-        selectedInternalChat.priority || "medium",
-        `${internalTag.toUpperCase()} tag: ${messageText}`
+        internalPriority,
+        `${internalTag.toUpperCase()} tag: ${messageText || "Attachment sent"}`
       );
 
       setInternalMessage("");
+      setAttachedFiles([]);
     } catch (err) {
       alert("Failed to send internal message");
       console.log(err);
@@ -371,6 +386,50 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       console.log("Product error:", err);
     }
   }, [token, authHeaders]);
+
+  const fetchInternalData = useCallback(async () => {
+    if (!token) return;
+    try {
+      const [usersRes, chatsRes] = await Promise.all([
+        API.get("/internal/users", { headers: authHeaders() }),
+        API.get("/internal/chats", { headers: authHeaders() }),
+      ]);
+
+      setInternalUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
+      setInternalChats(Array.isArray(chatsRes.data) ? chatsRes.data : []);
+    } catch (err) {
+      console.log("Internal data error:", err);
+    }
+  }, [token, authHeaders]);
+
+  const handleDeleteChat = useCallback(async (chatId) => {
+    if (!isAdmin || !chatId) return;
+    const confirmDelete = window.confirm("Delete this department chat?");
+    if (!confirmDelete) return;
+
+    try {
+      await API.delete(`/internal/chats/${chatId}`, { headers: authHeaders() });
+      setInternalChats((prev) => prev.filter((chat) => String(chat.id) !== String(chatId)));
+      setSelectedInternalChatId((prev) => (String(prev) === String(chatId) ? null : prev));
+    } catch (err) {
+      alert("Failed to delete chat");
+      console.log(err);
+    }
+  }, [isAdmin, authHeaders]);
+
+  const handleDeleteUser = useCallback(async (userId) => {
+    if (!isAdmin || !userId) return;
+    const confirmDelete = window.confirm("Delete this employee from the department team?");
+    if (!confirmDelete) return;
+
+    try {
+      await API.delete(`/internal/users/${userId}`, { headers: authHeaders() });
+      setInternalUsers((prev) => prev.filter((user) => String(user.id) !== String(userId)));
+    } catch (err) {
+      alert("Failed to delete employee");
+      console.log(err);
+    }
+  }, [isAdmin, authHeaders]);
 
   // ✅ FIX: Added typing indicator logic
   const fetchMessages = useCallback(async (ticketId) => {
@@ -603,13 +662,14 @@ const monthTotal =
     const loadData = async () => {
       await fetchTickets();
       await fetchProducts();
+      await fetchInternalData();
       await fetchAnalytics();
       await fetchRefundAnalytics(); 
       await fetchFeedback();
       await fetchSettings();
     };
     loadData();
-  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token, fetchInternalData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   
 
@@ -649,6 +709,18 @@ const monthTotal =
       }
     });
 
+    socket.on("internal-chat-deleted", ({ chatId }) => {
+      if (!chatId) return;
+      setInternalChats((prev) => prev.filter((chat) => String(chat.id) !== String(chatId)));
+      setSelectedInternalChatId((prev) => (String(prev) === String(chatId) ? null : prev));
+    });
+
+    socket.on("internal-user-updated", ({ removedUserId }) => {
+      if (removedUserId) {
+        setInternalUsers((prev) => prev.filter((user) => String(user.id) !== String(removedUserId)));
+      }
+    });
+
     socket.on("internal-notification", (notification) => {
       if (!notification) return;
       triggerInternalNotification(notification.title || "Department alert", notification.priority || "medium", notification.message || "New internal update");
@@ -656,6 +728,8 @@ const monthTotal =
 
     return () => {
       socket.off("internal-chat-updated");
+      socket.off("internal-chat-deleted");
+      socket.off("internal-user-updated");
       socket.off("internal-notification");
       socket.disconnect();
     };
@@ -961,19 +1035,23 @@ const monthTotal =
                 <div className="internal-panel-header">Chats</div>
                 {departmentChats.length ? (
                   departmentChats.map((chat) => (
-                    <button
-                      key={chat.id}
-                      type="button"
-                      className={`internal-thread-card ${selectedInternalChat?.id === chat.id ? "selected" : ""}`}
-                      onClick={() => setSelectedInternalChatId(chat.id)}
-                    >
-                      <div className="internal-thread-top">
-                        <strong>{chat.title}</strong>
-                        <span className={`priority-badge priority-${chat.priority || "medium"}`}>{chat.priority || "medium"}</span>
-                      </div>
-                      <div className="internal-thread-meta">{chat.participants.join(", ")}</div>
-                      <div className="internal-thread-meta">{chat.messages.at(-1)?.text || "No messages"}</div>
-                    </button>
+                    <div key={chat.id} className="internal-thread-wrap">
+                      <button
+                        type="button"
+                        className={`internal-thread-card ${selectedInternalChat?.id === chat.id ? "selected" : ""}`}
+                        onClick={() => setSelectedInternalChatId(chat.id)}
+                      >
+                        <div className="internal-thread-top">
+                          <strong>{chat.title}</strong>
+                          <span className={`priority-badge priority-${chat.priority || "medium"}`}>{chat.priority || "medium"}</span>
+                        </div>
+                        <div className="internal-thread-meta">{chat.participants.join(", ")}</div>
+                        <div className="internal-thread-meta">{chat.messages.at(-1)?.text || "No messages"}</div>
+                      </button>
+                      {isAdmin && (
+                        <button type="button" className="internal-delete-btn" onClick={() => handleDeleteChat(chat.id)}>Delete</button>
+                      )}
+                    </div>
                   ))
                 ) : (
                   <div className="internal-empty-state">No chat in this department yet.</div>
@@ -981,70 +1059,124 @@ const monthTotal =
               </aside>
 
               <section className="internal-conversation-panel">
-                {selectedInternalChat ? (
-                  <>
-                    <div className="internal-chat-header">
-                      <div>
-                        <h3>{selectedInternalChat.title}</h3>
-                        <span className={`priority-badge priority-${selectedInternalChat.priority || "medium"}`}>
-                          {selectedInternalChat.priority || "medium"} priority
-                        </span>
-                      </div>
-                    </div>
+                <div className="internal-chat-header">
+                  <div>
+                    <h3>{selectedInternalChat ? selectedInternalChat.title : `${selectedDepartment} chat`}</h3>
+                    <span className={`priority-badge priority-${(selectedInternalChat?.priority || internalPriority)}`}>
+                      {(selectedInternalChat?.priority || internalPriority)} priority
+                    </span>
+                  </div>
+                </div>
 
-                    <div className="internal-messages">
-                      {selectedInternalChat.messages.map((message) => (
-                        <div key={message.id} className={`internal-message-row ${message.sender === "You" ? "outgoing" : "incoming"}`}>
-                          <div className="internal-message-bubble">
-                            <div className="internal-message-meta">
-                              <strong>{message.sender}</strong>
-                              <span>{message.time}</span>
-                            </div>
-                            <div>{message.text}</div>
-                            {message.tag && <span className="message-tag">#{message.tag}</span>}
+                <div className="internal-messages">
+                  {selectedInternalChat && selectedInternalChat.messages.length ? (
+                    selectedInternalChat.messages.map((message) => (
+                      <div key={message.id} className={`internal-message-row ${message.sender === "You" || message.sender === "Admin" ? "outgoing" : "incoming"}`}>
+                        <div className="internal-message-bubble">
+                          <div className="internal-message-meta">
+                            <strong>{message.sender}</strong>
+                            <span>{message.time}</span>
                           </div>
+                          <div>{message.text}</div>
+                          {message.attachments?.length ? (
+                            <div className="message-attachment-list">
+                              {message.attachments.map((file, idx) => (
+                                <span key={`${file.name}-${idx}`} className="message-attachment">{file.name}</span>
+                              ))}
+                            </div>
+                          ) : null}
+                          {message.tag && <span className="message-tag">#{message.tag}</span>}
                         </div>
-                      ))}
-                    </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="internal-empty-state large">Start a message for {selectedDepartment}.</div>
+                  )}
+                </div>
 
-                    <div className="internal-composer">
-                      <select value={internalTag} onChange={(event) => setInternalTag(event.target.value)}>
-                        {departmentTags.length ? departmentTags.map((tag) => (
-                          <option value={tag} key={tag}>#{tag}</option>
-                        )) : <option value="general">#general</option>}
-                      </select>
-                      <input
-                        type="text"
-                        value={internalMessage}
-                        onChange={(event) => setInternalMessage(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            handleSendInternalMessage();
-                          }
-                        }}
-                        placeholder="Type a message…"
-                      />
-                      <button type="button" onClick={handleSendInternalMessage}>Send</button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="internal-empty-state large">Select a conversation to begin.</div>
+                <div className="internal-composer">
+                  <select value={internalTag} onChange={(event) => setInternalTag(event.target.value)}>
+                    {departmentTags.length ? departmentTags.map((tag) => (
+                      <option value={tag} key={tag}>#{tag}</option>
+                    )) : <option value="general">#general</option>}
+                  </select>
+                  <select value={internalPriority} onChange={(event) => setInternalPriority(event.target.value)}>
+                    <option value="low">Low priority</option>
+                    <option value="medium">Medium priority</option>
+                    <option value="urgent">Urgent priority</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={internalMessage}
+                    onChange={(event) => setInternalMessage(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        handleSendInternalMessage();
+                      }
+                    }}
+                    placeholder="Type a message…"
+                  />
+                  <label className="internal-file-picker">
+                    <input
+                      type="file"
+                      multiple
+                      onChange={(event) => setAttachedFiles(Array.from(event.target.files || []))}
+                    />
+                    + File
+                  </label>
+                  <button type="button" onClick={handleSendInternalMessage}>Send</button>
+                </div>
+
+                {attachedFiles.length > 0 && (
+                  <div className="attachment-preview-row">
+                    {attachedFiles.map((file) => (
+                      <span key={file.name} className="message-attachment">{file.name}</span>
+                    ))}
+                  </div>
                 )}
+
+                <div className="internal-recipient-box">
+                  <div className="internal-panel-header">Tag people</div>
+                  <div className="internal-recipient-list">
+                    {departmentUsers.length ? departmentUsers.map((user) => (
+                      <label key={user.id} className="recipient-check">
+                        <input
+                          type="checkbox"
+                          checked={selectedRecipients.includes(String(user.id))}
+                          onChange={(event) => {
+                            const userId = String(user.id);
+                            setSelectedRecipients((prev) =>
+                              event.target.checked ? [...prev, userId] : prev.filter((id) => id !== userId)
+                            );
+                          }}
+                        />
+                        <span>{user.name}</span>
+                      </label>
+                    )) : <span className="internal-empty-state">Add employees first to tag them.</span>}
+                  </div>
+                </div>
               </section>
 
               <aside className="internal-team-panel">
                 <div className="internal-panel-header">Team members</div>
                 <div className="internal-team-list">
-                  {departmentUsers.map((user) => (
+                  {departmentUsers.length ? departmentUsers.map((user) => (
                     <div key={user.id} className="internal-team-card">
-                      <div className="internal-team-name">{user.name}</div>
-                      <div className="internal-team-role">{user.role}</div>
+                      <div className="internal-team-head">
+                        <div>
+                          <div className="internal-team-name">{user.name}</div>
+                          <div className="internal-team-role">{user.role}</div>
+                        </div>
+                        {isAdmin && (
+                          <button type="button" className="internal-delete-row" onClick={() => handleDeleteUser(user.id)}>Delete</button>
+                        )}
+                      </div>
                       <div className="internal-tags">
                         {(user.tags || []).map((tag) => <span key={tag} className="team-tag">#{tag}</span>)}
                       </div>
                     </div>
-                  ))}
+                  )) : <div className="internal-empty-state">No team members for this department yet.</div>}
                 </div>
 
                 <div className="internal-panel-header">Add employee</div>
