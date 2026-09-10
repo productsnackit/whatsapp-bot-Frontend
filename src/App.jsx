@@ -172,10 +172,17 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const [selectedDepartment, setSelectedDepartment] = useState(localStorage.getItem("userDepartment") || "Accounts");
   const [selectedInternalChatId, setSelectedInternalChatId] = useState(null);
   const [internalMessage, setInternalMessage] = useState("");
-  const [internalPriority] = useState("medium");
+  const [internalPriority, setInternalPriority] = useState("medium");
   const [selectedRecipients, setSelectedRecipients] = useState([]);
   const [attachedFiles, setAttachedFiles] = useState([]);
   const attachmentInputRef = useRef(null);
+  const [internalSearch, setInternalSearch] = useState("");
+  const [internalFilter, setInternalFilter] = useState("all");
+  const [showArchivedChats, setShowArchivedChats] = useState(false);
+  const [internalReplyTo, setInternalReplyTo] = useState(null);
+  const [savedReplies, setSavedReplies] = useState([]);
+  const [showSavedReplyForm, setShowSavedReplyForm] = useState(false);
+  const [savedReplyDraft, setSavedReplyDraft] = useState({ title: "", text: "" });
   const [notificationToast, setNotificationToast] = useState(null);
   const [newEmployee, setNewEmployee] = useState({ name: "", department: "Accounts", role: "Analyst", tags: "finance, operations" });
   const [editingEmployeeId, setEditingEmployeeId] = useState(null);
@@ -187,6 +194,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
     compactMode: localStorage.getItem("adminCompactMode") === "true",
   }));
   const socketRef = useRef(null);
+  const selectedInternalChatIdRef = useRef(null);
 
   const triggerInternalNotification = useCallback((title, priority, message) => {
     setNotificationToast({ title, priority, message });
@@ -202,16 +210,38 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
 
   const departmentUsers = internalUsers.filter((user) => user.department === selectedDepartment);
   const departmentChats = internalChats.filter((chat) => chat.department === selectedDepartment);
+  const visibleDepartmentChats = departmentChats
+    .filter((chat) => showArchivedChats || !chat.archived)
+    .filter((chat) => {
+      if (internalFilter === "unread") return Number(chat.unread || 0) > 0;
+      if (internalFilter === "pinned") return chat.pinned;
+      if (internalFilter === "favorites") return chat.favorite;
+      return true;
+    })
+    .filter((chat) => {
+      const query = internalSearch.trim().toLowerCase();
+      if (!query) return true;
+      return [chat.title, ...(chat.participants || []), chat.messages?.at(-1)?.text].some((value) => String(value || "").toLowerCase().includes(query));
+    })
+    .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || Number(Boolean(b.favorite)) - Number(Boolean(a.favorite)));
   const availableDepartments = departments;
   const selectedInternalChat = departmentChats.find((chat) => chat.id === selectedInternalChatId)
-    || departmentChats[0]
+    || visibleDepartmentChats[0]
     || null;
+
+  useEffect(() => {
+    selectedInternalChatIdRef.current = selectedInternalChatId;
+  }, [selectedInternalChatId]);
 
   useEffect(() => {
     if (selectedDepartment && !departmentChats.some((chat) => chat.id === selectedInternalChatId) && departmentChats[0]) {
       setSelectedInternalChatId(departmentChats[0].id);
     }
   }, [selectedDepartment, departmentChats, selectedInternalChatId]);
+
+  useEffect(() => {
+    if (selectedInternalChat?.id) markInternalChatRead(selectedInternalChat.id);
+  }, [selectedInternalChat?.id]);
 
   const handleSendInternalMessage = async () => {
     const messageText = internalMessage.trim();
@@ -292,6 +322,8 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
           sourceUser: currentUserName,
           attachments: serializedAttachments,
           recipientIds: selectedRecipients.length ? selectedRecipients : internalUsers.map((user) => String(user.id)),
+          replyTo: internalReplyTo?.id || null,
+          mentions: internalUsers.filter((user) => messageText.includes(`@${user.name}`)).map((user) => String(user.id)),
         },
         { headers: authHeaders() }
       );
@@ -309,6 +341,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       );
 
       setInternalMessage("");
+      setInternalReplyTo(null);
       setAttachedFiles([]);
       if (attachmentInputRef.current) attachmentInputRef.current.value = "";
     } catch (err) {
@@ -330,6 +363,46 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
     } catch (err) {
       alert("Failed to update message status");
       console.log(err);
+    }
+  };
+
+  const updateInternalChat = async (chatId, updates) => {
+    try {
+      const response = await API.patch(`/internal/chats/${chatId}`, updates, { headers: authHeaders() });
+      if (response.data?.chat) setInternalChats((prev) => prev.map((chat) => String(chat.id) === String(chatId) ? response.data.chat : chat));
+    } catch (err) {
+      alert(err.response?.data?.error || "Failed to update chat");
+    }
+  };
+
+  async function markInternalChatRead(chatId) {
+    if (!chatId) return;
+    setInternalChats((prev) => prev.map((chat) => String(chat.id) === String(chatId) ? { ...chat, unread: 0 } : chat));
+    try {
+      await API.patch(`/internal/chats/${chatId}/read`, {}, { headers: authHeaders() });
+    } catch (err) {
+      console.log("Mark internal chat read error:", err);
+    }
+  }
+
+  const updateInternalMessage = async (chatId, messageId, updates) => {
+    try {
+      const response = await API.patch(`/internal/chats/${chatId}/messages/${messageId}`, updates, { headers: authHeaders() });
+      if (response.data?.chat) setInternalChats((prev) => prev.map((chat) => String(chat.id) === String(chatId) ? response.data.chat : chat));
+    } catch (err) {
+      alert(err.response?.data?.error || "Failed to update message");
+    }
+  };
+
+  const saveInternalReply = async (event) => {
+    event.preventDefault();
+    try {
+      const response = await API.post("/internal/saved-replies", savedReplyDraft, { headers: authHeaders() });
+      if (response.data?.reply) setSavedReplies((prev) => [response.data.reply, ...prev]);
+      setSavedReplyDraft({ title: "", text: "" });
+      setShowSavedReplyForm(false);
+    } catch (err) {
+      alert(err.response?.data?.error || "Failed to save reply");
     }
   };
 
@@ -542,13 +615,15 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const fetchInternalData = useCallback(async () => {
     if (!token) return;
     try {
-      const [usersRes, chatsRes] = await Promise.all([
+      const [usersRes, chatsRes, repliesRes] = await Promise.all([
         API.get("/internal/users", { headers: authHeaders() }),
         API.get("/internal/chats", { headers: authHeaders() }),
+        API.get("/internal/saved-replies", { headers: authHeaders() }),
       ]);
 
       setInternalUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
       setInternalChats(Array.isArray(chatsRes.data) ? chatsRes.data : []);
+      setSavedReplies(Array.isArray(repliesRes.data) ? repliesRes.data : []);
     } catch (err) {
       console.log("Internal data error:", err);
     }
@@ -857,10 +932,13 @@ const monthTotal =
       if (!chat) return;
       setInternalChats((prev) => {
         const exists = prev.some((item) => String(item.id) === String(chat.id));
+        const isIncoming = notification && notification.sourceUser !== currentUserName;
+        const isSelected = String(selectedInternalChatIdRef.current) === String(chat.id);
+        const nextChat = isIncoming && !isSelected ? { ...chat, unread: Number(chat.unread || 0) + 1 } : chat;
         if (exists) {
-          return prev.map((item) => (String(item.id) === String(chat.id) ? chat : item));
+          return prev.map((item) => (String(item.id) === String(chat.id) ? nextChat : item));
         }
-        return [chat, ...prev];
+        return [nextChat, ...prev];
       });
 
       if (notification && notification.sourceUser !== currentUserName) {
@@ -892,7 +970,7 @@ const monthTotal =
       socket.off("internal-notification");
       socket.disconnect();
     };
-  }, [token, currentUserId, triggerInternalNotification]);
+  }, [token, currentUserId, currentUserName, triggerInternalNotification]);
 
   useEffect(() => {
     if (!socketRef.current || !selectedDepartment) return;
@@ -1344,27 +1422,46 @@ const monthTotal =
                 </div>
 
                 <div className="internal-panel-header">Chats</div>
-                {departmentChats.length ? (
-                  departmentChats.map((chat) => (
+                <div className="internal-chat-tools">
+                  <div className="internal-search-box">
+                    {Icon.search}
+                    <input value={internalSearch} onChange={(event) => setInternalSearch(event.target.value)} placeholder="Search chats" />
+                  </div>
+                  <div className="internal-filter-row">
+                    {[["all", "All"], ["unread", "Unread"], ["pinned", "Pinned"], ["favorites", "Favorites"]].map(([value, label]) => (
+                      <button key={value} type="button" className={internalFilter === value ? "active" : ""} onClick={() => setInternalFilter(value)}>{label}</button>
+                    ))}
+                  </div>
+                  <label className="internal-archive-toggle"><input type="checkbox" checked={showArchivedChats} onChange={(event) => setShowArchivedChats(event.target.checked)} /> Show archived</label>
+                </div>
+                {visibleDepartmentChats.length ? (
+                  visibleDepartmentChats.map((chat) => (
                     <div key={chat.id} className="internal-thread-wrap">
                       <button
                         type="button"
                         className={`internal-thread-card ${selectedInternalChat?.id === chat.id ? "selected" : ""}`}
-                        onClick={() => setSelectedInternalChatId(chat.id)}
+                        onClick={() => { setSelectedInternalChatId(chat.id); markInternalChatRead(chat.id); }}
                       >
                         <div className="internal-thread-top">
                           <strong>{chat.title}</strong>
+                          <span className="internal-thread-icons">{chat.pinned ? "📌" : ""}{chat.favorite ? "★" : ""}{chat.unread ? <b>{chat.unread}</b> : ""}</span>
                         </div>
                         <div className="internal-thread-meta">{chat.participants.join(", ")}</div>
                         <div className="internal-thread-meta">{chat.messages.at(-1)?.text || "No messages"}</div>
                       </button>
+                      <div className="internal-thread-actions">
+                        <button type="button" onClick={() => updateInternalChat(chat.id, { pinned: !chat.pinned })}>{chat.pinned ? "Unpin" : "Pin"}</button>
+                        <button type="button" onClick={() => updateInternalChat(chat.id, { favorite: !chat.favorite })}>{chat.favorite ? "Unfavorite" : "Favorite"}</button>
+                        <button type="button" onClick={() => updateInternalChat(chat.id, { archived: !chat.archived })}>{chat.archived ? "Restore" : "Archive"}</button>
+                        {isAdmin && <button type="button" onClick={() => updateInternalChat(chat.id, { title: window.prompt("Chat name", chat.title) || chat.title })}>Rename</button>}
+                      </div>
                       {isAdmin && (
                         <button type="button" className="internal-delete-btn" onClick={() => handleDeleteChat(chat.id)}>Delete</button>
                       )}
                     </div>
                   ))
                 ) : (
-                  <div className="internal-empty-state">No chat in this department yet.</div>
+                  <div className="internal-empty-state">No chats match these filters.</div>
                 )}
               </aside>
 
@@ -1374,6 +1471,14 @@ const monthTotal =
                     <h3>{selectedInternalChat ? selectedInternalChat.title : `${selectedDepartment} chat`}</h3>
                     <p>{departmentUsers.length} team members · Messages are visible to this department</p>
                   </div>
+                  {selectedInternalChat && <div className="internal-header-actions">
+                    <select value={selectedInternalChat.priority || "medium"} onChange={(event) => updateInternalChat(selectedInternalChat.id, { priority: event.target.value })} aria-label="Chat priority">
+                      <option value="low">Low priority</option>
+                      <option value="medium">Medium priority</option>
+                      <option value="urgent">Urgent priority</option>
+                    </select>
+                    <button type="button" onClick={() => updateInternalChat(selectedInternalChat.id, { archived: !selectedInternalChat.archived })}>{selectedInternalChat.archived ? "Restore" : "Archive"}</button>
+                  </div>}
                 </div>
 
                 <div className="internal-messages">
@@ -1390,6 +1495,7 @@ const monthTotal =
                             <strong>{message.sender}</strong>
                             <span>{message.time}</span>
                           </div>
+                          {message.replyTo && <div className="message-reply-context">Replying to a previous message</div>}
                           <div>{message.text}</div>
                           {message.attachments?.length ? (
                             <div className="message-attachment-list">
@@ -1398,7 +1504,7 @@ const monthTotal =
                                   {file.type?.startsWith("image/") && file.dataUrl ? (
                                     <img className="message-image" src={file.dataUrl} alt={file.name} />
                                   ) : null}
-                                  <span className="message-attachment">{file.name}</span>
+                                  {file.dataUrl ? <a className="message-attachment" href={file.dataUrl} download={file.name}>{file.name}</a> : <span className="message-attachment">{file.name}</span>}
                                 </div>
                               ))}
                             </div>
@@ -1417,6 +1523,14 @@ const monthTotal =
                               </select>
                             )}
                           </div>
+                          <div className="message-action-row">
+                            {[["👍", "thumbs"], ["✅", "done"], ["⚠️", "alert"]].map(([reaction, key]) => (
+                              <button type="button" key={key} onClick={() => updateInternalMessage(selectedInternalChat.id, message.id, { reaction })}>{reaction} {message.reactions?.[reaction]?.length || 0}</button>
+                            ))}
+                            <button type="button" onClick={() => { setInternalReplyTo(message); setInternalMessage(`@${message.sender} `); }}>Reply</button>
+                            <button type="button" onClick={() => updateInternalMessage(selectedInternalChat.id, message.id, { assignedTo: message.assignedTo ? null : currentUserName })}>{message.assignedTo ? `Assigned: ${message.assignedTo}` : "Assign to me"}</button>
+                            <button type="button" onClick={() => handleUpdateMessageStatus(selectedInternalChat.id, message.id, "in-progress")}>Escalate</button>
+                          </div>
                         </div>
                       </div>
                     ))
@@ -1425,7 +1539,33 @@ const monthTotal =
                   )}
                 </div>
 
-                <div className="internal-composer">
+                <div
+                  className="internal-composer"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    setAttachedFiles((files) => [...files, ...Array.from(event.dataTransfer.files || [])]);
+                  }}
+                >
+                  {internalReplyTo && <div className="replying-banner">Replying to {internalReplyTo.sender}<button type="button" onClick={() => setInternalReplyTo(null)}>Cancel</button></div>}
+                  <div className="priority-picker">
+                    <span className="composer-label">Priority</span>
+                    {[['low', 'Low', 'green'], ['medium', 'Medium', 'yellow'], ['urgent', 'Urgent', 'red']].map(([value, label, tone]) => (
+                      <button type="button" key={value} className={`priority-choice ${tone} ${internalPriority === value ? "selected" : ""}`} onClick={() => setInternalPriority(value)}><span className="priority-dot" />{label}</button>
+                    ))}
+                  </div>
+                  <div className="saved-reply-row">
+                    <select value="" onChange={(event) => { const reply = savedReplies.find((item) => item.id === event.target.value); if (reply) setInternalMessage((value) => `${value}${value ? " " : ""}${reply.text}`); }} aria-label="Insert saved reply">
+                      <option value="">Insert saved reply</option>
+                      {savedReplies.map((reply) => <option key={reply.id} value={reply.id}>{reply.title}</option>)}
+                    </select>
+                    <button type="button" onClick={() => setShowSavedReplyForm((value) => !value)}>{showSavedReplyForm ? "Close" : "Save reply"}</button>
+                  </div>
+                  {showSavedReplyForm && <form className="saved-reply-form" onSubmit={saveInternalReply}>
+                    <input placeholder="Reply title" value={savedReplyDraft.title} onChange={(event) => setSavedReplyDraft((draft) => ({ ...draft, title: event.target.value }))} />
+                    <input placeholder="Reply text" value={savedReplyDraft.text} onChange={(event) => setSavedReplyDraft((draft) => ({ ...draft, text: event.target.value }))} />
+                    <button type="submit">Save</button>
+                  </form>}
                   <div className="message-compose-row">
                   <input
                     type="text"
@@ -1445,7 +1585,7 @@ const monthTotal =
                       type="file"
                       multiple
                       accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
-                      onChange={(event) => setAttachedFiles(Array.from(event.target.files || []))}
+                      onChange={(event) => setAttachedFiles((files) => [...files, ...Array.from(event.target.files || [])])}
                     />
                     Attach file
                   </label>
