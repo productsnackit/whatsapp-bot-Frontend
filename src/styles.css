@@ -1998,6 +1998,24 @@ tbody tr:hover { background: var(--surface-2); }
   color: white;
 }
 
+.internal-message-row.message-priority-low .internal-message-bubble {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #14532d;
+}
+
+.internal-message-row.message-priority-medium .internal-message-bubble {
+  background: #fef9c3;
+  border-color: #fde047;
+  color: #713f12;
+}
+
+.internal-message-row.message-priority-urgent .internal-message-bubble {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+
 .internal-message-meta {
   font-size: 11px;
   margin-bottom: 6px;
@@ -2155,6 +2173,25 @@ tbody tr:hover { background: var(--surface-2); }
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.employee-credentials {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 12px;
+  padding: 11px;
+  border: 1px solid #86efac;
+  border-radius: 10px;
+  background: #f0fdf4;
+  color: #166534;
+  font-size: 12px;
+}
+
+.employee-credentials small {
+  margin-top: 3px;
+  color: #4d7c0f;
+  line-height: 1.35;
 }
 
 .internal-empty-state {

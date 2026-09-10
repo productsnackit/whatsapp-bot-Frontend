@@ -113,6 +113,10 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token") || "");
+  const [userRole, setUserRole] = useState(localStorage.getItem("userRole") || "admin");
+  const [currentUserName, setCurrentUserName] = useState(localStorage.getItem("userName") || "Admin");
+  const [currentUserDepartment, setCurrentUserDepartment] = useState(localStorage.getItem("userDepartment") || "Accounts");
+  const [employeeCredentials, setEmployeeCredentials] = useState(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const chatEndRef = useRef(null);
@@ -139,7 +143,7 @@ const [refundAmountInput, setRefundAmountInput] = useState("");
 const [totalRefundToday, setTotalRefundToday] = useState(0);
 const [totalRefundMonth, setTotalRefundMonth] = useState(0);
 
-  const [view, setView] = useState("tickets");
+  const [view, setView] = useState(localStorage.getItem("userRole") === "employee" ? "internal-chat" : "tickets");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("");
   const [loadingId, setLoadingId] = useState(null);
@@ -155,10 +159,10 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const [ticketDraft, setTicketDraft] = useState({ priority: "normal", assigned_to: "", admin_notes: "" });
 
   const departments = ["Accounts", "Product", "Audit", "Technical", "Orders"];
-  const [isAdmin, setIsAdmin] = useState(true);
+  const isAdmin = userRole === "admin";
   const [internalUsers, setInternalUsers] = useState([]);
   const [internalChats, setInternalChats] = useState([]);
-  const [selectedDepartment, setSelectedDepartment] = useState("Accounts");
+  const [selectedDepartment, setSelectedDepartment] = useState(localStorage.getItem("userDepartment") || "Accounts");
   const [selectedInternalChatId, setSelectedInternalChatId] = useState(null);
   const [internalMessage, setInternalMessage] = useState("");
   const [internalTag, setInternalTag] = useState("general");
@@ -184,6 +188,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const departmentUsers = internalUsers.filter((user) => user.department === selectedDepartment);
   const departmentTags = Array.from(new Set(departmentUsers.flatMap((user) => user.tags || [])));
   const departmentChats = internalChats.filter((chat) => chat.department === selectedDepartment);
+  const availableDepartments = isAdmin ? departments : departments.filter((department) => department === currentUserDepartment);
   const selectedInternalChat = departmentChats.find((chat) => chat.id === selectedInternalChatId) || departmentChats[0] || null;
 
   useEffect(() => {
@@ -229,11 +234,11 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       const response = await API.post(
         `/internal/chats/${activeChat.id}/messages`,
         {
-          sender: "Admin",
+          sender: currentUserName,
           text: messageText,
           tag: internalTag,
           priority: internalPriority,
-          sourceUser: "Admin",
+          sourceUser: currentUserName,
           attachments: attachedFiles.map((file) => ({ name: file.name, type: file.type, size: file.size })),
           recipientIds: selectedRecipients.length ? selectedRecipients : departmentUsers.map((user) => String(user.id)),
         },
@@ -278,6 +283,9 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       if (response.data?.user) {
         setInternalUsers((prev) => [...prev, response.data.user]);
       }
+      if (response.data?.credentials) {
+        setEmployeeCredentials(response.data.credentials);
+      }
       setNewEmployee({ name: "", department: newEmployee.department, role: "Analyst", tags: "finance, operations" });
       triggerInternalNotification("New employee added", "medium", `${cleanName} was added to ${newEmployee.department} as ${payload.role}`);
     } catch (err) {
@@ -298,7 +306,15 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
     try {
       const res = await API.post("/login", { username, password });
       localStorage.setItem("token", res.data.token);
+      localStorage.setItem("userRole", res.data.role || "admin");
+      localStorage.setItem("userName", res.data.name || "Admin");
+      localStorage.setItem("userDepartment", res.data.department || "Accounts");
       setToken(res.data.token);
+      setUserRole(res.data.role || "admin");
+      setCurrentUserName(res.data.name || "Admin");
+      setCurrentUserDepartment(res.data.department || "Accounts");
+      setSelectedDepartment(res.data.department || "Accounts");
+      setView(res.data.role === "employee" ? "internal-chat" : "tickets");
       setSessionExpired(false);
     } catch {
       alert("Login failed");
@@ -307,7 +323,13 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
 
   const logout = () => {
     localStorage.removeItem("token");
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("userName");
+    localStorage.removeItem("userDepartment");
     setToken("");
+    setUserRole("admin");
+    setCurrentUserName("Admin");
+    setCurrentUserDepartment("Accounts");
     setActiveChat(null);
     setMessages([]);
   };
@@ -660,6 +682,10 @@ const monthTotal =
   useEffect(() => {
     if (!token) return;
     const loadData = async () => {
+      if (!isAdmin) {
+        await fetchInternalData();
+        return;
+      }
       await fetchTickets();
       await fetchProducts();
       await fetchInternalData();
@@ -669,7 +695,7 @@ const monthTotal =
       await fetchSettings();
     };
     loadData();
-  }, [token, fetchInternalData]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token, isAdmin, fetchInternalData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   
 
@@ -941,30 +967,30 @@ const monthTotal =
 
         <nav className="sidebar-nav">
           <div className="sidebar-section-label">Main Menu</div>
-          <button
+          {isAdmin && <button
             className={`nav-item ${view === "tickets" ? "active" : ""}`}
             onClick={() => setView("tickets")}
           >
             {Icon.ticket}
             <span>Tickets</span>
             {openCount > 0 && <span className="nav-badge">{openCount}</span>}
-          </button>
-          <button
+          </button>}
+          {isAdmin && <button
             className={`nav-item ${view === "feedback" ? "active" : ""}`}
             onClick={() => setView("feedback")}
           >
             {Icon.feedback}
             <span>Feedback</span>
-          </button>
-          <button
+          </button>}
+          {isAdmin && <button
             className={`nav-item ${view === "products" ? "active" : ""}`}
             onClick={() => setView("products")}
           >
             {Icon.product}
             <span>Products</span>
-          </button>
+          </button>}
 
-          <div className="sidebar-divider" />
+          {isAdmin && <><div className="sidebar-divider" />
           <div className="sidebar-section-label">Insights</div>
           <button
             className={`nav-item ${view === "analytics" ? "active" : ""}`}
@@ -972,7 +998,7 @@ const monthTotal =
           >
             {Icon.analytics}
             <span>Analytics</span>
-          </button>
+          </button></>}
           <button
             className={`nav-item ${view === "internal-chat" ? "active" : ""}`}
             onClick={() => setView("internal-chat")}
@@ -999,6 +1025,7 @@ const monthTotal =
               {view === "feedback" && "Customer Feedback"}
               {view === "products" && "Product Leads"}
               {view === "analytics" && "Analytics"}
+              {view === "internal-chat" && "Internal Chat"}
             </h1>
             <p className="page-sub">
               {view === "tickets" && `${filteredTickets.length} tickets · ${openCount} open`}
@@ -1020,7 +1047,7 @@ const monthTotal =
               <aside className="internal-thread-panel">
                 <div className="internal-panel-header">Departments</div>
                 <div className="internal-department-tabs">
-                  {departments.map((department) => (
+                  {availableDepartments.map((department) => (
                     <button
                       key={department}
                       type="button"
@@ -1072,7 +1099,7 @@ const monthTotal =
                 <div className="internal-messages">
                   {selectedInternalChat && selectedInternalChat.messages.length ? (
                     selectedInternalChat.messages.map((message) => (
-                      <div key={message.id} className={`internal-message-row ${message.sender === "You" || message.sender === "Admin" ? "outgoing" : "incoming"}`}>
+                      <div key={message.id} className={`internal-message-row ${message.sender === "You" || message.sender === "Admin" ? "outgoing" : "incoming"} message-priority-${message.priority || selectedInternalChat?.priority || "medium"}`}>
                         <div className="internal-message-bubble">
                           <div className="internal-message-meta">
                             <strong>{message.sender}</strong>
@@ -1201,7 +1228,7 @@ const monthTotal =
                   )) : <div className="internal-empty-state">No team members for this department yet.</div>}
                 </div>
 
-                <div className="internal-panel-header">Add employee</div>
+                {isAdmin && <><div className="internal-panel-header">Add employee</div>
                 <form className="internal-add-user" onSubmit={handleAddEmployee}>
                   <input
                     type="text"
@@ -1229,6 +1256,14 @@ const monthTotal =
                   />
                   <button type="submit">Add employee</button>
                 </form>
+                {employeeCredentials && (
+                  <div className="employee-credentials">
+                    <strong>Login created</strong>
+                    <span>Username: <b>{employeeCredentials.username}</b></span>
+                    <span>Password: <b>{employeeCredentials.password}</b></span>
+                    <small>Share these details securely. The password is shown once.</small>
+                  </div>
+                )}</>}
               </aside>
             </div>
 
