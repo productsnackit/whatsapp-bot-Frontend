@@ -159,7 +159,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
   const [ticketDraft, setTicketDraft] = useState({ priority: "normal", assigned_to: "", admin_notes: "" });
 
-  const departments = ["Accounts", "Product", "Audit", "Technical", "Orders"];
+  const departments = ["Accounts", "HR", "Operations", "Product", "Audit", "Technical", "Orders", "Logistics"];
   const isAdmin = userRole === "admin";
   const [internalUsers, setInternalUsers] = useState([]);
   const [internalChats, setInternalChats] = useState([]);
@@ -173,6 +173,8 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const [notificationToast, setNotificationToast] = useState(null);
   const [showTaggedOnly, setShowTaggedOnly] = useState(false);
   const [newEmployee, setNewEmployee] = useState({ name: "", department: "Accounts", role: "Analyst", tags: "finance, operations" });
+  const [editingEmployeeId, setEditingEmployeeId] = useState(null);
+  const [employeeDraft, setEmployeeDraft] = useState({});
   const socketRef = useRef(null);
 
   const triggerInternalNotification = useCallback((title, priority, message) => {
@@ -320,6 +322,27 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       triggerInternalNotification("New employee added", "medium", `${cleanName} was added to ${newEmployee.department} as ${payload.role}`);
     } catch (err) {
       alert("Failed to add employee");
+      console.log(err);
+    }
+  };
+
+  const startEditingEmployee = (user) => {
+    setEditingEmployeeId(user.id);
+    setEmployeeDraft({ ...user, tags: (user.tags || []).join(", ") });
+  };
+
+  const saveEmployee = async () => {
+    if (!editingEmployeeId) return;
+    try {
+      const response = await API.patch(`/internal/users/${editingEmployeeId}`, employeeDraft, { headers: authHeaders() });
+      if (response.data?.user) {
+        setInternalUsers((prev) => prev.map((user) => String(user.id) === String(response.data.user.id) ? response.data.user : user));
+      }
+      setEditingEmployeeId(null);
+      setEmployeeDraft({});
+      triggerInternalNotification("Employee details updated", "low", `${employeeDraft.name} profile and login details were saved.`);
+    } catch (err) {
+      alert("Failed to update employee details");
       console.log(err);
     }
   };
@@ -1040,6 +1063,13 @@ const monthTotal =
             {Icon.chat}
             <span>Internal Chat</span>
           </button>
+          {isAdmin && <button
+            className={`nav-item ${view === "employees" ? "active" : ""}`}
+            onClick={() => setView("employees")}
+          >
+            {Icon.chat}
+            <span>Employee Details</span>
+          </button>}
         </nav>
 
         <button className="sidebar-logout" onClick={logout}>
@@ -1060,6 +1090,7 @@ const monthTotal =
               {view === "products" && "Product Leads"}
               {view === "analytics" && "Analytics"}
               {view === "internal-chat" && "Internal Chat"}
+              {view === "employees" && "Employee Details"}
             </h1>
             <p className="page-sub">
               {view === "tickets" && `${filteredTickets.length} tickets · ${openCount} open`}
@@ -1067,6 +1098,7 @@ const monthTotal =
               {view === "products" && `${products.length} product leads`}
               {view === "analytics" && "Issue breakdown and trends"}
               {view === "internal-chat" && `${departmentChats.length} active ${selectedDepartment} conversations`}
+              {view === "employees" && `${internalUsers.length} employees with login access`}
             </p>
           </div>
           <div className="page-live">
@@ -1074,6 +1106,57 @@ const monthTotal =
             <span className="live-text">Live</span>
           </div>
         </div>
+
+        {view === "employees" && isAdmin && (
+          <section className="employee-details-page">
+            <div className="employee-details-intro">
+              <div>
+                <span className="employee-eyebrow">Admin workspace</span>
+                <h2>Employee details and login credentials</h2>
+                <p>Edit department access, role, tags, username, or password. Share passwords directly with employees when they forget them.</p>
+              </div>
+              <strong>{internalUsers.length} employees</strong>
+            </div>
+            <div className="employee-details-list">
+              {internalUsers.map((user) => (
+                <div className="employee-detail-card" key={user.id}>
+                  {editingEmployeeId === user.id ? (
+                    <div className="employee-edit-grid">
+                      <input value={employeeDraft.name || ""} onChange={(event) => setEmployeeDraft((prev) => ({ ...prev, name: event.target.value }))} placeholder="Name" />
+                      <select value={employeeDraft.department || ""} onChange={(event) => setEmployeeDraft((prev) => ({ ...prev, department: event.target.value }))}>
+                        {departments.map((department) => <option key={department}>{department}</option>)}
+                      </select>
+                      <input value={employeeDraft.role || ""} onChange={(event) => setEmployeeDraft((prev) => ({ ...prev, role: event.target.value }))} placeholder="Role" />
+                      <input value={employeeDraft.tags || ""} onChange={(event) => setEmployeeDraft((prev) => ({ ...prev, tags: event.target.value }))} placeholder="Tags" />
+                      <input value={employeeDraft.username || ""} onChange={(event) => setEmployeeDraft((prev) => ({ ...prev, username: event.target.value }))} placeholder="Username" />
+                      <input value={employeeDraft.password || ""} onChange={(event) => setEmployeeDraft((prev) => ({ ...prev, password: event.target.value }))} placeholder="Password" />
+                      <div className="employee-edit-actions">
+                        <button type="button" className="employee-save-btn" onClick={saveEmployee}>Save changes</button>
+                        <button type="button" className="employee-cancel-btn" onClick={() => setEditingEmployeeId(null)}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="employee-detail-main">
+                        <div className="employee-avatar">{user.name.slice(0, 1).toUpperCase()}</div>
+                        <div>
+                          <h3>{user.name}</h3>
+                          <p>{user.department} · {user.role}</p>
+                          <div className="internal-tags">{(user.tags || []).map((tag) => <span className="team-tag" key={tag}>#{tag}</span>)}</div>
+                        </div>
+                      </div>
+                      <div className="employee-login-details">
+                        <span>Username <b>{user.username}</b></span>
+                        <span>Password <b>{user.password}</b></span>
+                      </div>
+                      <button type="button" className="employee-edit-btn" onClick={() => startEditingEmployee(user)}>Edit details</button>
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {view === "internal-chat" && (
           <div className="internal-chat-shell">
