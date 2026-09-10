@@ -305,7 +305,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       setInternalMessage("");
       setAttachedFiles([]);
     } catch (err) {
-      alert(err.message || "Failed to send internal message");
+      alert(err.response?.data?.error || err.message || "Failed to send internal message");
       console.log(err);
     }
   };
