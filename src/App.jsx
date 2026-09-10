@@ -195,6 +195,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   }));
   const socketRef = useRef(null);
   const selectedInternalChatIdRef = useRef(null);
+  const mentionAudioContextRef = useRef(null);
 
   const triggerInternalNotification = useCallback((title, priority, message) => {
     setNotificationToast({ title, priority, message });
@@ -206,6 +207,29 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       }
     }
     window.setTimeout(() => setNotificationToast(null), 3500);
+  }, []);
+
+  const playInternalMentionAlert = useCallback(() => {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      if (!mentionAudioContextRef.current) mentionAudioContextRef.current = new AudioContext();
+      const context = mentionAudioContextRef.current;
+      if (context.state === "suspended") context.resume().catch(() => null);
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(880, context.currentTime);
+      gain.gain.setValueAtTime(0.0001, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.16, context.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.22);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime + 0.24);
+    } catch (err) {
+      console.log("Internal mention sound unavailable:", err);
+    }
   }, []);
 
   const departmentUsers = internalUsers.filter((user) => user.department === selectedDepartment);
@@ -324,6 +348,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
           recipientIds: selectedRecipients.length ? selectedRecipients : internalUsers.map((user) => String(user.id)),
           replyTo: internalReplyTo?.id || null,
           mentions: internalUsers.filter((user) => messageText.includes(`@${user.name}`)).map((user) => String(user.id)),
+          notifyAll: selectedRecipients.length === 0,
         },
         { headers: authHeaders() }
       );
@@ -960,6 +985,9 @@ const monthTotal =
 
     socket.on("internal-notification", (notification) => {
       if (!notification || notification.sourceUser === currentUserName) return;
+      const mentionedCurrentUser = (notification.mentionUserIds || []).map(String).includes(String(currentUserId));
+      const selectedCurrentUser = !notification.notifyAll && (notification.recipientIds || []).map(String).includes(String(currentUserId));
+      if (mentionedCurrentUser || selectedCurrentUser) playInternalMentionAlert();
       triggerInternalNotification(notification.title || "Department alert", notification.priority || "medium", notification.message || "New internal update");
     });
 
@@ -970,7 +998,7 @@ const monthTotal =
       socket.off("internal-notification");
       socket.disconnect();
     };
-  }, [token, currentUserId, currentUserName, triggerInternalNotification]);
+  }, [token, currentUserId, currentUserName, playInternalMentionAlert, triggerInternalNotification]);
 
   useEffect(() => {
     if (!socketRef.current || !selectedDepartment) return;
@@ -1489,7 +1517,7 @@ const monthTotal =
                         return isAdmin || !recipients.length || recipients.includes(String(currentUserId)) || message.sender === currentUserName;
                       })
                       .map((message) => (
-                      <div key={message.id} className={`internal-message-row ${message.sender === "You" || message.sender === "Admin" ? "outgoing" : "incoming"} message-priority-${message.priority || selectedInternalChat?.priority || "medium"}`}>
+                      <div key={message.id} className={`internal-message-row ${message.sender === currentUserName || (currentUserName === "Admin" && message.sender === "You") ? "outgoing" : "incoming"} message-priority-${message.priority || selectedInternalChat?.priority || "medium"}`}>
                         <div className="internal-message-bubble">
                           <div className="internal-message-meta">
                             <strong>{message.sender}</strong>
