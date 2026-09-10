@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
+import { io } from "socket.io-client";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell, Legend, ResponsiveContainer,
@@ -152,6 +153,123 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   });
   const [showSettings, setShowSettings] = useState(false);
   const [ticketDraft, setTicketDraft] = useState({ priority: "normal", assigned_to: "", admin_notes: "" });
+
+  const departments = ["Accounts", "Product", "Audit", "Technical", "Orders"];
+  const [internalUsers, setInternalUsers] = useState([
+    { id: 1, name: "Aisha Khan", department: "Accounts", role: "Manager", tags: ["finance", "audit"], isAdmin: true },
+    { id: 2, name: "Rohit Nair", department: "Product", role: "Lead", tags: ["product", "roadmap"], isAdmin: true },
+    { id: 3, name: "Nandini Rao", department: "Audit", role: "Compliance", tags: ["audit", "risk"], isAdmin: true },
+    { id: 4, name: "Vikram Singh", department: "Technical", role: "Engineer", tags: ["backend", "api"], isAdmin: true },
+    { id: 5, name: "Priya Shah", department: "Orders", role: "Ops", tags: ["shipping", "dispatch"], isAdmin: true },
+    { id: 6, name: "Rahul Verma", department: "Accounts", role: "Analyst", tags: ["finance", "reconciliation"], isAdmin: false },
+    { id: 7, name: "Mehul Das", department: "Product", role: "Designer", tags: ["product", "ux"], isAdmin: false },
+    { id: 8, name: "Tanya Iyer", department: "Technical", role: "QA", tags: ["testing", "api"], isAdmin: false },
+  ]);
+  const [internalChats, setInternalChats] = useState([
+    { id: 1, department: "Accounts", title: "Invoice follow-up", priority: "urgent", participants: ["Aisha Khan", "Rahul Verma"], unread: 2, messages: [{ id: 1, sender: "Aisha Khan", text: "Need immediate verification for invoice #4021", time: "09:18 AM", tag: "finance" }, { id: 2, sender: "Rahul Verma", text: "I have matched the bank proof and will send the final check in 10 min.", time: "09:22 AM", tag: "reconciliation" }] },
+    { id: 2, department: "Product", title: "Launch checklist", priority: "medium", participants: ["Rohit Nair", "Mehul Das"], unread: 1, messages: [{ id: 1, sender: "Rohit Nair", text: "Please confirm the release notes before traffic goes live.", time: "08:55 AM", tag: "product" }] },
+    { id: 3, department: "Technical", title: "API outage review", priority: "urgent", participants: ["Vikram Singh", "Tanya Iyer"], unread: 3, messages: [{ id: 1, sender: "Vikram Singh", text: "The payment callback API is failing with 502 errors.", time: "07:40 AM", tag: "backend" }] },
+    { id: 4, department: "Orders", title: "Dispatch conflict", priority: "low", participants: ["Priya Shah"], unread: 0, messages: [{ id: 1, sender: "Priya Shah", text: "Pending shipments are waiting for warehouse confirmation.", time: "Yesterday", tag: "shipping" }] },
+  ]);
+  const [selectedDepartment, setSelectedDepartment] = useState("Accounts");
+  const [selectedInternalChatId, setSelectedInternalChatId] = useState(1);
+  const [internalMessage, setInternalMessage] = useState("");
+  const [internalTag, setInternalTag] = useState("finance");
+  const [notificationToast, setNotificationToast] = useState(null);
+  const [newEmployee, setNewEmployee] = useState({ name: "", department: "Accounts", role: "Analyst", tags: "finance, operations" });
+  const socketRef = useRef(null);
+
+  const triggerInternalNotification = useCallback((title, priority, message) => {
+    setNotificationToast({ title, priority, message });
+    if (typeof window !== "undefined" && "Notification" in window) {
+      if (Notification.permission === "granted") {
+        new Notification(title, { body: message });
+      } else if (Notification.permission === "default") {
+        Notification.requestPermission().catch(() => null);
+      }
+    }
+    window.setTimeout(() => setNotificationToast(null), 3500);
+  }, []);
+
+  const departmentUsers = internalUsers.filter((user) => user.department === selectedDepartment);
+  const departmentTags = Array.from(new Set(departmentUsers.flatMap((user) => user.tags || [])));
+  const departmentChats = internalChats.filter((chat) => chat.department === selectedDepartment);
+  const selectedInternalChat = departmentChats.find((chat) => chat.id === selectedInternalChatId) || departmentChats[0] || null;
+
+  useEffect(() => {
+    if (selectedDepartment && !departmentChats.some((chat) => chat.id === selectedInternalChatId) && departmentChats[0]) {
+      setSelectedInternalChatId(departmentChats[0].id);
+    }
+  }, [selectedDepartment, departmentChats, selectedInternalChatId]);
+
+  useEffect(() => {
+    if (departmentTags.length && !departmentTags.includes(internalTag)) {
+      setInternalTag(departmentTags[0]);
+    }
+  }, [departmentTags, internalTag]);
+
+  const handleSendInternalMessage = async () => {
+    if (!selectedInternalChat || !internalMessage.trim()) return;
+
+    const messageText = internalMessage.trim();
+
+    try {
+      const response = await API.post(
+        `/internal/chats/${selectedInternalChat.id}/messages`,
+        {
+          sender: "You",
+          text: messageText,
+          tag: internalTag,
+          priority: selectedInternalChat.priority || "medium",
+          sourceUser: "You",
+        },
+        { headers: authHeaders() }
+      );
+
+      if (response.data?.chat) {
+        setInternalChats((prev) => prev.map((chat) =>
+          chat.id === response.data.chat.id ? response.data.chat : chat
+        ));
+      }
+
+      triggerInternalNotification(
+        `${selectedDepartment} update`,
+        selectedInternalChat.priority || "medium",
+        `${internalTag.toUpperCase()} tag: ${messageText}`
+      );
+
+      setInternalMessage("");
+    } catch (err) {
+      alert("Failed to send internal message");
+      console.log(err);
+    }
+  };
+
+  const handleAddEmployee = async (event) => {
+    event.preventDefault();
+    const cleanName = newEmployee.name.trim();
+    if (!cleanName) return;
+
+    const payload = {
+      name: cleanName,
+      department: newEmployee.department,
+      role: newEmployee.role || "Member",
+      tags: newEmployee.tags,
+      isAdmin: false,
+    };
+
+    try {
+      const response = await API.post("/internal/users", payload, { headers: authHeaders() });
+      if (response.data?.user) {
+        setInternalUsers((prev) => [...prev, response.data.user]);
+      }
+      setNewEmployee({ name: "", department: newEmployee.department, role: "Analyst", tags: "finance, operations" });
+      triggerInternalNotification("New employee added", "medium", `${cleanName} was added to ${newEmployee.department} as ${payload.role}`);
+    } catch (err) {
+      alert("Failed to add employee");
+      console.log(err);
+    }
+  };
 
   // ✅ Track previous message count and typing timeout for indicator
   const prevMessageCountRef = useRef(0);
@@ -504,6 +622,51 @@ const monthTotal =
   }, [activeChat, fetchMessages]);
 
   useEffect(() => {
+    if (!token) return;
+
+    const socket = io(API.defaults.baseURL, {
+      transports: ["websocket"],
+      reconnection: true,
+    });
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      console.log("Internal socket connected");
+    });
+
+    socket.on("internal-chat-updated", ({ chat, notification }) => {
+      if (!chat) return;
+      setInternalChats((prev) => {
+        const exists = prev.some((item) => String(item.id) === String(chat.id));
+        if (exists) {
+          return prev.map((item) => (String(item.id) === String(chat.id) ? chat : item));
+        }
+        return [chat, ...prev];
+      });
+
+      if (notification) {
+        triggerInternalNotification(notification.title || "Department update", notification.priority || "medium", notification.message || "New internal update");
+      }
+    });
+
+    socket.on("internal-notification", (notification) => {
+      if (!notification) return;
+      triggerInternalNotification(notification.title || "Department alert", notification.priority || "medium", notification.message || "New internal update");
+    });
+
+    return () => {
+      socket.off("internal-chat-updated");
+      socket.off("internal-notification");
+      socket.disconnect();
+    };
+  }, [token, triggerInternalNotification]);
+
+  useEffect(() => {
+    if (!socketRef.current || !selectedDepartment) return;
+    socketRef.current.emit("join-internal-room", { department: selectedDepartment });
+  }, [selectedDepartment, token]);
+
+  useEffect(() => {
     if (!activeChat) return;
     setTicketDraft({
       priority: activeChat.priority || "normal",
@@ -736,6 +899,13 @@ const monthTotal =
             {Icon.analytics}
             <span>Analytics</span>
           </button>
+          <button
+            className={`nav-item ${view === "internal-chat" ? "active" : ""}`}
+            onClick={() => setView("internal-chat")}
+          >
+            {Icon.chat}
+            <span>Internal Chat</span>
+          </button>
         </nav>
 
         <button className="sidebar-logout" onClick={logout}>
@@ -761,6 +931,7 @@ const monthTotal =
               {view === "feedback" && `${feedback.length} responses collected`}
               {view === "products" && `${products.length} product leads`}
               {view === "analytics" && "Issue breakdown and trends"}
+              {view === "internal-chat" && `${departmentChats.length} active ${selectedDepartment} conversations`}
             </p>
           </div>
           <div className="page-live">
@@ -768,6 +939,156 @@ const monthTotal =
             <span className="live-text">Live</span>
           </div>
         </div>
+
+        {view === "internal-chat" && (
+          <div className="internal-chat-shell">
+            <div className="internal-chat-layout">
+              <aside className="internal-thread-panel">
+                <div className="internal-panel-header">Departments</div>
+                <div className="internal-department-tabs">
+                  {departments.map((department) => (
+                    <button
+                      key={department}
+                      type="button"
+                      className={`department-tab ${selectedDepartment === department ? "active" : ""}`}
+                      onClick={() => setSelectedDepartment(department)}
+                    >
+                      {department}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="internal-panel-header">Chats</div>
+                {departmentChats.length ? (
+                  departmentChats.map((chat) => (
+                    <button
+                      key={chat.id}
+                      type="button"
+                      className={`internal-thread-card ${selectedInternalChat?.id === chat.id ? "selected" : ""}`}
+                      onClick={() => setSelectedInternalChatId(chat.id)}
+                    >
+                      <div className="internal-thread-top">
+                        <strong>{chat.title}</strong>
+                        <span className={`priority-badge priority-${chat.priority || "medium"}`}>{chat.priority || "medium"}</span>
+                      </div>
+                      <div className="internal-thread-meta">{chat.participants.join(", ")}</div>
+                      <div className="internal-thread-meta">{chat.messages.at(-1)?.text || "No messages"}</div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="internal-empty-state">No chat in this department yet.</div>
+                )}
+              </aside>
+
+              <section className="internal-conversation-panel">
+                {selectedInternalChat ? (
+                  <>
+                    <div className="internal-chat-header">
+                      <div>
+                        <h3>{selectedInternalChat.title}</h3>
+                        <span className={`priority-badge priority-${selectedInternalChat.priority || "medium"}`}>
+                          {selectedInternalChat.priority || "medium"} priority
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="internal-messages">
+                      {selectedInternalChat.messages.map((message) => (
+                        <div key={message.id} className={`internal-message-row ${message.sender === "You" ? "outgoing" : "incoming"}`}>
+                          <div className="internal-message-bubble">
+                            <div className="internal-message-meta">
+                              <strong>{message.sender}</strong>
+                              <span>{message.time}</span>
+                            </div>
+                            <div>{message.text}</div>
+                            {message.tag && <span className="message-tag">#{message.tag}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="internal-composer">
+                      <select value={internalTag} onChange={(event) => setInternalTag(event.target.value)}>
+                        {departmentTags.length ? departmentTags.map((tag) => (
+                          <option value={tag} key={tag}>#{tag}</option>
+                        )) : <option value="general">#general</option>}
+                      </select>
+                      <input
+                        type="text"
+                        value={internalMessage}
+                        onChange={(event) => setInternalMessage(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            handleSendInternalMessage();
+                          }
+                        }}
+                        placeholder="Type a message…"
+                      />
+                      <button type="button" onClick={handleSendInternalMessage}>Send</button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="internal-empty-state large">Select a conversation to begin.</div>
+                )}
+              </section>
+
+              <aside className="internal-team-panel">
+                <div className="internal-panel-header">Team members</div>
+                <div className="internal-team-list">
+                  {departmentUsers.map((user) => (
+                    <div key={user.id} className="internal-team-card">
+                      <div className="internal-team-name">{user.name}</div>
+                      <div className="internal-team-role">{user.role}</div>
+                      <div className="internal-tags">
+                        {(user.tags || []).map((tag) => <span key={tag} className="team-tag">#{tag}</span>)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="internal-panel-header">Add employee</div>
+                <form className="internal-add-user" onSubmit={handleAddEmployee}>
+                  <input
+                    type="text"
+                    placeholder="Employee name"
+                    value={newEmployee.name}
+                    onChange={(event) => setNewEmployee((prev) => ({ ...prev, name: event.target.value }))}
+                  />
+                  <select
+                    value={newEmployee.department}
+                    onChange={(event) => setNewEmployee((prev) => ({ ...prev, department: event.target.value }))}
+                  >
+                    {departments.map((department) => <option key={department} value={department}>{department}</option>)}
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="Role"
+                    value={newEmployee.role}
+                    onChange={(event) => setNewEmployee((prev) => ({ ...prev, role: event.target.value }))}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Tags, comma separated"
+                    value={newEmployee.tags}
+                    onChange={(event) => setNewEmployee((prev) => ({ ...prev, tags: event.target.value }))}
+                  />
+                  <button type="submit">Add employee</button>
+                </form>
+              </aside>
+            </div>
+
+            {notificationToast && (
+              <div className="internal-toast">
+                <div className="toast-header">
+                  <span className={`priority-badge priority-${notificationToast.priority || "medium"}`}>{notificationToast.priority || "medium"}</span>
+                  <strong>{notificationToast.title}</strong>
+                </div>
+                <div>{notificationToast.message}</div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── STAT CARDS (only on tickets) ────────────────────────────────── */}
         {view === "tickets" && (
