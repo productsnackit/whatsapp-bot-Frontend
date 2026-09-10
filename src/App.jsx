@@ -170,6 +170,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const [internalPriority, setInternalPriority] = useState("medium");
   const [selectedRecipients, setSelectedRecipients] = useState([]);
   const [attachedFiles, setAttachedFiles] = useState([]);
+  const attachmentInputRef = useRef(null);
   const [notificationToast, setNotificationToast] = useState(null);
   const [showTaggedOnly, setShowTaggedOnly] = useState(false);
   const [newEmployee, setNewEmployee] = useState({ name: "", department: "Accounts", role: "Analyst", tags: "finance, operations" });
@@ -304,6 +305,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
 
       setInternalMessage("");
       setAttachedFiles([]);
+      if (attachmentInputRef.current) attachmentInputRef.current.value = "";
     } catch (err) {
       alert(err.response?.data?.error || err.message || "Failed to send internal message");
       console.log(err);
@@ -804,6 +806,7 @@ const monthTotal =
 
     socket.on("connect", () => {
       console.log("Internal socket connected");
+      if (currentUserId) socket.emit("join-internal-user", { userId: currentUserId });
     });
 
     socket.on("internal-chat-updated", ({ chat, notification }) => {
@@ -816,7 +819,7 @@ const monthTotal =
         return [chat, ...prev];
       });
 
-      if (notification) {
+      if (notification && notification.sourceUser !== currentUserName) {
         triggerInternalNotification(notification.title || "Department update", notification.priority || "medium", notification.message || "New internal update");
       }
     });
@@ -834,7 +837,7 @@ const monthTotal =
     });
 
     socket.on("internal-notification", (notification) => {
-      if (!notification) return;
+      if (!notification || notification.sourceUser === currentUserName) return;
       triggerInternalNotification(notification.title || "Department alert", notification.priority || "medium", notification.message || "New internal update");
     });
 
@@ -845,7 +848,7 @@ const monthTotal =
       socket.off("internal-notification");
       socket.disconnect();
     };
-  }, [token, triggerInternalNotification]);
+  }, [token, currentUserId, triggerInternalNotification]);
 
   useEffect(() => {
     if (!socketRef.current || !selectedDepartment) return;
@@ -1251,7 +1254,12 @@ const monthTotal =
 
                 <div className="internal-messages">
                   {selectedInternalChat && selectedInternalChat.messages.length ? (
-                    selectedInternalChat.messages.map((message) => (
+                    selectedInternalChat.messages
+                      .filter((message) => {
+                        const recipients = (message.recipientIds || []).map(String);
+                        return isAdmin || !recipients.length || recipients.includes(String(currentUserId)) || message.sender === currentUserName;
+                      })
+                      .map((message) => (
                       <div key={message.id} className={`internal-message-row ${message.sender === "You" || message.sender === "Admin" ? "outgoing" : "incoming"} message-priority-${message.priority || selectedInternalChat?.priority || "medium"}`}>
                         <div className="internal-message-bubble">
                           <div className="internal-message-meta">
@@ -1333,8 +1341,10 @@ const monthTotal =
                   />
                   <label className="internal-file-picker">
                     <input
+                      ref={attachmentInputRef}
                       type="file"
                       multiple
+                      accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
                       onChange={(event) => setAttachedFiles(Array.from(event.target.files || []))}
                     />
                     Attach file
@@ -1348,8 +1358,21 @@ const monthTotal =
 
                 {attachedFiles.length > 0 && (
                   <div className="attachment-preview-row">
-                    {attachedFiles.map((file) => (
-                      <span key={file.name} className="message-attachment">{file.name}</span>
+                    {attachedFiles.map((file, index) => (
+                      <span key={`${file.name}-${index}`} className="attachment-preview-chip">
+                        <span className="message-attachment">{file.name}</span>
+                        <button
+                          type="button"
+                          className="attachment-remove-btn"
+                          aria-label={`Remove ${file.name}`}
+                          onClick={() => {
+                            setAttachedFiles((files) => files.filter((_, fileIndex) => fileIndex !== index));
+                            if (attachmentInputRef.current && attachedFiles.length === 1) attachmentInputRef.current.value = "";
+                          }}
+                        >
+                          ×
+                        </button>
+                      </span>
                     ))}
                   </div>
                 )}

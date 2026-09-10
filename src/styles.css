@@ -2283,6 +2283,36 @@ tbody tr:hover { background: var(--surface-2); }
   gap: 6px;
 }
 
+.attachment-preview-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 4px 3px 8px;
+  border: 1px solid #dbe5ef;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.attachment-remove-btn {
+  display: grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.attachment-remove-btn:hover {
+  background: #fecdd3;
+  color: #be123c;
+}
+
 .recipient-heading {
   display: flex;
   align-items: baseline;
