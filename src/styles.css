@@ -2032,10 +2032,73 @@ tbody tr:hover { background: var(--surface-2); }
   background: rgba(148, 163, 184, 0.18);
   color: #475569;
 }
+.message-attachment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-top: 9px;
+}
+.message-attachment-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+.message-image {
+  display: block;
+  width: min(260px, 100%);
+  max-height: 240px;
+  object-fit: cover;
+  border: 1px solid rgba(15, 23, 42, .12);
+  border-radius: 10px;
+}
+.message-status-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 9px;
+}
+.message-status {
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+.message-status.status-open { background: #e2e8f0; color: #475569; }
+.message-status.status-in-progress { background: #fef3c7; color: #92400e; }
+.message-status.status-resolved { background: #dcfce7; color: #166534; }
+.message-status-row select {
+  padding: 3px 6px;
+  border: 1px solid #dbe5ef;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, .85);
+  color: #475569;
+  font-size: 10px;
+}
 
 .internal-message-row.outgoing .message-tag {
   background: rgba(255, 255, 255, 0.14);
   color: #edf2f7;
+}
+.tagged-messages-toggle {
+  width: 100%;
+  margin: -3px 0 10px;
+  padding: 8px 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+.tagged-messages-toggle.active {
+  border-color: #111827;
+  background: #111827;
+  color: #fff;
 }
 
 .internal-composer {

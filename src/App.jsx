@@ -116,6 +116,7 @@ export default function App() {
   const [userRole, setUserRole] = useState(localStorage.getItem("userRole") || "admin");
   const [currentUserName, setCurrentUserName] = useState(localStorage.getItem("userName") || "Admin");
   const [currentUserDepartment, setCurrentUserDepartment] = useState(localStorage.getItem("userDepartment") || "Accounts");
+  const [currentUserId, setCurrentUserId] = useState(localStorage.getItem("userId") || "");
   const [employeeCredentials, setEmployeeCredentials] = useState(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -165,11 +166,12 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const [selectedDepartment, setSelectedDepartment] = useState(localStorage.getItem("userDepartment") || "Accounts");
   const [selectedInternalChatId, setSelectedInternalChatId] = useState(null);
   const [internalMessage, setInternalMessage] = useState("");
-  const [internalTag, setInternalTag] = useState("general");
+  const [internalTag, setInternalTag] = useState("");
   const [internalPriority, setInternalPriority] = useState("medium");
   const [selectedRecipients, setSelectedRecipients] = useState([]);
   const [attachedFiles, setAttachedFiles] = useState([]);
   const [notificationToast, setNotificationToast] = useState(null);
+  const [showTaggedOnly, setShowTaggedOnly] = useState(false);
   const [newEmployee, setNewEmployee] = useState({ name: "", department: "Accounts", role: "Analyst", tags: "finance, operations" });
   const socketRef = useRef(null);
 
@@ -188,18 +190,23 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const departmentUsers = internalUsers.filter((user) => user.department === selectedDepartment);
   const departmentTags = Array.from(new Set(departmentUsers.flatMap((user) => user.tags || [])));
   const departmentChats = internalChats.filter((chat) => chat.department === selectedDepartment);
-  const availableDepartments = isAdmin ? departments : departments.filter((department) => department === currentUserDepartment);
-  const selectedInternalChat = departmentChats.find((chat) => chat.id === selectedInternalChatId) || departmentChats[0] || null;
+  const availableDepartments = departments;
+  const visibleChats = showTaggedOnly
+    ? internalChats.filter((chat) => chat.messages?.some((message) => (message.recipientIds || []).map(String).includes(String(currentUserId))))
+    : departmentChats;
+  const selectedInternalChat = (showTaggedOnly ? visibleChats : departmentChats).find((chat) => chat.id === selectedInternalChatId)
+    || (showTaggedOnly ? visibleChats[0] : departmentChats[0])
+    || null;
 
   useEffect(() => {
-    if (selectedDepartment && !departmentChats.some((chat) => chat.id === selectedInternalChatId) && departmentChats[0]) {
-      setSelectedInternalChatId(departmentChats[0].id);
+    if (selectedDepartment && !visibleChats.some((chat) => chat.id === selectedInternalChatId) && visibleChats[0]) {
+      setSelectedInternalChatId(visibleChats[0].id);
     }
-  }, [selectedDepartment, departmentChats, selectedInternalChatId]);
+  }, [selectedDepartment, visibleChats, selectedInternalChatId]);
 
   useEffect(() => {
-    if (departmentTags.length && !departmentTags.includes(internalTag)) {
-      setInternalTag(departmentTags[0]);
+    if (!departmentTags.includes(internalTag)) {
+      setInternalTag(departmentTags[0] || "");
     }
   }, [departmentTags, internalTag]);
 
@@ -231,6 +238,13 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
 
       if (!activeChat) return;
 
+      const serializedAttachments = await Promise.all(attachedFiles.map((file) => new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve({ name: file.name, type: file.type, size: file.size, dataUrl: reader.result });
+        reader.onerror = () => resolve({ name: file.name, type: file.type, size: file.size });
+        reader.readAsDataURL(file);
+      })));
+
       const response = await API.post(
         `/internal/chats/${activeChat.id}/messages`,
         {
@@ -239,8 +253,8 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
           tag: internalTag,
           priority: internalPriority,
           sourceUser: currentUserName,
-          attachments: attachedFiles.map((file) => ({ name: file.name, type: file.type, size: file.size })),
-          recipientIds: selectedRecipients.length ? selectedRecipients : departmentUsers.map((user) => String(user.id)),
+          attachments: serializedAttachments,
+          recipientIds: selectedRecipients.length ? selectedRecipients : internalUsers.map((user) => String(user.id)),
         },
         { headers: authHeaders() }
       );
@@ -261,6 +275,22 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       setAttachedFiles([]);
     } catch (err) {
       alert("Failed to send internal message");
+      console.log(err);
+    }
+  };
+
+  const handleUpdateMessageStatus = async (chatId, messageId, status) => {
+    try {
+      const response = await API.patch(
+        `/internal/chats/${chatId}/messages/${messageId}/status`,
+        { status },
+        { headers: authHeaders() }
+      );
+      if (response.data?.chat) {
+        setInternalChats((prev) => prev.map((chat) => String(chat.id) === String(response.data.chat.id) ? response.data.chat : chat));
+      }
+    } catch (err) {
+      alert("Failed to update message status");
       console.log(err);
     }
   };
@@ -309,10 +339,12 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       localStorage.setItem("userRole", res.data.role || "admin");
       localStorage.setItem("userName", res.data.name || "Admin");
       localStorage.setItem("userDepartment", res.data.department || "Accounts");
+      localStorage.setItem("userId", res.data.userId || "");
       setToken(res.data.token);
       setUserRole(res.data.role || "admin");
       setCurrentUserName(res.data.name || "Admin");
       setCurrentUserDepartment(res.data.department || "Accounts");
+      setCurrentUserId(res.data.userId || "");
       setSelectedDepartment(res.data.department || "Accounts");
       setView(res.data.role === "employee" ? "internal-chat" : "tickets");
       setSessionExpired(false);
@@ -326,10 +358,12 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
     localStorage.removeItem("userRole");
     localStorage.removeItem("userName");
     localStorage.removeItem("userDepartment");
+    localStorage.removeItem("userId");
     setToken("");
     setUserRole("admin");
     setCurrentUserName("Admin");
     setCurrentUserDepartment("Accounts");
+    setCurrentUserId("");
     setActiveChat(null);
     setMessages([]);
   };
@@ -1060,8 +1094,15 @@ const monthTotal =
                 </div>
 
                 <div className="internal-panel-header">Chats</div>
-                {departmentChats.length ? (
-                  departmentChats.map((chat) => (
+                <button
+                  type="button"
+                  className={`tagged-messages-toggle ${showTaggedOnly ? "active" : ""}`}
+                  onClick={() => setShowTaggedOnly((value) => !value)}
+                >
+                  {showTaggedOnly ? "Show department chats" : "Messages tagged to me"}
+                </button>
+                {visibleChats.length ? (
+                  visibleChats.map((chat) => (
                     <div key={chat.id} className="internal-thread-wrap">
                       <button
                         type="button"
@@ -1109,11 +1150,30 @@ const monthTotal =
                           {message.attachments?.length ? (
                             <div className="message-attachment-list">
                               {message.attachments.map((file, idx) => (
-                                <span key={`${file.name}-${idx}`} className="message-attachment">{file.name}</span>
+                                <div key={`${file.name}-${idx}`} className="message-attachment-item">
+                                  {file.type?.startsWith("image/") && file.dataUrl ? (
+                                    <img className="message-image" src={file.dataUrl} alt={file.name} />
+                                  ) : null}
+                                  <span className="message-attachment">{file.name}</span>
+                                </div>
                               ))}
                             </div>
                           ) : null}
-                          {message.tag && <span className="message-tag">#{message.tag}</span>}
+                          {message.tag && message.tag !== "general" && <span className="message-tag">#{message.tag}</span>}
+                          <div className="message-status-row">
+                            <span className={`message-status status-${message.status || "open"}`}>{(message.status || "open").replace("-", " ")}</span>
+                            {(isAdmin || message.recipientIds?.map(String).includes(String(currentUserId)) || message.sender === currentUserName) && (
+                              <select
+                                value={message.status || "open"}
+                                onChange={(event) => handleUpdateMessageStatus(selectedInternalChat.id, message.id, event.target.value)}
+                                aria-label="Update message status"
+                              >
+                                <option value="open">Open</option>
+                                <option value="in-progress">In progress</option>
+                                <option value="resolved">Resolved</option>
+                              </select>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))
@@ -1145,7 +1205,7 @@ const monthTotal =
                     <select value={internalTag} onChange={(event) => setInternalTag(event.target.value)} aria-label="Message tag">
                       {departmentTags.length ? departmentTags.map((tag) => (
                         <option value={tag} key={tag}>#{tag}</option>
-                      )) : <option value="general">#general</option>}
+                      )) : <option value="">No tag</option>}
                     </select>
                   <input
                     type="text"
@@ -1188,7 +1248,7 @@ const monthTotal =
                     <span>{selectedRecipients.length ? `${selectedRecipients.length} selected` : "Notify the whole department if none selected"}</span>
                   </div>
                   <div className="internal-recipient-list">
-                    {departmentUsers.length ? departmentUsers.map((user) => (
+                    {internalUsers.length ? internalUsers.map((user) => (
                       <label key={user.id} className="recipient-check">
                         <input
                           type="checkbox"
