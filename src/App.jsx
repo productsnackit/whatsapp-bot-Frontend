@@ -72,6 +72,11 @@ const Icon = {
       <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" /><polyline points="17 6 23 6 23 12" />
     </svg>
   ),
+  settings: (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-1.42 1.42-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V20h-2v-.08a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06-1.42-1.42.06-.06A1.7 1.7 0 0 0 9.4 15a1.7 1.7 0 0 0-1.56-1.03H7v-2h.84A1.7 1.7 0 0 0 9.4 10a1.7 1.7 0 0 0-.34-1.88L9 8.06l1.42-1.42.06.06A1.7 1.7 0 0 0 12.36 7.7 1.7 1.7 0 0 0 13.4 6.14V6h2v.14a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06 1.42 1.42-.06.06A1.7 1.7 0 0 0 19.4 10a1.7 1.7 0 0 0 1.56 1.03H21v2h-.04A1.7 1.7 0 0 0 19.4 15z" />
+    </svg>
+  ),
 };
 
 // ─── Custom Tooltip ───────────────────────────────────────────────────────────
@@ -120,6 +125,7 @@ export default function App() {
   const [employeeCredentials, setEmployeeCredentials] = useState(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [loginInProgress, setLoginInProgress] = useState(false);
   const chatEndRef = useRef(null);
 
   const [tickets, setTickets] = useState([]);
@@ -166,16 +172,20 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const [selectedDepartment, setSelectedDepartment] = useState(localStorage.getItem("userDepartment") || "Accounts");
   const [selectedInternalChatId, setSelectedInternalChatId] = useState(null);
   const [internalMessage, setInternalMessage] = useState("");
-  const [internalTag, setInternalTag] = useState("");
-  const [internalPriority, setInternalPriority] = useState("medium");
+  const [internalPriority] = useState("medium");
   const [selectedRecipients, setSelectedRecipients] = useState([]);
   const [attachedFiles, setAttachedFiles] = useState([]);
   const attachmentInputRef = useRef(null);
   const [notificationToast, setNotificationToast] = useState(null);
-  const [showTaggedOnly, setShowTaggedOnly] = useState(false);
   const [newEmployee, setNewEmployee] = useState({ name: "", department: "Accounts", role: "Analyst", tags: "finance, operations" });
   const [editingEmployeeId, setEditingEmployeeId] = useState(null);
   const [employeeDraft, setEmployeeDraft] = useState({});
+  const [adminProfile, setAdminProfile] = useState(() => ({
+    displayName: localStorage.getItem("adminDisplayName") || "Snackit Admin",
+    email: localStorage.getItem("adminEmail") || "",
+    logo: localStorage.getItem("adminLogo") || "/logo.png",
+    compactMode: localStorage.getItem("adminCompactMode") === "true",
+  }));
   const socketRef = useRef(null);
 
   const triggerInternalNotification = useCallback((title, priority, message) => {
@@ -191,27 +201,17 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   }, []);
 
   const departmentUsers = internalUsers.filter((user) => user.department === selectedDepartment);
-  const departmentTags = Array.from(new Set(departmentUsers.flatMap((user) => user.tags || [])));
   const departmentChats = internalChats.filter((chat) => chat.department === selectedDepartment);
   const availableDepartments = departments;
-  const visibleChats = showTaggedOnly
-    ? internalChats.filter((chat) => chat.messages?.some((message) => (message.recipientIds || []).map(String).includes(String(currentUserId))))
-    : departmentChats;
-  const selectedInternalChat = (showTaggedOnly ? visibleChats : departmentChats).find((chat) => chat.id === selectedInternalChatId)
-    || (showTaggedOnly ? visibleChats[0] : departmentChats[0])
+  const selectedInternalChat = departmentChats.find((chat) => chat.id === selectedInternalChatId)
+    || departmentChats[0]
     || null;
 
   useEffect(() => {
-    if (selectedDepartment && !visibleChats.some((chat) => chat.id === selectedInternalChatId) && visibleChats[0]) {
-      setSelectedInternalChatId(visibleChats[0].id);
+    if (selectedDepartment && !departmentChats.some((chat) => chat.id === selectedInternalChatId) && departmentChats[0]) {
+      setSelectedInternalChatId(departmentChats[0].id);
     }
-  }, [selectedDepartment, visibleChats, selectedInternalChatId]);
-
-  useEffect(() => {
-    if (!departmentTags.includes(internalTag)) {
-      setInternalTag(departmentTags[0] || "");
-    }
-  }, [departmentTags, internalTag]);
+  }, [selectedDepartment, departmentChats, selectedInternalChatId]);
 
   const handleSendInternalMessage = async () => {
     const messageText = internalMessage.trim();
@@ -287,7 +287,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
         {
           sender: currentUserName,
           text: messageText,
-          tag: internalTag,
+          tag: null,
           priority: internalPriority,
           sourceUser: currentUserName,
           attachments: serializedAttachments,
@@ -305,7 +305,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       triggerInternalNotification(
         `${selectedDepartment} update`,
         internalPriority,
-        `${internalTag.toUpperCase()} tag: ${messageText || "Attachment sent"}`
+        messageText || "Attachment sent"
       );
 
       setInternalMessage("");
@@ -392,8 +392,10 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
      AUTH
   ========================================================================= */
   const login = async () => {
+    if (loginInProgress || !username.trim() || !password) return;
+    setLoginInProgress(true);
     try {
-      const res = await API.post("/login", { username, password });
+      const res = await API.post("/login", { username: username.trim(), password });
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("userRole", res.data.role || "admin");
       localStorage.setItem("userName", res.data.name || "Admin");
@@ -409,7 +411,42 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       setSessionExpired(false);
     } catch {
       alert("Login failed");
+    } finally {
+      setLoginInProgress(false);
     }
+  };
+
+  const saveAdminProfile = () => {
+    const nextProfile = {
+      ...adminProfile,
+      displayName: adminProfile.displayName.trim() || "Snackit Admin",
+      email: adminProfile.email.trim(),
+    };
+    localStorage.setItem("adminDisplayName", nextProfile.displayName);
+    localStorage.setItem("adminEmail", nextProfile.email);
+    localStorage.setItem("adminLogo", nextProfile.logo);
+    localStorage.setItem("adminCompactMode", String(nextProfile.compactMode));
+    setAdminProfile(nextProfile);
+    setCurrentUserName(nextProfile.displayName);
+    localStorage.setItem("userName", nextProfile.displayName);
+    alert("Admin settings saved");
+  };
+
+  const handleAdminLogoChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      alert("Please choose an image file");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      alert("Logo must be smaller than 2 MB");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setAdminProfile((profile) => ({ ...profile, logo: String(reader.result) }));
+    reader.onerror = () => alert("Could not read that logo file");
+    reader.readAsDataURL(file);
   };
 
   const logout = () => {
@@ -779,13 +816,15 @@ const monthTotal =
         await fetchInternalData();
         return;
       }
-      await fetchTickets();
-      await fetchProducts();
-      await fetchInternalData();
-      await fetchAnalytics();
-      await fetchRefundAnalytics(); 
-      await fetchFeedback();
-      await fetchSettings();
+      await Promise.all([
+        fetchTickets(),
+        fetchProducts(),
+        fetchInternalData(),
+        fetchAnalytics(),
+        fetchRefundAnalytics(),
+        fetchFeedback(),
+        fetchSettings(),
+      ]);
     };
     loadData();
   }, [token, isAdmin, fetchInternalData]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -1034,8 +1073,8 @@ const monthTotal =
                 onKeyDown={(e) => e.key === "Enter" && login()}
               />
             </div>
-            <button className="login-btn" onClick={login}>
-              Sign In
+            <button className="login-btn" onClick={login} disabled={loginInProgress || !username.trim() || !password}>
+              {loginInProgress ? "Signing in…" : "Sign In"}
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M5 12h14M12 5l7 7-7 7" />
               </svg>
@@ -1050,13 +1089,13 @@ const monthTotal =
      MAIN DASHBOARD
   ========================================================================= */
   return (
-    <div className="dashboard">
+    <div className={`dashboard ${adminProfile.compactMode ? "dashboard-compact" : ""}`}>
 
       {/* ── SIDEBAR ─────────────────────────────────────────────────────────── */}
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <img src="/logo.png" alt="logo" />
-          <span>Snackit</span>
+          <img src={adminProfile.logo} alt="Snackit logo" />
+          <span>{adminProfile.displayName || "Snackit"}</span>
         </div>
 
         <nav className="sidebar-nav">
@@ -1107,6 +1146,13 @@ const monthTotal =
             {Icon.chat}
             <span>Employee Details</span>
           </button>}
+          {isAdmin && <button
+            className={`nav-item ${view === "admin-settings" ? "active" : ""}`}
+            onClick={() => setView("admin-settings")}
+          >
+            {Icon.settings}
+            <span>Admin Settings</span>
+          </button>}
         </nav>
 
         <button className="sidebar-logout" onClick={logout}>
@@ -1128,6 +1174,7 @@ const monthTotal =
               {view === "analytics" && "Analytics"}
               {view === "internal-chat" && "Internal Chat"}
               {view === "employees" && "Employee Details"}
+              {view === "admin-settings" && "Admin Settings"}
             </h1>
             <p className="page-sub">
               {view === "tickets" && `${filteredTickets.length} tickets · ${openCount} open`}
@@ -1136,6 +1183,7 @@ const monthTotal =
               {view === "analytics" && "Issue breakdown and trends"}
               {view === "internal-chat" && `${departmentChats.length} active ${selectedDepartment} conversations`}
               {view === "employees" && `${internalUsers.length} employees with login access`}
+              {view === "admin-settings" && "Profile, branding, and workspace preferences"}
             </p>
           </div>
           <div className="page-live">
@@ -1189,9 +1237,91 @@ const monthTotal =
                       <button type="button" className="employee-edit-btn" onClick={() => startEditingEmployee(user)}>Edit details</button>
                     </>
                   )}
+
                 </div>
               ))}
             </div>
+          </section>
+        )}
+
+        {view === "admin-settings" && isAdmin && (
+          <section className="admin-settings-page">
+            <div className="admin-settings-hero">
+              <div>
+                <span className="employee-eyebrow">Admin workspace</span>
+                <h2>Make Snackit feel like your workspace</h2>
+                <p>Update the admin profile, replace the logo, and tune the dashboard for your team.</p>
+              </div>
+              <div className="admin-settings-avatar">
+                <img src={adminProfile.logo} alt="Current Snackit logo" />
+              </div>
+            </div>
+
+            <div className="admin-settings-grid">
+              <div className="admin-settings-card">
+                <div className="admin-settings-card-heading">
+                  <div>
+                    <h3>Snackit profile</h3>
+                    <p>This name appears in the dashboard sidebar and internal messages.</p>
+                  </div>
+                </div>
+                <label className="admin-setting-field">
+                  <span>Display name</span>
+                  <input
+                    value={adminProfile.displayName}
+                    onChange={(event) => setAdminProfile((profile) => ({ ...profile, displayName: event.target.value }))}
+                    placeholder="Snackit Admin"
+                  />
+                </label>
+                <label className="admin-setting-field">
+                  <span>Admin email</span>
+                  <input
+                    type="email"
+                    value={adminProfile.email}
+                    onChange={(event) => setAdminProfile((profile) => ({ ...profile, email: event.target.value }))}
+                    placeholder="admin@snackit.com"
+                  />
+                </label>
+              </div>
+
+              <div className="admin-settings-card">
+                <div className="admin-settings-card-heading">
+                  <div>
+                    <h3>Branding</h3>
+                    <p>Use your own logo throughout this browser's Snackit dashboard.</p>
+                  </div>
+                </div>
+                <label className="logo-upload">
+                  <img src={adminProfile.logo} alt="Logo preview" />
+                  <span>
+                    <strong>Change logo</strong>
+                    <small>PNG, JPG, or SVG up to 2 MB</small>
+                  </span>
+                  <input type="file" accept="image/*" onChange={handleAdminLogoChange} />
+                </label>
+              </div>
+
+              <div className="admin-settings-card admin-settings-preferences">
+                <div className="admin-settings-card-heading">
+                  <div>
+                    <h3>Workspace preferences</h3>
+                    <p>Keep the dashboard comfortable for long support sessions.</p>
+                  </div>
+                </div>
+                <label className="admin-preference-row">
+                  <span>
+                    <strong>Compact dashboard</strong>
+                    <small>Use tighter spacing in tables and internal chat.</small>
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={adminProfile.compactMode}
+                    onChange={(event) => setAdminProfile((profile) => ({ ...profile, compactMode: event.target.checked }))}
+                  />
+                </label>
+              </div>
+            </div>
+            <button type="button" className="admin-settings-save" onClick={saveAdminProfile}>Save admin settings</button>
           </section>
         )}
 
@@ -1214,15 +1344,8 @@ const monthTotal =
                 </div>
 
                 <div className="internal-panel-header">Chats</div>
-                <button
-                  type="button"
-                  className={`tagged-messages-toggle ${showTaggedOnly ? "active" : ""}`}
-                  onClick={() => setShowTaggedOnly((value) => !value)}
-                >
-                  {showTaggedOnly ? "Show department chats" : "Messages tagged to me"}
-                </button>
-                {visibleChats.length ? (
-                  visibleChats.map((chat) => (
+                {departmentChats.length ? (
+                  departmentChats.map((chat) => (
                     <div key={chat.id} className="internal-thread-wrap">
                       <button
                         type="button"
@@ -1231,7 +1354,6 @@ const monthTotal =
                       >
                         <div className="internal-thread-top">
                           <strong>{chat.title}</strong>
-                          <span className={`priority-badge priority-${chat.priority || "medium"}`}>{chat.priority || "medium"}</span>
                         </div>
                         <div className="internal-thread-meta">{chat.participants.join(", ")}</div>
                         <div className="internal-thread-meta">{chat.messages.at(-1)?.text || "No messages"}</div>
@@ -1251,9 +1373,6 @@ const monthTotal =
                   <div>
                     <h3>{selectedInternalChat ? selectedInternalChat.title : `${selectedDepartment} chat`}</h3>
                     <p>{departmentUsers.length} team members · Messages are visible to this department</p>
-                    <span className={`priority-badge priority-${(selectedInternalChat?.priority || internalPriority)}`}>
-                      {(selectedInternalChat?.priority || internalPriority)} priority
-                    </span>
                   </div>
                 </div>
 
@@ -1284,7 +1403,6 @@ const monthTotal =
                               ))}
                             </div>
                           ) : null}
-                          {message.tag && message.tag !== "general" && <span className="message-tag">#{message.tag}</span>}
                           <div className="message-status-row">
                             <span className={`message-status status-${message.status || "open"}`}>{(message.status || "open").replace("-", " ")}</span>
                             {(isAdmin || message.recipientIds?.map(String).includes(String(currentUserId)) || message.sender === currentUserName) && (
@@ -1308,30 +1426,7 @@ const monthTotal =
                 </div>
 
                 <div className="internal-composer">
-                  <div className="priority-picker" aria-label="Message priority">
-                    <span className="composer-label">Priority</span>
-                    {[
-                      { value: "low", label: "Low", color: "green" },
-                      { value: "medium", label: "Medium", color: "yellow" },
-                      { value: "urgent", label: "Urgent", color: "red" },
-                    ].map((priority) => (
-                      <button
-                        key={priority.value}
-                        type="button"
-                        className={`priority-choice ${priority.color} ${internalPriority === priority.value ? "selected" : ""}`}
-                        onClick={() => setInternalPriority(priority.value)}
-                      >
-                        <span className="priority-dot" />
-                        {priority.label}
-                      </button>
-                    ))}
-                  </div>
                   <div className="message-compose-row">
-                    <select value={internalTag} onChange={(event) => setInternalTag(event.target.value)} aria-label="Message tag">
-                      {departmentTags.length ? departmentTags.map((tag) => (
-                        <option value={tag} key={tag}>#{tag}</option>
-                      )) : <option value="">No tag</option>}
-                    </select>
                   <input
                     type="text"
                     value={internalMessage}
@@ -1384,7 +1479,7 @@ const monthTotal =
 
                 <div className="internal-recipient-box">
                   <div className="recipient-heading">
-                    <div className="internal-panel-header">Tag people</div>
+                    <div className="internal-panel-header">Notify people</div>
                     <span>{selectedRecipients.length ? `${selectedRecipients.length} selected` : "Notify the whole department if none selected"}</span>
                   </div>
                   <div className="internal-recipient-list">
