@@ -240,10 +240,39 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
 
       if (!activeChat) return;
 
-      const serializedAttachments = await Promise.all(attachedFiles.map((file) => new Promise((resolve) => {
+      const serializedAttachments = await Promise.all(attachedFiles.map((file) => new Promise((resolve, reject) => {
+        const maxFileSize = 6 * 1024 * 1024;
+        if (file.size > maxFileSize) {
+          reject(new Error(`${file.name} is larger than 6 MB`));
+          return;
+        }
+
         const reader = new FileReader();
-        reader.onload = () => resolve({ name: file.name, type: file.type, size: file.size, dataUrl: reader.result });
-        reader.onerror = () => resolve({ name: file.name, type: file.type, size: file.size });
+        reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
+        reader.onload = () => {
+          if (!file.type.startsWith("image/")) {
+            resolve({ name: file.name, type: file.type, size: file.size, dataUrl: reader.result });
+            return;
+          }
+
+          const image = new Image();
+          image.onerror = () => reject(new Error(`Could not process ${file.name}`));
+          image.onload = () => {
+            const maxDimension = 1800;
+            const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.max(1, Math.round(image.width * scale));
+            canvas.height = Math.max(1, Math.round(image.height * scale));
+            canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
+            resolve({
+              name: file.name,
+              type: "image/jpeg",
+              size: file.size,
+              dataUrl: canvas.toDataURL("image/jpeg", 0.82),
+            });
+          };
+          image.src = reader.result;
+        };
         reader.readAsDataURL(file);
       })));
 
@@ -276,7 +305,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       setInternalMessage("");
       setAttachedFiles([]);
     } catch (err) {
-      alert("Failed to send internal message");
+      alert(err.message || "Failed to send internal message");
       console.log(err);
     }
   };
