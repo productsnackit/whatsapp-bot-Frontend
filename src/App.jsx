@@ -170,6 +170,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
 
   const departments = ["Accounts", "HR", "Operations", "Product", "Audit", "Technical", "Orders", "Logistics"];
   const isAdmin = userRole === "admin";
+  const canAccessOperations = isAdmin || (userRole === "employee" && currentUserDepartment === "Operations");
   const [internalUsers, setInternalUsers] = useState([]);
   const [internalChats, setInternalChats] = useState([]);
   const [selectedDepartment, setSelectedDepartment] = useState(localStorage.getItem("userDepartment") || "Accounts");
@@ -1263,10 +1264,10 @@ const monthTotal =
             <span>Products</span>
           </button>}
 
-          {isAdmin && <>
+          {canAccessOperations && <>
             <div className="sidebar-divider" />
             <div className="sidebar-section-label">Operations</div>
-            {[['inventory', 'Inventory'], ['clients', 'Clients'], ['brands', 'Brands'], ['performance', 'Product Performance'], ['leads', 'Leads'], ['routes', 'Routes & Demand'], ['demand', 'Demand Analytics']].map(([operationView, label]) => (
+            {[['inventory', 'Inventory'], ['clients', 'Clients'], ['brands', 'Brands'], ['performance', 'Product Performance'], ['leads', 'Leads'], ['routes', 'Routes & Demand'], ['demand', 'Demand Analytics'], ['import', 'Bulk Import']].map(([operationView, label]) => (
               <button
                 key={operationView}
                 className={`nav-item ${view === operationView ? "active" : ""}`}
@@ -1333,6 +1334,7 @@ const monthTotal =
               {view === "leads" && "Sales Pipeline"}
               {view === "routes" && "Routes & Demand"}
               {view === "demand" && "Demand Analytics"}
+              {view === "import" && "Bulk Imports"}
               {view === "analytics" && "Analytics"}
               {view === "internal-chat" && "Internal Chat"}
               {view === "employees" && "Employee Details"}
@@ -1349,6 +1351,7 @@ const monthTotal =
               {view === "leads" && "Move enquiries from first contact to closed"}
               {view === "routes" && "Demand signals and today's suggested refill route"}
               {view === "demand" && "Hourly demand and sector comparison"}
+              {view === "import" && "Upload and audit machines, slots, clients, brands, and SKUs"}
               {view === "analytics" && "Issue breakdown and trends"}
               {view === "internal-chat" && `${departmentChats.length} active ${selectedDepartment} conversations`}
               {view === "employees" && `${internalUsers.length} employees with login access`}
@@ -1494,7 +1497,7 @@ const monthTotal =
           </section>
         )}
 
-        {["inventory", "clients", "brands", "performance", "leads", "routes", "demand"].includes(view) && isAdmin && (
+        {["inventory", "clients", "brands", "performance", "leads", "routes", "demand", "import"].includes(view) && canAccessOperations && (
           <OperationsWorkspace token={token} internalUsers={internalUsers} workspace={view} />
         )}
 

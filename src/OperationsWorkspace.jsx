@@ -5,8 +5,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -82,9 +80,63 @@ function DemandPage({ headers, days, setDays }) {
   return <State loading={loading} error={error}><div className="ops-filter-bar"><label>Window <select value={days} onChange={(event) => setDays(event.target.value)}><option value="7">7 days</option><option value="30">30 days</option><option value="90">90 days</option></select></label></div><div className="ops-two-column"><Panel title="Demand by sector" eyebrow="Sales mix"><div className="ops-chart"><ResponsiveContainer width="100%" height={270}><BarChart data={sectors}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="sector" /><YAxis /><Tooltip /><Bar dataKey="sales_volume" fill="#10b981" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></div></Panel><Panel title="Suggested refill route" eyebrow={`${routes.length} stops today`}><div className="ops-route-list">{routes.map((machine, index) => <div key={machine.id}><b>{index + 1}</b><span>{machine.name}<small>{machine.city || machine.location} · {machine.urgent_slots} urgent slots</small></span></div>)}</div></Panel></div><Panel title="Demand heatmap" eyebrow="Hour of day × day of week"><div className="ops-heatmap">{heatmapData.map((row) => <div className="ops-heatmap-row" key={row.day}><strong>{row.day}</strong>{Array.from({ length: 24 }, (_, hour) => <span title={`${row.day} ${hour}:00 · ${row[`h${hour}`]} sales`} key={hour} style={{ opacity: Math.min(1, 0.15 + row[`h${hour}`] / Math.max(1, ...heatmapData.flatMap((item) => Object.values(item).filter((value) => typeof value === "number")))) }} />)}</div>)}</div></Panel></State>;
 }
 
+function ImportPage({ headers }) {
+  const [type, setType] = useState("machines");
+  const [file, setFile] = useState(null);
+  const [progress, setProgress] = useState(0);
+  const [batch, setBatch] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [detail, setDetail] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const loadHistory = useCallback(async () => {
+    try {
+      const response = await API.get("/operations/imports", { headers, params: { type } });
+      setHistory(response.data || []);
+    } catch (err) {
+      setError(err.response?.data?.error || "Could not load import history");
+    } finally {
+      setLoading(false);
+    }
+  }, [headers, type]);
+  useEffect(() => { loadHistory(); }, [loadHistory]);
+  useEffect(() => {
+    const socket = io(API.defaults.baseURL, { transports: ["websocket"] });
+    socket.on("import-completed", (summary) => {
+      if (summary?.sheet_type === type) {
+        setBatch(summary);
+        loadHistory();
+      }
+    });
+    return () => socket.disconnect();
+  }, [type, loadHistory]);
+  const downloadTemplate = async () => {
+    try {
+      const response = await API.get(`/operations/import-template/${type}`, { headers, responseType: "blob" });
+      const url = URL.createObjectURL(response.data);
+      const link = document.createElement("a"); link.href = url; link.download = `snackit-${type}-template.xlsx`; link.click(); URL.revokeObjectURL(url);
+    } catch (err) { setError(err.response?.data?.error || "Could not download template"); }
+  };
+  const upload = async () => {
+    if (!file) return;
+    setUploading(true); setProgress(0); setError("");
+    try {
+      const formData = new FormData(); formData.append("type", type); formData.append("file", file);
+      const response = await API.post("/operations/import", formData, { headers: { ...headers, "Content-Type": "multipart/form-data" }, onUploadProgress: (event) => setProgress(event.total ? Math.round((event.loaded / event.total) * 100) : 0) });
+      setBatch(response.data); setFile(null); await loadHistory();
+    } catch (err) { setError(err.response?.data?.error || "Import failed"); } finally { setUploading(false); }
+  };
+  const showDetail = async (id) => {
+    try { const response = await API.get(`/operations/imports/${id}`, { headers }); setDetail(response.data); } catch (err) { setError(err.response?.data?.error || "Could not load import details"); }
+  };
+  const errors = (batch?.error_report || detail?.error_report || []).filter((item) => item.status === "error");
+  return <State loading={loading} error={error}><div className="ops-import-controls"><select value={type} onChange={(event) => { setType(event.target.value); setBatch(null); }}><option value="machines">Machines</option><option value="slots">Machine slots</option><option value="host_sites">Host sites</option><option value="brands">Brands</option><option value="skus">SKUs</option></select><button onClick={downloadTemplate}>Download template</button></div><div className="ops-import-drop" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); setFile(event.dataTransfer.files?.[0] || null); }}><input id="operations-import-file" type="file" accept=".xlsx,.xls" onChange={(event) => setFile(event.target.files?.[0] || null)} /><label htmlFor="operations-import-file"><strong>{file ? file.name : "Drop a spreadsheet here"}</strong><span>Excel files only · 10MB maximum</span></label>{file && <button onClick={upload} disabled={uploading}>{uploading ? `Uploading ${progress}%` : "Import spreadsheet"}</button>}</div>{uploading && <div className="ops-import-progress"><span style={{ width: `${progress}%` }} /></div>}{batch && <div className={`ops-import-result ${batch.error_count ? "has-errors" : ""}`}><div><strong>{batch.success_count} of {batch.total_rows} rows imported successfully</strong><span>{batch.error_count} errors · {batch.status}</span></div>{errors.length > 0 && <details open><summary>Show row errors</summary><div className="ops-import-errors">{errors.map((item, index) => <div key={`${item.row}-${index}`}><b>Row {item.row}</b><span>{item.message}</span></div>)}</div></details>}</div>}<Panel title="Import history" eyebrow="Audit trail"><div className="ops-table-wrap"><table className="ops-table"><thead><tr><th>File</th><th>Type</th><th>Uploader</th><th>Date</th><th>Rows</th><th>Result</th><th>Actions</th></tr></thead><tbody>{history.map((item) => <tr key={item.id}><td><strong>{item.filename}</strong></td><td>{item.sheet_type}</td><td>{item.uploaded_by || "-"}</td><td>{formatDate(item.created_at)}</td><td>{item.total_rows}</td><td><span className={`ops-pill ${item.error_count ? "ops-risk" : ""}`}>{item.success_count} / {item.error_count}</span></td><td><a href={item.cloudinary_url} target="_blank" rel="noreferrer">View file</a>{item.error_count > 0 && <button className="ops-text-button" onClick={() => showDetail(item.id)}>View errors</button>}</td></tr>)}</tbody></table></div>{!history.length && <div className="ops-empty">No imports yet.</div>}</Panel>{detail && <div className="ops-drawer-backdrop" onClick={() => setDetail(null)}><aside className="ops-drawer" onClick={(event) => event.stopPropagation()}><button className="ops-close" onClick={() => setDetail(null)}>Close</button><span className="ops-eyebrow">Import detail</span><h2>{detail.filename}</h2><p>{detail.sheet_type} · {detail.uploaded_by || "-"}</p><div className="ops-detail-stats"><strong>{detail.success_count}<small>successes</small></strong><strong className={detail.error_count ? "ops-risk" : ""}>{detail.error_count}<small>errors</small></strong><strong>{detail.total_rows}<small>rows</small></strong></div><div className="ops-import-errors">{(detail.error_report || []).filter((item) => item.status === "error").map((item, index) => <div key={`${item.row}-${index}`}><b>Row {item.row}</b><span>{item.message}</span></div>)}</div></aside></div>}</State>;
+}
+
 export default function OperationsWorkspace({ token, internalUsers = [], workspace }) {
   const headers = { Authorization: `Bearer ${token}` }; const [city, setCity] = useState(""); const [sector, setSector] = useState(""); const [status, setStatus] = useState(""); const [days, setDays] = useState("30"); const [toast, setToast] = useState("");
   useEffect(() => { const socket = io(API.defaults.baseURL, { transports: ["websocket"] }); const notify = (message) => { setToast(message); window.setTimeout(() => setToast(""), 3500); }; socket.on("low-stock-alert", () => notify("Inventory alert: urgent restocks changed.")); socket.on("lead-created", () => notify("New website enquiry received.")); socket.on("renewal-due", () => notify("A host-site renewal is due soon.")); return () => socket.disconnect(); }, []);
-  const title = { inventory: "Machine Inventory", clients: "Host-site CRM", brands: "Brand & SKU Performance", leads: "Sales Pipeline", routes: "Routes & Demand", demand: "Demand Analytics" }[workspace] || "Operations";
-  return <div className="ops-workspace"><div className="ops-workspace-header"><div><span className="ops-eyebrow">Business operations</span><h1>{title}</h1><p>Keep the vending network stocked, healthy, and growing.</p></div>{toast && <div className="ops-toast">{toast}</div>}</div>{workspace === "inventory" && <InventoryPage headers={headers} city={city} setCity={setCity} sector={sector} setSector={setSector} days={days} setDays={setDays} />}{workspace === "clients" && <ClientsPage headers={headers} city={city} setCity={setCity} sector={sector} setSector={setSector} status={status} setStatus={setStatus} />}{(workspace === "brands" || workspace === "performance") && <BrandsPage headers={headers} city={city} setCity={setCity} sector={sector} setSector={setSector} days={days} setDays={setDays} isPerformance={workspace === "performance"} />}{workspace === "leads" && <LeadsPage headers={headers} internalUsers={internalUsers} />}{(workspace === "routes" || workspace === "demand") && <DemandPage headers={headers} days={days} setDays={setDays} />}</div>;
+  const title = { inventory: "Machine Inventory", clients: "Host-site CRM", brands: "Brand & SKU Performance", performance: "Product Performance", leads: "Sales Pipeline", routes: "Routes & Demand", demand: "Demand Analytics", import: "Bulk Imports" }[workspace] || "Operations";
+  return <div className="ops-workspace"><div className="ops-workspace-header"><div><span className="ops-eyebrow">Business operations</span><h1>{title}</h1><p>Keep the vending network stocked, healthy, and growing.</p></div>{toast && <div className="ops-toast">{toast}</div>}</div>{workspace === "import" && <ImportPage headers={headers} />}{workspace === "inventory" && <InventoryPage headers={headers} city={city} setCity={setCity} sector={sector} setSector={setSector} days={days} setDays={setDays} />}{workspace === "clients" && <ClientsPage headers={headers} city={city} setCity={setCity} sector={sector} setSector={setSector} status={status} setStatus={setStatus} />}{(workspace === "brands" || workspace === "performance") && <BrandsPage headers={headers} city={city} setCity={setCity} sector={sector} setSector={setSector} days={days} setDays={setDays} isPerformance={workspace === "performance"} />}{workspace === "leads" && <LeadsPage headers={headers} internalUsers={internalUsers} />}{(workspace === "routes" || workspace === "demand") && <DemandPage headers={headers} days={days} setDays={setDays} />}</div>;
 }

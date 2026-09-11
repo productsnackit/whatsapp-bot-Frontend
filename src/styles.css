@@ -1,3 +1,21 @@
+.ops-import-controls { display: flex; gap: 10px; align-items: center; }
+.ops-import-controls select, .ops-import-controls button { min-height: 38px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text-primary); font: inherit; font-size: 12px; }
+.ops-import-controls button { background: var(--obsidian); color: #fff; cursor: pointer; }
+.ops-import-drop { display: grid; justify-items: center; gap: 9px; padding: 34px 20px; border: 1px dashed #b7c0d4; border-radius: var(--radius-lg); background: var(--surface-2); text-align: center; }
+.ops-import-drop input { display: none; }
+.ops-import-drop label { display: grid; gap: 5px; cursor: pointer; }
+.ops-import-drop label span { color: var(--text-muted); font-size: 11px; }
+.ops-import-drop > button { border: 0; border-radius: 8px; padding: 10px 14px; background: var(--red); color: #fff; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.ops-import-progress { height: 7px; overflow: hidden; border-radius: 10px; background: var(--surface-3); }
+.ops-import-progress span { display: block; height: 100%; background: var(--red); transition: width .2s; }
+.ops-import-result { display: grid; gap: 12px; padding: 16px 18px; border: 1px solid #a7f3d0; border-radius: 12px; background: #f0fdf8; }
+.ops-import-result.has-errors { border-color: #fecaca; background: #fff7f7; }
+.ops-import-result > div:first-child { display: flex; justify-content: space-between; gap: 12px; }
+.ops-import-result > div:first-child span { color: var(--text-muted); font-size: 11px; }
+.ops-import-errors { display: grid; gap: 6px; }
+.ops-import-errors > div { display: flex; gap: 12px; padding: 8px 10px; border-radius: 7px; background: rgba(255,255,255,.8); font-size: 11px; }
+.ops-import-errors span { color: var(--text-secondary); }
+.ops-text-button { margin-left: 10px; border: 0; background: transparent; color: var(--red); cursor: pointer; font: inherit; font-size: 11px; }
 /* ═══════════════════════════════════════════════════════════════════════════
    SNACKIT DASHBOARD — styles.css v3.1
    Design: Midnight Obsidian sidebar · Pure white canvas · Crimson pulse
