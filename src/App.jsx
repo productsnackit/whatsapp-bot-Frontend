@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
+import OperationsWorkspace from "./OperationsWorkspace.jsx";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell, Legend, ResponsiveContainer,
@@ -131,6 +132,8 @@ export default function App() {
   const [tickets, setTickets] = useState([]);
   const [feedback, setFeedback] = useState([]);
   const [products, setProducts] = useState([]);
+  const [lowStockSummary, setLowStockSummary] = useState([]);
+  const [renewalsSummary, setRenewalsSummary] = useState([]);
 
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -652,6 +655,21 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
     }
   }, [token, authHeaders]);
 
+  const fetchOperationsSummary = useCallback(async () => {
+    if (!token || !isAdmin) return;
+    try {
+      const headers = authHeaders();
+      const [lowStock, renewals] = await Promise.all([
+        API.get("/inventory/low-stock", { headers, params: { days: 7 } }),
+        API.get("/host-sites/renewals-due", { headers, params: { days: 60 } }),
+      ]);
+      setLowStockSummary(Array.isArray(lowStock.data) ? lowStock.data.slice(0, 10) : []);
+      setRenewalsSummary(Array.isArray(renewals.data) ? renewals.data.slice(0, 6) : []);
+    } catch (err) {
+      console.log("Operations summary error:", err);
+    }
+  }, [token, authHeaders, isAdmin]);
+
   const fetchInternalData = useCallback(async () => {
     if (!token) return;
     try {
@@ -934,6 +952,7 @@ const monthTotal =
       await Promise.all([
         fetchTickets(),
         fetchProducts(),
+        fetchOperationsSummary(),
         fetchInternalData(),
         fetchAnalytics(),
         fetchRefundAnalytics(),
@@ -1244,6 +1263,21 @@ const monthTotal =
             <span>Products</span>
           </button>}
 
+          {isAdmin && <>
+            <div className="sidebar-divider" />
+            <div className="sidebar-section-label">Operations</div>
+            {[['inventory', 'Inventory'], ['clients', 'Clients'], ['brands', 'Brands'], ['performance', 'Product Performance'], ['leads', 'Leads'], ['routes', 'Routes & Demand'], ['demand', 'Demand Analytics']].map(([operationView, label]) => (
+              <button
+                key={operationView}
+                className={`nav-item ${view === operationView ? "active" : ""}`}
+                onClick={() => setView(operationView)}
+              >
+                {Icon.analytics}
+                <span>{label}</span>
+              </button>
+            ))}
+          </>}
+
           {isAdmin && <><div className="sidebar-divider" />
           <div className="sidebar-section-label">Insights</div>
           <button
@@ -1292,6 +1326,13 @@ const monthTotal =
               {view === "tickets" && "Support Tickets"}
               {view === "feedback" && "Customer Feedback"}
               {view === "products" && "Product Leads"}
+              {view === "inventory" && "Machine Inventory"}
+              {view === "clients" && "Host-site CRM"}
+              {view === "brands" && "Brand & SKU Performance"}
+              {view === "performance" && "Product Performance"}
+              {view === "leads" && "Sales Pipeline"}
+              {view === "routes" && "Routes & Demand"}
+              {view === "demand" && "Demand Analytics"}
               {view === "analytics" && "Analytics"}
               {view === "internal-chat" && "Internal Chat"}
               {view === "employees" && "Employee Details"}
@@ -1301,6 +1342,13 @@ const monthTotal =
               {view === "tickets" && `${filteredTickets.length} tickets · ${openCount} open`}
               {view === "feedback" && `${feedback.length} responses collected`}
               {view === "products" && `${products.length} product leads`}
+              {view === "inventory" && "Stock health, velocity, and restock intelligence"}
+              {view === "clients" && "Contracts, renewals, and relationship history"}
+              {view === "brands" && "Sell-through, revenue, and SKU performance"}
+              {view === "performance" && "Cross-brand leaderboard by city and sector"}
+              {view === "leads" && "Move enquiries from first contact to closed"}
+              {view === "routes" && "Demand signals and today's suggested refill route"}
+              {view === "demand" && "Hourly demand and sector comparison"}
               {view === "analytics" && "Issue breakdown and trends"}
               {view === "internal-chat" && `${departmentChats.length} active ${selectedDepartment} conversations`}
               {view === "employees" && `${internalUsers.length} employees with login access`}
@@ -1444,6 +1492,10 @@ const monthTotal =
             </div>
             <button type="button" className="admin-settings-save" onClick={saveAdminProfile}>Save admin settings</button>
           </section>
+        )}
+
+        {["inventory", "clients", "brands", "performance", "leads", "routes", "demand"].includes(view) && isAdmin && (
+          <OperationsWorkspace token={token} internalUsers={internalUsers} workspace={view} />
         )}
 
         {view === "internal-chat" && (
@@ -2076,6 +2128,19 @@ const monthTotal =
               </table>
             </div>
           </>
+        )}
+
+        {view === "tickets" && isAdmin && (
+          <div className="ops-home-widgets">
+            <section className="ops-home-widget">
+              <div className="ops-home-widget-heading"><div><span className="ops-eyebrow">Inventory</span><h3>Low stock queue</h3></div><button onClick={() => setView("inventory")}>Open inventory</button></div>
+              {lowStockSummary.length ? lowStockSummary.map((slot) => <div className="ops-home-row" key={slot.slot_id}><span><strong>{slot.machine_name}</strong><small>{slot.sku_name || `Slot ${slot.slot_number}`}</small></span><b>{slot.stockout_days == null ? "-" : `${Number(slot.stockout_days).toFixed(1)}d`}</b></div>) : <p className="ops-home-empty">No urgent restocks right now.</p>}
+            </section>
+            <section className="ops-home-widget">
+              <div className="ops-home-widget-heading"><div><span className="ops-eyebrow">Client health</span><h3>Renewals due</h3></div><button onClick={() => setView("clients")}>Open clients</button></div>
+              {renewalsSummary.length ? renewalsSummary.map((site) => <div className="ops-home-row" key={site.id}><span><strong>{site.company_name}</strong><small>{site.city || "Host site"}</small></span><b className="ops-risk">{site.days_to_renewal}d</b></div>) : <p className="ops-home-empty">No renewals due in 60 days.</p>}
+            </section>
+          </div>
         )}
 
         {/* ── FEEDBACK VIEW ───────────────────────────────────────────────── */}
