@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import MentionText, { MentionSuggestions, TaskLine } from "./MentionText.jsx";
+import { useMentionInput } from "./mentions.js";
 
 /* WhatsApp-style internal chat for phones. The desktop layout lives in App.jsx. */
 
@@ -119,9 +121,8 @@ function ChatRow({ chat, name, me, last, onOpen, onActions }) {
   );
 }
 
-function MessageBubble({ message, outgoing, showSender, onTap, repliedTo }) {
+function MessageBubble({ message, outgoing, showSender, onTap, repliedTo, taggedNames, canUpdate, onSetStatus }) {
   const reactions = Object.entries(message.reactions || {}).filter(([, users]) => users?.length);
-  const status = message.status || "open";
   return (
     <div className={`wa-msg ${outgoing ? "out" : "in"}`}>
       <div className={`wa-bubble wa-prio-${message.priority || "medium"}`} onClick={onTap} role="button" tabIndex={0}>
@@ -137,14 +138,13 @@ function MessageBubble({ message, outgoing, showSender, onTap, repliedTo }) {
             ? <a key={index} href={file.dataUrl} download={file.name} onClick={(e) => e.stopPropagation()}><img className="wa-image" src={file.dataUrl} alt={file.name} /></a>
             : <a key={index} className="wa-file" href={file.dataUrl || undefined} download={file.name} onClick={(e) => e.stopPropagation()}>{Icons.file}<span>{file.name}</span></a>
         ))}
-        {message.text && <span className="wa-text">{message.text}</span>}
+        {message.text && <span className="wa-text"><MentionText text={message.text} names={taggedNames} /></span>}
         <span className="wa-meta">
-          {status !== "open" && <span className={`wa-status status-${status}`}>{status === "resolved" ? "Resolved" : "In progress"}</span>}
-          {message.assignedTo && <span className="wa-assigned">@{message.assignedTo}</span>}
           {message.priority === "urgent" && <span className="wa-status status-urgent">Urgent</span>}
           <span className="wa-time">{message.time}</span>
           {outgoing && <span className="wa-ticks">{Icons.ticks}</span>}
         </span>
+        {taggedNames.length > 0 && <TaskLine message={message} taggedNames={taggedNames} canUpdate={canUpdate} onSetStatus={onSetStatus} />}
       </div>
       {reactions.length > 0 && (
         <div className="wa-reactions">{reactions.map(([emoji, users]) => <span key={emoji}>{emoji}{users.length > 1 ? ` ${users.length}` : ""}</span>)}</div>
@@ -197,9 +197,13 @@ export default function MobileChat({ chat: c }) {
   };
 
   const send = async () => {
+    mention.close();
     await c.send();
     setShowExtras(false);
   };
+  const inputRef = useRef(null);
+  const mention = useMentionInput({ inputRef, value: c.message, setValue: c.setMessage, people: c.taggablePeople, onEnter: () => send() });
+  const isGroup = c.selectedDepartment !== "Direct";
 
   const isOutgoing = (message) => message.sender === c.currentUserName || (c.currentUserName === "Admin" && message.sender === "You");
 
@@ -297,6 +301,21 @@ export default function MobileChat({ chat: c }) {
                   {c.isAdmin && <button type="button" className="wa-text-danger" onClick={() => c.deleteUser(user.id)}>Remove</button>}
                 </div>
               )) : <div className="wa-empty"><b>No team members</b><span>Nobody is in {c.selectedDepartment} yet.</span></div>)}
+              {c.selectedDepartment !== "Direct" && (
+                <>
+                  <div className="wa-section-label">Other members · everyone is in this group</div>
+                  {c.internalUsers.filter((user) => user.department !== c.selectedDepartment).map((user) => (
+                    <div className="wa-chat-row wa-member" key={user.id}>
+                      <Avatar name={user.name} />
+                      <span className="wa-row-main">
+                        <span className="wa-row-top"><b>{user.name}</b></span>
+                        <span className="wa-row-bottom"><span className="wa-preview">{user.role} · {user.department}</span></span>
+                      </span>
+                      {String(user.id) !== c.myChatKey && <button type="button" className="wa-message-btn" onClick={() => c.startDirect(String(user.id))}>Message</button>}
+                    </div>
+                  ))}
+                </>
+              )}
               {c.isAdmin && (
                 <form className="wa-card-form" onSubmit={c.addEmployee}>
                   <b>Add employee</b>
@@ -345,7 +364,7 @@ export default function MobileChat({ chat: c }) {
             <Avatar name={c.chatName(c.selectedChat)} size={38} />
             <button type="button" className="wa-bar-title wa-bar-title-btn" onClick={() => setSheet({ type: "chat", chat: c.selectedChat })}>
               <b>{c.chatName(c.selectedChat)}</b>
-              <small>{c.selectedChat.type === "direct" ? "🔒 Private chat" : `${c.departmentUsers.length} members · ${c.selectedChat.department}`}</small>
+              <small>{c.selectedChat.type === "direct" ? "🔒 Private chat" : `Everyone · @ tags ${c.selectedChat.department}`}</small>
             </button>
             <button type="button" className="wa-icon-btn" aria-label="Chat options" onClick={() => setSheet({ type: "chat", chat: c.selectedChat })}>{Icons.dots}</button>
           </header>
@@ -360,6 +379,9 @@ export default function MobileChat({ chat: c }) {
                 showSender={index === 0 || chatMessages[index - 1].sender !== message.sender}
                 repliedTo={message.replyTo ? chatMessages.find((m) => String(m.id) === String(message.replyTo)) : null}
                 onTap={() => setSheet({ type: "message", message })}
+                taggedNames={c.taggedNames(message)}
+                canUpdate={c.isTaggedMe(message)}
+                onSetStatus={(value) => c.updateStatus(c.selectedChat.id, message.id, value)}
               />
             )) : <div className="wa-system">No messages yet. Say hello 👋</div>}
           </div>
@@ -399,33 +421,23 @@ export default function MobileChat({ chat: c }) {
                     </div>
                   </div>
                 )}
-                <div className="wa-extra-row wa-extra-notify">
-                  <span>Notify {c.recipients.length ? `(${c.recipients.length})` : "(whole department)"}</span>
-                  <div className="wa-chip-scroll">
-                    {c.internalUsers.map((user) => {
-                      const id = String(user.id);
-                      const on = c.recipients.includes(id);
-                      return (
-                        <button type="button" key={id} className={on ? "active" : ""} onClick={() => c.setRecipients((prev) => (on ? prev.filter((x) => x !== id) : [...prev, id]))}>
-                          {on ? "✓ " : ""}{user.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
                 <button type="button" className="wa-link" onClick={() => setSheet({ type: "saveReply" })}>+ Save a quick reply</button>
               </div>
             )}
+            {mention.open && <MentionSuggestions people={mention.suggestions} department={c.selectedDepartment} onPick={mention.pick} />}
             <div className="wa-compose-row">
               <button type="button" className={`wa-round-btn wa-more ${showExtras ? "active" : ""}`} aria-label="More options" onClick={() => setShowExtras((v) => !v)}>{Icons.plus}</button>
               <div className="wa-input-pill">
                 <input
+                  ref={inputRef}
                   value={c.message}
-                  onChange={(e) => c.setMessage(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); send(); } }}
-                  placeholder="Message"
+                  onChange={mention.onChange}
+                  onKeyDown={mention.onKeyDown}
+                  onBlur={() => setTimeout(mention.close, 150)}
+                  placeholder={isGroup ? "Message · @ to tag" : "Message"}
                   enterKeyHint="send"
                 />
+                {isGroup && <button type="button" className="wa-at" aria-label={`Tag someone from ${c.selectedDepartment}`} onClick={mention.openPicker}>@</button>}
                 <button type="button" className="wa-clip" aria-label="Attach file" onClick={() => fileRef.current?.click()}>{Icons.clip}</button>
                 <input
                   ref={fileRef}
@@ -512,7 +524,7 @@ export default function MobileChat({ chat: c }) {
       {sheet?.type === "message" && c.selectedChat && (() => {
         const message = chatMessages.find((m) => m.id === sheet.message.id) || sheet.message;
         const chatId = c.selectedChat.id;
-        const canChangeStatus = c.isAdmin || message.recipientIds?.map(String).includes(String(c.currentUserId)) || message.sender === c.currentUserName;
+        const canChangeStatus = c.isTaggedMe(message);
         return (
           <Sheet onClose={closeSheet}>
             <div className="wa-reaction-bar">
@@ -522,10 +534,7 @@ export default function MobileChat({ chat: c }) {
                 </button>
               ))}
             </div>
-            <button type="button" className="wa-sheet-item" onClick={() => { c.setReplyTo(message); c.setMessage(`@${message.sender} `); closeSheet(); }}>Reply</button>
-            <button type="button" className="wa-sheet-item" onClick={() => { c.updateMessage(chatId, message.id, { assignedTo: message.assignedTo ? null : c.currentUserName }); closeSheet(); }}>
-              {message.assignedTo ? `Unassign (${message.assignedTo})` : "Assign to me"}
-            </button>
+            <button type="button" className="wa-sheet-item" onClick={() => { c.setReplyTo(message); closeSheet(); inputRef.current?.focus(); }}>Reply</button>
             {canChangeStatus && (
               <div className="wa-sheet-section">
                 <span>Status</span>

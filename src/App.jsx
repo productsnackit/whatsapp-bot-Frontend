@@ -6,6 +6,8 @@ import AuditWorkspace from "./AuditWorkspace.jsx";
 import MobileChat from "./MobileChat.jsx";
 import { getPushState, enablePush, syncPush, disablePush, showLocalNotification, PUSH_STATE_LABELS } from "./pushNotifications.js";
 import NotificationSettings from "./NotificationSettings.jsx";
+import MentionText, { MentionSuggestions, TaskLine } from "./MentionText.jsx";
+import { useMentionInput, mentionIds } from "./mentions.js";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell, Legend, ResponsiveContainer,
@@ -337,6 +339,12 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
     { key: "admin", name: "Admin", role: "Admin" },
     ...internalUsers.map((user) => ({ key: String(user.id), name: user.name, role: [user.role, user.department].filter(Boolean).join(" · ") })),
   ].filter((person) => person.key !== myChatKey);
+  // In a department group, only that department's people can be @tagged.
+  const taggablePeople = selectedDepartment === "Direct"
+    ? []
+    : internalUsers.filter((user) => user.department === selectedDepartment && String(user.id) !== myChatKey);
+  const taggedNames = (message) => (message.mentions || []).map((id) => internalUsers.find((user) => String(user.id) === String(id))?.name).filter(Boolean);
+  const isTaggedMe = (message) => (message.mentions || []).map(String).includes(myChatKey);
   // Newest activity first, like WhatsApp (message ids are timestamps).
   const lastActivity = (chat) => Number(chat.messages?.at(-1)?.id || chat.id || 0);
 
@@ -462,10 +470,11 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
           priority: internalPriority,
           sourceUser: currentUserName,
           attachments: serializedAttachments,
-          recipientIds: selectedRecipients.length ? selectedRecipients : internalUsers.map((user) => String(user.id)),
+          // Everyone in the group sees it; @tags mark who needs to act.
+          recipientIds: [],
           replyTo: internalReplyTo?.id || null,
-          mentions: internalUsers.filter((user) => messageText.includes(`@${user.name}`)).map((user) => String(user.id)),
-          notifyAll: selectedRecipients.length === 0,
+          mentions: mentionIds(messageText, taggablePeople),
+          notifyAll: true,
         },
         { headers: authHeaders() }
       );
@@ -491,6 +500,15 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       console.log(err);
     }
   };
+
+  const deskInputRef = useRef(null);
+  const deskMention = useMentionInput({
+    inputRef: deskInputRef,
+    value: internalMessage,
+    setValue: setInternalMessage,
+    people: taggablePeople,
+    onEnter: () => handleSendInternalMessage(),
+  });
 
   const handleUpdateMessageStatus = async (chatId, messageId, status) => {
     try {
@@ -1538,6 +1556,9 @@ const monthTotal =
     addEmployee: handleAddEmployee,
     employeeCredentials,
     chatName: chatDisplayName,
+    taggablePeople,
+    taggedNames,
+    isTaggedMe,
     directPeople,
     startDirect: startDirectChat,
     myChatKey,
@@ -1950,7 +1971,7 @@ const monthTotal =
                 <div className="internal-chat-header">
                   <div>
                     <h3>{selectedInternalChat ? chatDisplayName(selectedInternalChat) : selectedDepartment === "Direct" ? "Direct messages" : `${selectedDepartment} chat`}</h3>
-                    <p>{selectedDepartment === "Direct" ? "🔒 Private chat · only the two of you can see these messages" : `${departmentUsers.length} team members · Messages are visible to this department`}</p>
+                    <p>{selectedDepartment === "Direct" ? "🔒 Private chat · only the two of you can see these messages" : `Everyone is in this group · type @ to tag ${selectedDepartment} people (${departmentUsers.length})`}</p>
                   </div>
                   {selectedInternalChat && <div className="internal-header-actions">
                     <select value={selectedInternalChat.priority || "medium"} onChange={(event) => updateInternalChat(selectedInternalChat.id, { priority: event.target.value })} aria-label="Chat priority">
@@ -1968,8 +1989,7 @@ const monthTotal =
                       const outgoing = message.sender === currentUserName || (currentUserName === "Admin" && message.sender === "You");
                       const quoted = message.replyTo ? selectedInternalChat.messages.find((item) => String(item.id) === String(message.replyTo)) : null;
                       const reactions = Object.entries(message.reactions || {}).filter(([, people]) => people?.length);
-                      const canSetStatus = isAdmin || message.recipientIds?.map(String).includes(String(currentUserId)) || message.sender === currentUserName;
-                      const status = message.status || "open";
+                      const tagged = taggedNames(message);
                       return (
                         <div key={message.id} className={`dm-row ${outgoing ? "out" : "in"}`}>
                           <div className={`dm-bubble ${message.priority === "urgent" ? "is-urgent" : ""}`}>
@@ -1977,15 +1997,7 @@ const monthTotal =
                               {[["👍", "thumbs"], ["✅", "done"], ["⚠️", "alert"]].map(([reaction, key]) => (
                                 <button type="button" key={key} title="React" onClick={() => updateInternalMessage(selectedInternalChat.id, message.id, { reaction })}>{reaction}</button>
                               ))}
-                              <button type="button" onClick={() => { setInternalReplyTo(message); setInternalMessage(`@${message.sender} `); }}>Reply</button>
-                              <button type="button" onClick={() => updateInternalMessage(selectedInternalChat.id, message.id, { assignedTo: message.assignedTo ? null : currentUserName })}>{message.assignedTo ? "Unassign" : "Assign to me"}</button>
-                              {canSetStatus && (
-                                <select value={status} onChange={(event) => handleUpdateMessageStatus(selectedInternalChat.id, message.id, event.target.value)} aria-label="Update message status">
-                                  <option value="open">Open</option>
-                                  <option value="in-progress">In progress</option>
-                                  <option value="resolved">Resolved</option>
-                                </select>
-                              )}
+                              <button type="button" onClick={() => { setInternalReplyTo(message); deskInputRef.current?.focus(); }}>Reply</button>
                             </div>
                             {!outgoing && <div className="dm-sender">{message.sender}</div>}
                             {message.replyTo && (
@@ -2005,13 +2017,19 @@ const monthTotal =
                                 ))}
                               </div>
                             ) : null}
-                            <span className="dm-text">{message.text}</span>
+                            <span className="dm-text"><MentionText text={message.text} names={tagged} /></span>
                             <span className="dm-meta">
-                              {status !== "open" && <span className={`dm-status dm-status-${status}`}>{status === "resolved" ? "Resolved" : "In progress"}</span>}
-                              {message.assignedTo && <span className="dm-status">@{message.assignedTo}</span>}
                               {message.time}
                               {outgoing && <span className="dm-ticks">✓✓</span>}
                             </span>
+                            {tagged.length > 0 && (
+                              <TaskLine
+                                message={message}
+                                taggedNames={tagged}
+                                canUpdate={isTaggedMe(message)}
+                                onSetStatus={(value) => handleUpdateMessageStatus(selectedInternalChat.id, message.id, value)}
+                              />
+                            )}
                             {reactions.length > 0 && (
                               <div className="dm-reactions">
                                 {reactions.map(([reaction, people]) => <span key={reaction} title={people.join(", ")}>{reaction}{people.length > 1 ? ` ${people.length}` : ""}</span>)}
@@ -2054,18 +2072,19 @@ const monthTotal =
                     <button type="submit">Save</button>
                   </form>}
                   <div className="message-compose-row">
-                  <input
-                    type="text"
-                    value={internalMessage}
-                    onChange={(event) => setInternalMessage(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        handleSendInternalMessage();
-                      }
-                    }}
-                    placeholder={`Message ${selectedInternalChat ? chatDisplayName(selectedInternalChat) : selectedDepartment}…`}
-                  />
+                  <div className="mention-input-wrap">
+                    {deskMention.open && <MentionSuggestions people={deskMention.suggestions} department={selectedDepartment} onPick={deskMention.pick} />}
+                    <input
+                      ref={deskInputRef}
+                      type="text"
+                      value={internalMessage}
+                      onChange={deskMention.onChange}
+                      onKeyDown={deskMention.onKeyDown}
+                      onBlur={() => setTimeout(deskMention.close, 150)}
+                      placeholder={selectedDepartment === "Direct" ? `Message ${selectedInternalChat ? chatDisplayName(selectedInternalChat) : ""}…` : `Message ${selectedInternalChat ? chatDisplayName(selectedInternalChat) : selectedDepartment}… (type @ to tag ${selectedDepartment})`}
+                    />
+                  </div>
+                  {selectedDepartment !== "Direct" && <button type="button" className="mention-at-btn" title={`Tag someone from ${selectedDepartment}`} onClick={deskMention.openPicker}>@ Tag</button>}
                   <label className="internal-file-picker">
                     <input
                       ref={attachmentInputRef}
@@ -2104,33 +2123,10 @@ const monthTotal =
                   </div>
                 )}
 
-                {selectedDepartment !== "Direct" && <div className="internal-recipient-box">
-                  <div className="recipient-heading">
-                    <div className="internal-panel-header">Notify people</div>
-                    <span>{selectedRecipients.length ? `${selectedRecipients.length} selected` : "Notify the whole department if none selected"}</span>
-                  </div>
-                  <div className="internal-recipient-list">
-                    {internalUsers.length ? internalUsers.map((user) => (
-                      <label key={user.id} className="recipient-check">
-                        <input
-                          type="checkbox"
-                          checked={selectedRecipients.includes(String(user.id))}
-                          onChange={(event) => {
-                            const userId = String(user.id);
-                            setSelectedRecipients((prev) =>
-                              event.target.checked ? [...prev, userId] : prev.filter((id) => id !== userId)
-                            );
-                          }}
-                        />
-                        <span>{user.name}</span>
-                      </label>
-                    )) : <span className="internal-empty-state">Add employees first to tag them.</span>}
-                  </div>
-                </div>}
               </section>
 
               <aside className="internal-team-panel">
-                <div className="internal-panel-header">{selectedDepartment === "Direct" ? "Start a chat" : "Team members"}</div>
+                <div className="internal-panel-header">{selectedDepartment === "Direct" ? "Start a chat" : `Members (${internalUsers.length + 1})`}</div>
                 {selectedDepartment === "Direct" ? (
                   <div className="internal-team-list">
                     {directPeople.map((person) => (
@@ -2142,6 +2138,8 @@ const monthTotal =
                     ))}
                   </div>
                 ) : (
+                <>
+                <div className="internal-team-subhead">{selectedDepartment} · can be tagged here</div>
                 <div className="internal-team-list">
                   {departmentUsers.length ? departmentUsers.map((user) => (
                     <div key={user.id} className="internal-team-card">
@@ -2161,6 +2159,16 @@ const monthTotal =
                     </div>
                   )) : <div className="internal-empty-state">No team members for this department yet.</div>}
                 </div>
+                <div className="internal-team-subhead">Other members</div>
+                <div className="internal-team-list internal-team-compact">
+                  {internalUsers.filter((user) => user.department !== selectedDepartment).map((user) => (
+                    <div key={user.id} className="internal-member-row">
+                      <span><b>{user.name}</b><small>{user.department}</small></span>
+                      {String(user.id) !== myChatKey && <button type="button" className="direct-person-cta" onClick={() => startDirectChat(String(user.id))}>Message</button>}
+                    </div>
+                  ))}
+                </div>
+                </>
                 )}
 
                 {isAdmin && <><div className="internal-panel-header">Add employee</div>

@@ -3480,3 +3480,35 @@ button.wa-notify-banner { cursor: pointer; }
 .direct-person-cta { justify-self: center; margin-top: 6px; padding: 4px 12px; border: 1px solid #00a884; border-radius: 999px; background: #e7f8f3; color: #00795f; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
 .wa-message-btn { flex: none; margin-left: 8px; padding: 5px 12px; border: 1px solid #00a884; border-radius: 999px; background: #e7f8f3; color: #00795f; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
 .wa-sheet-list { display: grid; max-height: 60vh; overflow-y: auto; }
+
+/* @tags in Internal Chat */
+.chat-mention { color: #027eb5; font-weight: 600; }
+.dm-row.out .chat-mention, .wa-msg.out .chat-mention { color: #007a5a; }
+.chat-task { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; clear: both; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(11, 20, 26, 0.08); font-size: 12.5px; }
+.chat-task-label { color: #54656f; font-weight: 600; }
+.chat-task-in-progress .chat-task-label { color: #b45309; }
+.chat-task-resolved .chat-task-label { color: #047857; }
+.chat-task-actions { display: inline-flex; gap: 6px; }
+.chat-task-actions button { padding: 3px 10px; border: 1px solid #d1d7db; border-radius: 999px; background: #fff; color: #3b4a54; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.chat-task-actions button.is-primary { border-color: #00a884; background: #00a884; color: #fff; }
+.mention-input-wrap { position: relative; flex: 1; min-width: 0; display: flex; }
+.mention-input-wrap > input { flex: 1; min-width: 0; }
+.mention-at-btn { flex: none; padding: 0 12px; border: 1px solid #00a884; border-radius: 10px; background: #e7f8f3; color: #00795f; font: inherit; font-weight: 700; cursor: pointer; }
+.mention-suggestions { position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 30; width: min(320px, 100%); max-height: 280px; overflow-y: auto; padding: 6px; border-radius: 12px; background: #fff; box-shadow: 0 8px 28px rgba(11, 20, 26, 0.22); text-align: left; }
+.mention-suggestions-head { padding: 4px 8px 6px; color: #667781; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
+.mention-suggestions button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border: 0; border-radius: 8px; background: none; color: #111b21; font: inherit; text-align: left; cursor: pointer; }
+.mention-suggestions button:hover, .mention-suggestions button:focus { background: #f0f2f5; }
+.mention-suggestions b { display: block; font-size: 14px; }
+.mention-suggestions small { display: block; color: #667781; font-size: 12px; }
+.mention-suggestions p { margin: 6px 8px; color: #667781; font-size: 13px; }
+.mention-avatar { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: 50%; background: #00a884; color: #fff; font-weight: 700; }
+.internal-team-subhead { margin: 12px 4px 6px; color: #667781; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
+.internal-member-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border: 1px solid var(--border, #e5e7eb); border-radius: 10px; text-align: left; }
+.internal-member-row b { display: block; font-size: 13px; }
+.internal-member-row small { color: #667781; font-size: 11.5px; }
+.internal-member-row .direct-person-cta { margin-top: 0; }
+.internal-team-compact { gap: 6px; }
+/* phone */
+.wa-at { flex: none; width: 30px; height: 30px; border: 0; border-radius: 50%; background: #e7f8f3; color: #00795f; font: inherit; font-size: 17px; font-weight: 700; }
+.wa-conversation .mention-suggestions { position: relative; bottom: auto; width: auto; margin: 0 8px 6px; }
+.wa-section-label { padding: 14px 16px 6px; color: #667781; font-size: 12px; font-weight: 700; }
