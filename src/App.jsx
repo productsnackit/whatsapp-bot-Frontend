@@ -3,6 +3,7 @@ import axios from "axios";
 import { io } from "socket.io-client";
 import OperationsWorkspace from "./OperationsWorkspace.jsx";
 import AuditWorkspace from "./AuditWorkspace.jsx";
+import MobileChat from "./MobileChat.jsx";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell, Legend, ResponsiveContainer,
@@ -161,9 +162,16 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   // Mobile-only UI state (ignored by the desktop layout)
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobileChatPane, setMobileChatPane] = useState("list");
-  const [showComposerExtras, setShowComposerExtras] = useState(false);
   const [showTicketTools, setShowTicketTools] = useState(false);
   useEffect(() => { setMobileNavOpen(false); }, [view]);
+  // Phones get the WhatsApp-style chat (MobileChat.jsx); desktop keeps the three-column layout
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia("(max-width: 768px)").matches);
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 768px)");
+    const onChange = (event) => setIsMobile(event.matches);
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, []);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("");
   const [loadingId, setLoadingId] = useState(null);
@@ -278,9 +286,11 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
     }
   }, [selectedDepartment, departmentChats, selectedInternalChatId]);
 
+  // Desktop always shows the selected chat, so it counts as read; on phones only once it is opened
+  const internalChatOnScreen = !isMobile || mobileChatPane === "conversation";
   useEffect(() => {
-    if (selectedInternalChat?.id) markInternalChatRead(selectedInternalChat.id);
-  }, [selectedInternalChat?.id]);
+    if (selectedInternalChat?.id && internalChatOnScreen) markInternalChatRead(selectedInternalChat.id);
+  }, [selectedInternalChat?.id, internalChatOnScreen]);
 
   const handleSendInternalMessage = async () => {
     const messageText = internalMessage.trim();
@@ -1237,11 +1247,86 @@ const monthTotal =
     );
   }
 
+  // Recipient-targeted messages are only shown to their recipients, the sender and admins
+  const visibleInternalMessages = (chat) => (chat?.messages || []).filter((message) => {
+    const recipients = (message.recipientIds || []).map(String);
+    return isAdmin || !recipients.length || recipients.includes(String(currentUserId)) || message.sender === currentUserName;
+  });
+
+  const createInternalChat = async (title) => {
+    try {
+      const response = await API.post(
+        "/internal/chats",
+        { department: selectedDepartment, title, priority: internalPriority, participants: departmentUsers.map((user) => user.name) },
+        { headers: authHeaders() }
+      );
+      const chat = response.data?.chat;
+      if (!chat) return null;
+      setInternalChats((prev) => [chat, ...prev]);
+      setSelectedInternalChatId(chat.id);
+      setMobileChatPane("conversation");
+      return chat;
+    } catch (err) {
+      alert(err.response?.data?.error || "Failed to create chat");
+      return null;
+    }
+  };
+
+  const mobileChatProps = {
+    openMenu: () => setMobileNavOpen(true),
+    departments: availableDepartments,
+    selectedDepartment,
+    setSelectedDepartment,
+    departmentChats,
+    chats: visibleDepartmentChats,
+    search: internalSearch,
+    setSearch: setInternalSearch,
+    filter: internalFilter,
+    setFilter: setInternalFilter,
+    showArchived: showArchivedChats,
+    setShowArchived: setShowArchivedChats,
+    selectedChat: selectedInternalChat,
+    visibleMessages: visibleInternalMessages,
+    pane: mobileChatPane,
+    setPane: setMobileChatPane,
+    openChat: (chatId) => { setSelectedInternalChatId(chatId); markInternalChatRead(chatId); setMobileChatPane("conversation"); },
+    createChat: createInternalChat,
+    updateChat: updateInternalChat,
+    deleteChat: handleDeleteChat,
+    updateMessage: updateInternalMessage,
+    updateStatus: handleUpdateMessageStatus,
+    currentUserName,
+    currentUserId,
+    isAdmin,
+    message: internalMessage,
+    setMessage: setInternalMessage,
+    send: handleSendInternalMessage,
+    priority: internalPriority,
+    setPriority: setInternalPriority,
+    attachedFiles,
+    setAttachedFiles,
+    replyTo: internalReplyTo,
+    setReplyTo: setInternalReplyTo,
+    savedReplies,
+    replyDraft: savedReplyDraft,
+    setReplyDraft: setSavedReplyDraft,
+    saveReply: saveInternalReply,
+    recipients: selectedRecipients,
+    setRecipients: setSelectedRecipients,
+    internalUsers,
+    departmentUsers,
+    deleteUser: handleDeleteUser,
+    newEmployee,
+    setNewEmployee,
+    addEmployee: handleAddEmployee,
+    employeeCredentials,
+  };
+
   /* =========================================================================
      MAIN DASHBOARD
   ========================================================================= */
   return (
-    <div className={`dashboard ${adminProfile.compactMode ? "dashboard-compact" : ""}`}>
+    <div className={`dashboard view-${view} ${adminProfile.compactMode ? "dashboard-compact" : ""}`}>
 
       {/* ── MOBILE TOP BAR (phones only) ────────────────────────────────────── */}
       <header className="mobile-topbar">
@@ -1542,8 +1627,12 @@ const monthTotal =
           <AuditWorkspace token={token} currentUserName={currentUserName} isAdmin={isAdmin} />
         )}
 
-        {view === "internal-chat" && (
-          <div className={`internal-chat-shell mobile-pane-${mobileChatPane}`}>
+        {view === "internal-chat" && isMobile && (
+          <MobileChat chat={mobileChatProps} />
+        )}
+
+        {view === "internal-chat" && !isMobile && (
+          <div className="internal-chat-shell">
             <div className="internal-chat-layout">
               <aside className="internal-thread-panel">
                 <div className="internal-panel-header">Departments</div>
@@ -1579,7 +1668,7 @@ const monthTotal =
                       <button
                         type="button"
                         className={`internal-thread-card ${selectedInternalChat?.id === chat.id ? "selected" : ""}`}
-                        onClick={() => { setSelectedInternalChatId(chat.id); markInternalChatRead(chat.id); setMobileChatPane("conversation"); }}
+                        onClick={() => { setSelectedInternalChatId(chat.id); markInternalChatRead(chat.id); }}
                       >
                         <div className="internal-thread-top">
                           <strong>{chat.title}</strong>
@@ -1606,10 +1695,7 @@ const monthTotal =
 
               <section className="internal-conversation-panel">
                 <div className="internal-chat-header">
-                  <button type="button" className="internal-back-btn" aria-label="Back to chats" onClick={() => setMobileChatPane("list")}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
-                  </button>
-                  <div className="internal-chat-title">
+                  <div>
                     <h3>{selectedInternalChat ? selectedInternalChat.title : `${selectedDepartment} chat`}</h3>
                     <p>{departmentUsers.length} team members · Messages are visible to this department</p>
                   </div>
@@ -1690,7 +1776,6 @@ const monthTotal =
                   }}
                 >
                   {internalReplyTo && <div className="replying-banner">Replying to {internalReplyTo.sender}<button type="button" onClick={() => setInternalReplyTo(null)}>Cancel</button></div>}
-                  <div className={`composer-extras ${showComposerExtras ? "mobile-show" : ""}`}>
                   <div className="priority-picker">
                     <span className="composer-label">Priority</span>
                     {[['low', 'Low', 'green'], ['medium', 'Medium', 'yellow'], ['urgent', 'Urgent', 'red']].map(([value, label, tone]) => (
@@ -1709,16 +1794,7 @@ const monthTotal =
                     <input placeholder="Reply text" value={savedReplyDraft.text} onChange={(event) => setSavedReplyDraft((draft) => ({ ...draft, text: event.target.value }))} />
                     <button type="submit">Save</button>
                   </form>}
-                  </div>
                   <div className="message-compose-row">
-                  <button
-                    type="button"
-                    className={`composer-more-btn ${showComposerExtras ? "active" : ""}`}
-                    aria-label="More options"
-                    onClick={() => setShowComposerExtras((value) => !value)}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                  </button>
                   <input
                     type="text"
                     value={internalMessage}
@@ -1739,11 +1815,11 @@ const monthTotal =
                       accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
                       onChange={(event) => setAttachedFiles((files) => [...files, ...Array.from(event.target.files || [])])}
                     />
-                    <span className="attach-icon" aria-hidden="true">📎</span><span className="btn-text">Attach file</span>
+                    Attach file
                   </label>
                   <button className="internal-send-button" type="button" onClick={handleSendInternalMessage}>
                     {Icon.send}
-                    <span className="btn-text">Send</span>
+                    Send
                   </button>
                   </div>
                 </div>
@@ -1769,7 +1845,7 @@ const monthTotal =
                   </div>
                 )}
 
-                <div className={`internal-recipient-box ${showComposerExtras ? "mobile-show" : ""}`}>
+                <div className="internal-recipient-box">
                   <div className="recipient-heading">
                     <div className="internal-panel-header">Notify people</div>
                     <span>{selectedRecipients.length ? `${selectedRecipients.length} selected` : "Notify the whole department if none selected"}</span>
