@@ -201,6 +201,7 @@ function ConductAudit({ headers, refillers, locations, currentUserName, prefill,
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showSop, setShowSop] = useState(false);
+  const [sendToRefiller, setSendToRefiller] = useState(true);
 
   const applyLocation = useCallback((name) => {
     setLocationName(name);
@@ -319,6 +320,7 @@ function ConductAudit({ headers, refillers, locations, currentUserName, prefill,
         checklist: allItems.map(({ id, category, text, maxPts, critical, score, notes }) => ({ id, category, text, maxPts, critical: Boolean(critical), score, notes })),
         expiryItems: expiryItems.map(({ prodName, slot, batch, date, qty, reason }) => ({ prodName, slot, batch, date, qty, reason })),
         photos,
+        sendToRefiller,
       }, { headers });
       reset();
       onSaved(response.data);
@@ -509,6 +511,10 @@ function ConductAudit({ headers, refillers, locations, currentUserName, prefill,
           <div><span>Auditor</span><b>{auditor || "—"}</b></div>
           <div><span>Refiller</span><b>{refillerName || "—"}</b>{refiller?.phone && <small>{refiller.phone}</small>}</div>
         </div>
+        <label className="audit-check audit-send-toggle">
+          <input type="checkbox" checked={sendToRefiller} onChange={(e) => setSendToRefiller(e.target.checked)} />
+          Send failed points to {refillerName || "the refiller"} on WhatsApp as CAPA tasks (they reply Yes / No)
+        </label>
         {error && <div className="audit-error">{error}</div>}
         <div className="audit-form-actions">
           <button type="button" className="audit-btn" onClick={reset} disabled={saving}>Reset</button>
@@ -840,9 +846,32 @@ function Locations({ headers, locations, refillers, isAdmin, onChanged, onAudit,
 /* =========================================================================
    CAPA
 ========================================================================= */
+// What happened on WhatsApp for this task: delivery, then the refiller's Yes / No.
+function CapaWhatsApp({ ticket: c }) {
+  if (c.refiller_reply === "RESOLVED") return <span className="audit-wa audit-wa-good">✅ {c.refiller || "Refiller"} replied Yes, resolved · {formatDate(c.refiller_replied_at, true)}</span>;
+  if (c.refiller_reply === "NOT_RESOLVED" && c.status === "OPEN") return <span className="audit-wa audit-wa-bad">⏳ {c.refiller || "Refiller"} replied Not yet · {formatDate(c.refiller_replied_at, true)}</span>;
+  if (c.whatsapp_status === "SENT" && c.status === "OPEN") return <span className="audit-wa">📤 Sent on WhatsApp · {formatDate(c.whatsapp_sent_at, true)} · waiting for reply</span>;
+  if (c.whatsapp_status === "FAILED" && c.status === "OPEN") return <span className="audit-wa audit-wa-bad">⚠️ Not sent on WhatsApp: {c.whatsapp_error}</span>;
+  return null;
+}
+
 function Capa({ headers, capa, onChanged, notify }) {
   const [filter, setFilter] = useState("OPEN");
   const filtered = capa.filter((c) => filter === "ALL" || c.status === filter);
+
+  const [sendingId, setSendingId] = useState(null);
+  const sendToRefiller = async (ticket) => {
+    setSendingId(ticket.id);
+    try {
+      await API.post(`/audit/capa/${ticket.id}/send`, {}, { headers });
+      notify(`${ticket.ref} sent to ${ticket.refiller || "refiller"} on WhatsApp`);
+    } catch (err) {
+      notify(err.response?.data?.error || "Could not send on WhatsApp", true);
+    } finally {
+      setSendingId(null);
+      onChanged();
+    }
+  };
 
   const setStatus = async (ticket, status) => {
     try {
@@ -879,8 +908,14 @@ function Capa({ headers, capa, onChanged, notify }) {
                   <span className="audit-capa-defect">{c.defect}</span>
                   <span>{c.location} · {c.refiller || "—"} · {c.audit_ref || "—"} · {formatDate(c.created_at)}</span>
                   {c.status === "RESOLVED" && <span>Resolved by {c.resolved_by} on {formatDate(c.resolved_at, true)}</span>}
+                  <CapaWhatsApp ticket={c} />
                 </div>
                 <div className="audit-record-side">
+                  {c.status === "OPEN" && (
+                    <button type="button" className={`audit-btn ${sendingId === c.id ? "is-busy" : ""}`} onClick={() => sendToRefiller(c)} disabled={sendingId === c.id}>
+                      {sendingId === c.id ? "Sending…" : c.whatsapp_status === "SENT" ? "Resend on WhatsApp" : "Send on WhatsApp"}
+                    </button>
+                  )}
                   {c.status === "OPEN"
                     ? <button type="button" className="audit-btn audit-btn-primary" onClick={() => setStatus(c, "RESOLVED")}>Mark resolved</button>
                     : <button type="button" className="audit-btn" onClick={() => setStatus(c, "OPEN")}>Reopen</button>}
@@ -943,8 +978,11 @@ export default function AuditWorkspace({ token, currentUserName, isAdmin }) {
   };
 
   const onSaved = (audit) => {
-    notify(`${audit.ref} saved · ${audit.percentage}%`);
-    setTab("records");
+    const { sent = 0, failed = 0, error: sendError } = audit.whatsapp || {};
+    if (failed) notify(`${audit.ref} saved · ${failed} CAPA task${failed === 1 ? "" : "s"} not sent on WhatsApp: ${sendError}`, true);
+    else if (sent) notify(`${audit.ref} saved · ${sent} CAPA task${sent === 1 ? "" : "s"} sent to ${audit.refiller} on WhatsApp`);
+    else notify(`${audit.ref} saved · ${audit.percentage}%`);
+    setTab(failed || sent ? "capa" : "records");
     window.scrollTo({ top: 0, behavior: "smooth" });
     load();
   };

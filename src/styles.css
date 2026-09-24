@@ -3389,3 +3389,10 @@ button.wa-notify-banner { cursor: pointer; }
 .wa-notify-icon { font-size: 22px; }
 .wa-notify-banner b { display: block; font-size: 15px; }
 .wa-notify-banner small { display: block; margin-top: 2px; color: #54656f; font-size: 13px; }
+
+/* CAPA tasks sent to refillers on WhatsApp */
+.audit-send-toggle { display: flex; align-items: flex-start; gap: 8px; margin: 4px 0 12px; font-size: 13px; line-height: 1.4; }
+.audit-send-toggle input { margin-top: 2px; }
+.audit-list-row > div:first-child .audit-wa { justify-self: start; margin-top: 4px; padding: 3px 9px; border-radius: 999px; background: #e0f2fe; color: #075985; font-size: 12px; font-weight: 700; }
+.audit-list-row > div:first-child .audit-wa-good { background: #dcfce7; color: #166534; }
+.audit-list-row > div:first-child .audit-wa-bad { background: #fef3c7; color: #92400e; }
