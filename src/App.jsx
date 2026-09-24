@@ -325,6 +325,21 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
 
   const departmentUsers = internalUsers.filter((user) => user.department === selectedDepartment);
   const departmentChats = internalChats.filter((chat) => chat.department === selectedDepartment);
+  // Direct (one-to-one) chats live under the "Direct" tab; the server only sends your own.
+  const myChatKey = isAdmin ? "admin" : String(currentUserId);
+  const nameForChatKey = (key) => (key === "admin" ? "Admin" : internalUsers.find((user) => String(user.id) === String(key))?.name);
+  const chatDisplayName = (chat) => {
+    if (chat?.type !== "direct") return chat?.title || "";
+    const other = (chat.members || []).find((key) => key !== myChatKey);
+    return nameForChatKey(other) || (chat.participants || []).find((name) => name !== currentUserName) || "Direct chat";
+  };
+  const directPeople = [
+    { key: "admin", name: "Admin", role: "Admin" },
+    ...internalUsers.map((user) => ({ key: String(user.id), name: user.name, role: [user.role, user.department].filter(Boolean).join(" · ") })),
+  ].filter((person) => person.key !== myChatKey);
+  // Newest activity first, like WhatsApp (message ids are timestamps).
+  const lastActivity = (chat) => Number(chat.messages?.at(-1)?.id || chat.id || 0);
+
   const visibleDepartmentChats = departmentChats
     .filter((chat) => showArchivedChats || !chat.archived)
     .filter((chat) => {
@@ -336,10 +351,10 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
     .filter((chat) => {
       const query = internalSearch.trim().toLowerCase();
       if (!query) return true;
-      return [chat.title, ...(chat.participants || []), chat.messages?.at(-1)?.text].some((value) => String(value || "").toLowerCase().includes(query));
+      return [chatDisplayName(chat), ...(chat.participants || []), chat.messages?.at(-1)?.text].some((value) => String(value || "").toLowerCase().includes(query));
     })
-    .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || Number(Boolean(b.favorite)) - Number(Boolean(a.favorite)));
-  const availableDepartments = departments;
+    .sort((a, b) => Number(Boolean(b.pinned)) - Number(Boolean(a.pinned)) || lastActivity(b) - lastActivity(a));
+  const availableDepartments = ["Direct", ...departments];
   const selectedInternalChat = departmentChats.find((chat) => chat.id === selectedInternalChatId)
     || visibleDepartmentChats[0]
     || null;
@@ -372,6 +387,10 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
 
     try {
       let activeChat = selectedInternalChat;
+      if (!activeChat && selectedDepartment === "Direct") {
+        alert("Choose a person to chat with first.");
+        return;
+      }
       if (!activeChat) {
         const createdChat = await API.post(
           "/internal/chats",
@@ -656,6 +675,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
     reader.readAsDataURL(file);
   };
 
+  const logoutRef = useRef(null);
   const logout = () => {
     disablePush(API, { Authorization: `Bearer ${token}` });
     setPushState("off");
@@ -672,6 +692,12 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
     setActiveChat(null);
     setMessages([]);
   };
+  useEffect(() => {
+    logoutRef.current = () => {
+      alert("Your login has expired. Please log in again.");
+      logout();
+    };
+  });
 
   /* =========================================================================
      FETCH HELPERS
@@ -863,8 +889,24 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       setSavedReplies(Array.isArray(repliesRes.data) ? repliesRes.data : []);
     } catch (err) {
       console.log("Internal data error:", err);
+      // The server no longer knows this login: go back to the login screen instead of showing empty chats.
+      if (err.response?.status === 401) logoutRef.current?.();
     }
   }, [token, authHeaders]);
+
+  // Keep chats fresh even if the live connection drops (e.g. phone was in the background).
+  useEffect(() => {
+    if (!token) return;
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") fetchInternalData();
+    }, 15000);
+    const onVisible = () => { if (document.visibilityState === "visible") fetchInternalData(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [token, fetchInternalData]);
 
   const handleDeleteChat = useCallback(async (chatId) => {
     if (!isAdmin || !chatId) return;
@@ -1163,7 +1205,9 @@ const monthTotal =
 
     socket.on("connect", () => {
       console.log("Internal socket connected");
-      if (currentUserId) socket.emit("join-internal-user", { userId: currentUserId });
+      // Admin has no employee id; direct chats address admin as "admin".
+      const userRoom = currentUserId || (isAdmin ? "admin" : "");
+      if (userRoom) socket.emit("join-internal-user", { userId: userRoom });
     });
 
     socket.on("internal-chat-updated", ({ chat, notification }) => {
@@ -1412,6 +1456,20 @@ const monthTotal =
     return isAdmin || !recipients.length || recipients.includes(String(currentUserId)) || message.sender === currentUserName;
   });
 
+  const startDirectChat = async (userKey) => {
+    try {
+      const response = await API.post("/internal/direct", { userKey }, { headers: authHeaders() });
+      const chat = response.data?.chat;
+      if (!chat) return;
+      setInternalChats((prev) => (prev.some((item) => String(item.id) === String(chat.id)) ? prev : [chat, ...prev]));
+      setSelectedDepartment("Direct");
+      setSelectedInternalChatId(chat.id);
+      setMobileChatPane("conversation");
+    } catch (err) {
+      alert(err.response?.data?.error || "Could not open the chat");
+    }
+  };
+
   const createInternalChat = async (title) => {
     try {
       const response = await API.post(
@@ -1479,6 +1537,10 @@ const monthTotal =
     setNewEmployee,
     addEmployee: handleAddEmployee,
     employeeCredentials,
+    chatName: chatDisplayName,
+    directPeople,
+    startDirect: startDirectChat,
+    myChatKey,
     pushState,
     turnOnNotifications,
     openNotifySettings: () => setShowNotifySettings(true),
@@ -1825,7 +1887,7 @@ const monthTotal =
                       className={`department-tab ${selectedDepartment === department ? "active" : ""}`}
                       onClick={() => setSelectedDepartment(department)}
                     >
-                      {department}
+                      {department === "Direct" ? "💬 Direct messages" : department}
                     </button>
                   ))}
                 </div>
@@ -1851,18 +1913,28 @@ const monthTotal =
                         className={`internal-thread-card ${selectedInternalChat?.id === chat.id ? "selected" : ""}`}
                         onClick={() => { setSelectedInternalChatId(chat.id); markInternalChatRead(chat.id); }}
                       >
-                        <div className="internal-thread-top">
-                          <strong>{chat.title}</strong>
-                          <span className="internal-thread-icons">{chat.pinned ? "📌" : ""}{chat.favorite ? "★" : ""}{chat.unread ? <b>{chat.unread}</b> : ""}</span>
-                        </div>
-                        <div className="internal-thread-meta">{chat.participants.join(", ")}</div>
-                        <div className="internal-thread-meta">{visibleInternalMessages(chat).at(-1)?.text || "No messages yet"}</div>
+                        {(() => {
+                          const last = visibleInternalMessages(chat).at(-1);
+                          const preview = last ? `${last.sender === currentUserName ? "You" : last.sender}: ${last.text || "📎 Attachment"}` : "No messages yet";
+                          return (
+                            <>
+                              <div className="internal-thread-top">
+                                <strong>{chatDisplayName(chat)}</strong>
+                                <span className="internal-thread-time">{last?.time || ""}</span>
+                              </div>
+                              <div className="internal-thread-bottom">
+                                <span className="internal-thread-preview">{preview}</span>
+                                <span className="internal-thread-icons">{chat.pinned ? "📌" : ""}{chat.favorite ? "★" : ""}{chat.unread ? <b>{chat.unread}</b> : ""}</span>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </button>
                       <div className="internal-thread-actions">
                         <button type="button" onClick={() => updateInternalChat(chat.id, { pinned: !chat.pinned })}>{chat.pinned ? "Unpin" : "Pin"}</button>
                         <button type="button" onClick={() => updateInternalChat(chat.id, { favorite: !chat.favorite })}>{chat.favorite ? "Unfavorite" : "Favorite"}</button>
                         <button type="button" onClick={() => updateInternalChat(chat.id, { archived: !chat.archived })}>{chat.archived ? "Restore" : "Archive"}</button>
-                        {isAdmin && <button type="button" onClick={() => updateInternalChat(chat.id, { title: window.prompt("Chat name", chat.title) || chat.title })}>Rename</button>}
+                        {isAdmin && chat.type !== "direct" && <button type="button" onClick={() => updateInternalChat(chat.id, { title: window.prompt("Chat name", chat.title) || chat.title })}>Rename</button>}
                       </div>
                       {isAdmin && (
                         <button type="button" className="internal-delete-btn" onClick={() => handleDeleteChat(chat.id)}>Delete</button>
@@ -1870,15 +1942,15 @@ const monthTotal =
                     </div>
                   ))
                 ) : (
-                  <div className="internal-empty-state">No chats match these filters.</div>
+                  <div className="internal-empty-state">{selectedDepartment === "Direct" ? "No direct chats yet. Pick a person on the right to start one." : "No chats match these filters."}</div>
                 )}
               </aside>
 
               <section className="internal-conversation-panel">
                 <div className="internal-chat-header">
                   <div>
-                    <h3>{selectedInternalChat ? selectedInternalChat.title : `${selectedDepartment} chat`}</h3>
-                    <p>{departmentUsers.length} team members · Messages are visible to this department</p>
+                    <h3>{selectedInternalChat ? chatDisplayName(selectedInternalChat) : selectedDepartment === "Direct" ? "Direct messages" : `${selectedDepartment} chat`}</h3>
+                    <p>{selectedDepartment === "Direct" ? "🔒 Private chat · only the two of you can see these messages" : `${departmentUsers.length} team members · Messages are visible to this department`}</p>
                   </div>
                   {selectedInternalChat && <div className="internal-header-actions">
                     <select value={selectedInternalChat.priority || "medium"} onChange={(event) => updateInternalChat(selectedInternalChat.id, { priority: event.target.value })} aria-label="Chat priority">
@@ -1992,7 +2064,7 @@ const monthTotal =
                         handleSendInternalMessage();
                       }
                     }}
-                    placeholder={`Message ${selectedDepartment}...`}
+                    placeholder={`Message ${selectedInternalChat ? chatDisplayName(selectedInternalChat) : selectedDepartment}…`}
                   />
                   <label className="internal-file-picker">
                     <input
@@ -2032,7 +2104,7 @@ const monthTotal =
                   </div>
                 )}
 
-                <div className="internal-recipient-box">
+                {selectedDepartment !== "Direct" && <div className="internal-recipient-box">
                   <div className="recipient-heading">
                     <div className="internal-panel-header">Notify people</div>
                     <span>{selectedRecipients.length ? `${selectedRecipients.length} selected` : "Notify the whole department if none selected"}</span>
@@ -2054,11 +2126,22 @@ const monthTotal =
                       </label>
                     )) : <span className="internal-empty-state">Add employees first to tag them.</span>}
                   </div>
-                </div>
+                </div>}
               </section>
 
               <aside className="internal-team-panel">
-                <div className="internal-panel-header">Team members</div>
+                <div className="internal-panel-header">{selectedDepartment === "Direct" ? "Start a chat" : "Team members"}</div>
+                {selectedDepartment === "Direct" ? (
+                  <div className="internal-team-list">
+                    {directPeople.map((person) => (
+                      <button type="button" key={person.key} className="internal-team-card direct-person" onClick={() => startDirectChat(person.key)}>
+                        <div className="internal-team-name">{person.name}</div>
+                        <div className="internal-team-role">{person.role}</div>
+                        <span className="direct-person-cta">Message</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
                 <div className="internal-team-list">
                   {departmentUsers.length ? departmentUsers.map((user) => (
                     <div key={user.id} className="internal-team-card">
@@ -2074,9 +2157,11 @@ const monthTotal =
                       <div className="internal-tags">
                         {(user.tags || []).map((tag) => <span key={tag} className="team-tag">#{tag}</span>)}
                       </div>
+                      {String(user.id) !== myChatKey && <button type="button" className="direct-person-cta" onClick={() => startDirectChat(String(user.id))}>Message</button>}
                     </div>
                   )) : <div className="internal-empty-state">No team members for this department yet.</div>}
                 </div>
+                )}
 
                 {isAdmin && <><div className="internal-panel-header">Add employee</div>
                 <form className="internal-add-user" onSubmit={handleAddEmployee}>

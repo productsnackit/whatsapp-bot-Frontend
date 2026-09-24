@@ -93,21 +93,21 @@ function useLongPress(onLongPress) {
   };
 }
 
-function ChatRow({ chat, last, onOpen, onActions }) {
+function ChatRow({ chat, name, me, last, onOpen, onActions }) {
   const press = useLongPress(() => onActions(chat));
   const { wasLongPress, ...handlers } = press;
   return (
     <button type="button" className="wa-chat-row" {...handlers} onClick={() => { if (!wasLongPress()) onOpen(chat); }}>
-      <Avatar name={chat.title} />
+      <Avatar name={name} />
       <span className="wa-row-main">
         <span className="wa-row-top">
-          <b>{chat.title}</b>
+          <b>{name}</b>
           <small className={chat.unread ? "is-unread" : ""}>{last?.time || ""}</small>
         </span>
         <span className="wa-row-bottom">
           <span className="wa-preview">
             {chat.priority === "urgent" && <em className="wa-urgent-dot" aria-label="Urgent" />}
-            {last ? `${last.sender ? `${last.sender}: ` : ""}${last.text || (last.attachments?.length ? "📎 Attachment" : "")}` : "No messages yet"}
+            {last ? `${last.sender ? `${last.sender === me ? "You" : last.sender}: ` : ""}${last.text || (last.attachments?.length ? "📎 Attachment" : "")}` : "No messages yet"}
           </span>
           {chat.archived && <span className="wa-tag">Archived</span>}
           {chat.favorite && <span className="wa-star">★</span>}
@@ -219,7 +219,7 @@ export default function MobileChat({ chat: c }) {
           <div className="wa-chips" role="tablist" aria-label="Departments">
             {c.departments.map((department) => (
               <button type="button" key={department} className={c.selectedDepartment === department ? "active" : ""} onClick={() => c.setSelectedDepartment(department)}>
-                {department}
+                {department === "Direct" ? "💬 Direct" : department}
               </button>
             ))}
           </div>
@@ -262,11 +262,11 @@ export default function MobileChat({ chat: c }) {
               )}
               <div className="wa-rows">
                 {c.chats.length ? c.chats.map((chat) => (
-                  <ChatRow key={chat.id} chat={chat} last={c.visibleMessages(chat).at(-1)} onOpen={openChat} onActions={(target) => setSheet({ type: "chat", chat: target })} />
+                  <ChatRow key={chat.id} chat={chat} name={c.chatName(chat)} me={c.currentUserName} last={c.visibleMessages(chat).at(-1)} onOpen={openChat} onActions={(target) => setSheet({ type: "chat", chat: target })} />
                 )) : (
                   <div className="wa-empty">
                     <b>No chats here yet</b>
-                    <span>{c.search || c.filter !== "all" ? "Try a different search or filter." : `Tap the green button to start a ${c.selectedDepartment} chat.`}</span>
+                    <span>{c.search || c.filter !== "all" ? "Try a different search or filter." : c.selectedDepartment === "Direct" ? "Tap the green button to message someone privately." : `Tap the green button to start a ${c.selectedDepartment} chat.`}</span>
                   </div>
                 )}
               </div>
@@ -274,7 +274,17 @@ export default function MobileChat({ chat: c }) {
             </>
           ) : (
             <div className="wa-rows">
-              {c.departmentUsers.length ? c.departmentUsers.map((user) => (
+              {c.selectedDepartment === "Direct" && c.directPeople.map((person) => (
+                <button type="button" className="wa-chat-row wa-member" key={person.key} onClick={() => c.startDirect(person.key)}>
+                  <Avatar name={person.name} />
+                  <span className="wa-row-main">
+                    <span className="wa-row-top"><b>{person.name}</b></span>
+                    <span className="wa-row-bottom"><span className="wa-preview">{person.role}</span></span>
+                  </span>
+                  <span className="wa-message-btn">Message</span>
+                </button>
+              ))}
+              {c.selectedDepartment !== "Direct" && (c.departmentUsers.length ? c.departmentUsers.map((user) => (
                 <div className="wa-chat-row wa-member" key={user.id}>
                   <Avatar name={user.name} />
                   <span className="wa-row-main">
@@ -283,9 +293,10 @@ export default function MobileChat({ chat: c }) {
                       <span className="wa-preview">{user.role}{user.tags?.length ? ` · ${user.tags.map((t) => `#${t}`).join(" ")}` : ""}</span>
                     </span>
                   </span>
+                  {String(user.id) !== c.myChatKey && <button type="button" className="wa-message-btn" onClick={() => c.startDirect(String(user.id))}>Message</button>}
                   {c.isAdmin && <button type="button" className="wa-text-danger" onClick={() => c.deleteUser(user.id)}>Remove</button>}
                 </div>
-              )) : <div className="wa-empty"><b>No team members</b><span>Nobody is in {c.selectedDepartment} yet.</span></div>}
+              )) : <div className="wa-empty"><b>No team members</b><span>Nobody is in {c.selectedDepartment} yet.</span></div>)}
               {c.isAdmin && (
                 <form className="wa-card-form" onSubmit={c.addEmployee}>
                   <b>Add employee</b>
@@ -311,7 +322,7 @@ export default function MobileChat({ chat: c }) {
         </div>
 
         {tab === "chats" && (
-          <button type="button" className="wa-fab" aria-label="New chat" onClick={() => setSheet({ type: "new" })}>{Icons.newChat}</button>
+          <button type="button" className="wa-fab" aria-label="New chat" onClick={() => setSheet({ type: c.selectedDepartment === "Direct" ? "direct" : "new" })}>{Icons.newChat}</button>
         )}
 
         <nav className="wa-tabbar">
@@ -331,10 +342,10 @@ export default function MobileChat({ chat: c }) {
         {c.selectedChat && <>
           <header className="wa-bar">
             <button type="button" className="wa-icon-btn" aria-label="Back to chats" onClick={() => c.setPane("list")}>{Icons.back}</button>
-            <Avatar name={c.selectedChat.title} size={38} />
+            <Avatar name={c.chatName(c.selectedChat)} size={38} />
             <button type="button" className="wa-bar-title wa-bar-title-btn" onClick={() => setSheet({ type: "chat", chat: c.selectedChat })}>
-              <b>{c.selectedChat.title}</b>
-              <small>{(c.selectedChat.participants || []).join(", ") || `${c.departmentUsers.length} members`}</small>
+              <b>{c.chatName(c.selectedChat)}</b>
+              <small>{c.selectedChat.type === "direct" ? "🔒 Private chat" : `${c.departmentUsers.length} members · ${c.selectedChat.department}`}</small>
             </button>
             <button type="button" className="wa-icon-btn" aria-label="Chat options" onClick={() => setSheet({ type: "chat", chat: c.selectedChat })}>{Icons.dots}</button>
           </header>
@@ -441,6 +452,22 @@ export default function MobileChat({ chat: c }) {
         </Sheet>
       )}
 
+      {sheet?.type === "direct" && (
+        <Sheet title="Message someone" onClose={closeSheet}>
+          <div className="wa-sheet-list">
+            {c.directPeople.map((person) => (
+              <button type="button" key={person.key} className="wa-chat-row wa-member" onClick={() => { closeSheet(); c.startDirect(person.key); }}>
+                <Avatar name={person.name} />
+                <span className="wa-row-main">
+                  <span className="wa-row-top"><b>{person.name}</b></span>
+                  <span className="wa-row-bottom"><span className="wa-preview">{person.role}</span></span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </Sheet>
+      )}
+
       {sheet?.type === "rename" && (
         <Sheet title="Rename chat" onClose={closeSheet}>
           <form className="wa-sheet-form" onSubmit={renameChat}>
@@ -464,7 +491,7 @@ export default function MobileChat({ chat: c }) {
         const target = c.departmentChats.find((chat) => chat.id === sheet.chat.id) || sheet.chat;
         const act = (updates) => { c.updateChat(target.id, updates); closeSheet(); };
         return (
-          <Sheet title={target.title} onClose={closeSheet}>
+          <Sheet title={c.chatName(target)} onClose={closeSheet}>
             <div className="wa-sheet-section">
               <span>Priority</span>
               <div className="wa-sheet-chips">
@@ -476,7 +503,7 @@ export default function MobileChat({ chat: c }) {
             <button type="button" className="wa-sheet-item" onClick={() => act({ pinned: !target.pinned })}>{target.pinned ? "Unpin chat" : "Pin chat"}</button>
             <button type="button" className="wa-sheet-item" onClick={() => act({ favorite: !target.favorite })}>{target.favorite ? "Remove from favourites" : "Add to favourites"}</button>
             <button type="button" className="wa-sheet-item" onClick={() => { act({ archived: !target.archived }); if (!target.archived) c.setPane("list"); }}>{target.archived ? "Unarchive chat" : "Archive chat"}</button>
-            {c.isAdmin && <button type="button" className="wa-sheet-item" onClick={() => { setDraftTitle(target.title); setSheet({ type: "rename", chat: target }); }}>Rename chat</button>}
+            {c.isAdmin && target.type !== "direct" && <button type="button" className="wa-sheet-item" onClick={() => { setDraftTitle(target.title); setSheet({ type: "rename", chat: target }); }}>Rename chat</button>}
             {c.isAdmin && <button type="button" className="wa-sheet-item danger" onClick={() => { closeSheet(); c.setPane("list"); c.deleteChat(target.id); }}>Delete chat</button>}
           </Sheet>
         );

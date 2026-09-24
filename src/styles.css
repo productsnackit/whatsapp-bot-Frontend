@@ -3466,3 +3466,17 @@ button.wa-notify-banner { cursor: pointer; }
 .dm-actions button:hover, .dm-actions select:hover { background: #f0f2f5; }
 .dm-row:first-child .dm-actions { top: auto; bottom: -30px; }
 .dm-empty { margin: auto; padding: 8px 14px; border-radius: 8px; background: #ffeecd; color: #54656f; font-size: 13px; }
+
+/* Internal chat list: WhatsApp-style rows (name + time, last message + badges) */
+.internal-thread-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.internal-thread-top strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.internal-thread-time { flex: none; color: #667781; font-size: 11px; }
+.internal-thread-bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 3px; }
+.internal-thread-preview { overflow: hidden; color: #667781; font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
+.internal-thread-bottom .internal-thread-icons b { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: #25d366; color: #fff; font-size: 11px; }
+/* Direct chats */
+.direct-person { display: grid; gap: 2px; width: 100%; text-align: center; cursor: pointer; font: inherit; }
+.direct-person:hover { border-color: #00a884; }
+.direct-person-cta { justify-self: center; margin-top: 6px; padding: 4px 12px; border: 1px solid #00a884; border-radius: 999px; background: #e7f8f3; color: #00795f; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.wa-message-btn { flex: none; margin-left: 8px; padding: 5px 12px; border: 1px solid #00a884; border-radius: 999px; background: #e7f8f3; color: #00795f; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.wa-sheet-list { display: grid; max-height: 60vh; overflow-y: auto; }
