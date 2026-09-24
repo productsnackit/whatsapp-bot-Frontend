@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
 import OperationsWorkspace from "./OperationsWorkspace.jsx";
+import AuditWorkspace from "./AuditWorkspace.jsx";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell, Legend, ResponsiveContainer,
@@ -180,6 +181,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const departments = ["Accounts", "HR", "Operations", "Product", "Audit", "Technical", "Orders", "Logistics"];
   const isAdmin = userRole === "admin";
   const canAccessOperations = isAdmin || (userRole === "employee" && currentUserDepartment === "Operations");
+  const canAccessAudit = isAdmin || (userRole === "employee" && ["Operations", "Audit"].includes(currentUserDepartment));
   const [internalUsers, setInternalUsers] = useState([]);
   const [internalChats, setInternalChats] = useState([]);
   const [selectedDepartment, setSelectedDepartment] = useState(localStorage.getItem("userDepartment") || "Accounts");
@@ -1298,6 +1300,20 @@ const monthTotal =
             ))}
           </>}
 
+          {canAccessAudit && <>
+            <div className="sidebar-divider" />
+            <div className="sidebar-section-label">Quality</div>
+            <button
+              className={`nav-item ${view === "audit" ? "active" : ""}`}
+              onClick={() => setView("audit")}
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6l7-3z" /><path d="M9 12l2 2 4-4" />
+              </svg>
+              <span>Refill Audit</span>
+            </button>
+          </>}
+
           {isAdmin && <><div className="sidebar-divider" />
           <div className="sidebar-section-label">Insights</div>
           <button
@@ -1354,6 +1370,7 @@ const monthTotal =
               {view === "routes" && "Routes & Demand"}
               {view === "demand" && "Demand Analytics"}
               {view === "import" && "Bulk Imports"}
+              {view === "audit" && "Refill Audit"}
               {view === "analytics" && "Analytics"}
               {view === "internal-chat" && "Internal Chat"}
               {view === "employees" && "Employee Details"}
@@ -1371,6 +1388,7 @@ const monthTotal =
               {view === "routes" && "Demand signals and today's suggested refill route"}
               {view === "demand" && "Hourly demand and sector comparison"}
               {view === "import" && "Upload and audit machines, slots, clients, brands, and SKUs"}
+              {view === "audit" && "Machine quality checks, refillers, sites and corrective actions"}
               {view === "analytics" && "Issue breakdown and trends"}
               {view === "internal-chat" && `${departmentChats.length} active ${selectedDepartment} conversations`}
               {view === "employees" && `${internalUsers.length} employees with login access`}
@@ -1518,6 +1536,10 @@ const monthTotal =
 
         {["inventory", "clients", "brands", "performance", "leads", "routes", "demand", "import"].includes(view) && canAccessOperations && (
           <OperationsWorkspace token={token} internalUsers={internalUsers} workspace={view} />
+        )}
+
+        {view === "audit" && canAccessAudit && (
+          <AuditWorkspace token={token} currentUserName={currentUserName} isAdmin={isAdmin} />
         )}
 
         {view === "internal-chat" && (
