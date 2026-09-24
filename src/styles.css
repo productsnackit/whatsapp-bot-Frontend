@@ -3209,3 +3209,9 @@ tbody tr:hover { background: var(--surface-2); }
   .audit-toast { right: 12px; left: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); }
   .audit-card-grid { grid-template-columns: 1fr; }
 }
+.audit-import-result { display: grid; gap: 6px; margin-bottom: 12px; font-size: 13px; }
+.audit-import-result ul { margin: 0; padding-left: 18px; font-weight: 500; }
+.audit-import-result .audit-link-danger { justify-self: start; padding: 0; }
+.audit-import-ok { padding: 10px 12px; border: 1px solid #a7f3d0; border-radius: 10px; background: #f0fdf8; color: #065f46; }
+.audit-imported-note { margin-top: 16px; padding: 12px; border-radius: 10px; background: var(--surface-2); }
+.audit-btn.is-busy { opacity: .6; pointer-events: none; }

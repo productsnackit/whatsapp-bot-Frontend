@@ -128,6 +128,50 @@ function downloadCsv(filename, rows) {
   URL.revokeObjectURL(link.href);
 }
 
+// Minimal CSV parser: handles quoted fields, escaped quotes and commas/newlines inside quotes.
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let field = "";
+  let quoted = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (quoted) {
+      if (ch === '"' && text[i + 1] === '"') { field += '"'; i += 1; }
+      else if (ch === '"') quoted = false;
+      else field += ch;
+    } else if (ch === '"') quoted = true;
+    else if (ch === ",") { row.push(field); field = ""; }
+    else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i += 1;
+      row.push(field); field = "";
+      if (row.some((cell) => cell.trim())) rows.push(row);
+      row = [];
+    } else field += ch;
+  }
+  row.push(field);
+  if (row.some((cell) => cell.trim())) rows.push(row);
+  return rows;
+}
+
+// Accepts both the old standalone tool's export and this dashboard's own export.
+const IMPORT_COLUMNS = {
+  ref: ["audit id"], date: ["date"], location: ["location"], machine: ["machine id", "machine"],
+  refiller: ["refiller"], phone: ["phone"], auditor: ["auditor"], scope: ["scope"],
+  percentage: ["score %"], earned: ["earned points", "earned"], total: ["total points", "total"],
+  critical: ["critical breach"], expiredCount: ["expired items count", "expired items"],
+};
+
+function auditRowsFromCsv(text) {
+  const [header, ...lines] = parseCsv(text.replace(/^\uFEFF/, ""));
+  if (!header) throw new Error("The file is empty.");
+  const names = header.map((h) => h.trim().toLowerCase());
+  const index = Object.fromEntries(Object.entries(IMPORT_COLUMNS).map(([key, aliases]) => [key, names.findIndex((n) => aliases.includes(n))]));
+  const missing = ["ref", "date", "location", "scope", "percentage", "earned", "total"].filter((key) => index[key] === -1);
+  if (missing.length) throw new Error(`This doesn't look like an audit export. Missing columns: ${missing.join(", ")}.`);
+  return lines.map((cells) => Object.fromEntries(Object.entries(index).map(([key, i]) => [key, i === -1 ? "" : (cells[i] ?? "").trim()])));
+}
+
 function ContactButtons({ phone }) {
   if (!phone) return null;
   return (
@@ -505,6 +549,9 @@ function AuditReport({ audit, onClose }) {
           <div><span>Auditor</span><b>{audit.auditor || "—"}</b></div>
           <div><span>Saved by</span><b>{audit.created_by || "—"}</b></div>
         </div>
+        {audit.imported ? (
+          <p className="audit-muted audit-imported-note">Imported from a CSV export. Only the totals were recorded, so checklist details, photos and expired-item details aren't available{audit.imported_expired_count ? ` (${audit.imported_expired_count} expired items were logged)` : ""}.</p>
+        ) : <>
         <h4>Points not at full score ({issues.length})</h4>
         {issues.length ? (
           <div className="audit-list">
@@ -516,6 +563,7 @@ function AuditReport({ audit, onClose }) {
             ))}
           </div>
         ) : <p className="audit-empty">Every checked point scored full marks.</p>}
+        </>}
         {audit.expiry_items?.length > 0 && <>
           <h4>Expired & damaged products ({audit.expiry_items.length})</h4>
           <div className="audit-list">
@@ -542,13 +590,35 @@ function AuditReport({ audit, onClose }) {
 /* =========================================================================
    RECORDS
 ========================================================================= */
-function Records({ audits, capa, isAdmin, onDelete }) {
+function Records({ headers, audits, capa, isAdmin, onDelete, onChanged, notify }) {
   const [search, setSearch] = useState("");
   const [viewing, setViewing] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
   const query = search.trim().toLowerCase();
   const filtered = audits.filter((a) => !query || [a.ref, a.location, a.refiller, a.auditor].some((v) => String(v || "").toLowerCase().includes(query)));
   const average = audits.length ? Math.round(audits.reduce((sum, a) => sum + a.percentage, 0) / audits.length) : null;
-  const expiredUnits = audits.reduce((sum, a) => sum + (a.expiry_items || []).reduce((s, i) => s + (Number(i.qty) || 1), 0), 0);
+  const expiredUnits = audits.reduce((sum, a) => sum + (a.imported_expired_count || 0) + (a.expiry_items || []).reduce((s, i) => s + (Number(i.qty) || 1), 0), 0);
+
+  const importCsv = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const rows = auditRowsFromCsv(await file.text());
+      if (!rows.length) throw new Error("The file has no audit rows.");
+      const response = await API.post("/audits/import", { rows }, { headers });
+      setImportResult(response.data);
+      notify(`Imported ${response.data.inserted} audits`);
+      onChanged();
+    } catch (err) {
+      setImportResult({ inserted: 0, skipped: 0, errors: [err.response?.data?.error || err.message || "Import failed"] });
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const exportCsv = () => downloadCsv(`Snackit_Audits_${new Date().toISOString().slice(0, 10)}.csv`, [
     ["Audit ID", "Date", "Location", "Machine", "Refiller", "Phone", "Auditor", "Scope", "Score %", "Earned", "Total", "Critical breach", "Expired items", "Photos"],
@@ -567,7 +637,20 @@ function Records({ audits, capa, isAdmin, onDelete }) {
         <div className="audit-toolbar">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by audit ID, location, refiller or auditor" />
           <button type="button" className="audit-btn" onClick={exportCsv} disabled={!filtered.length}>Export CSV</button>
+          {isAdmin && (
+            <label className={`audit-btn ${importing ? "is-busy" : ""}`}>
+              {importing ? "Importing…" : "Import CSV"}
+              <input type="file" accept=".csv,text/csv" onChange={importCsv} disabled={importing} hidden />
+            </label>
+          )}
         </div>
+        {importResult && (
+          <div className={importResult.errors.length ? "audit-error audit-import-result" : "audit-import-result audit-import-ok"}>
+            <b>Import finished:</b> {importResult.inserted} added, {importResult.skipped} already existed (skipped){importResult.errors.length ? `, ${importResult.errors.length} not imported:` : "."}
+            {importResult.errors.length > 0 && <ul>{importResult.errors.slice(0, 20).map((e) => <li key={e}>{e}</li>)}</ul>}
+            <button type="button" className="audit-link-danger" onClick={() => setImportResult(null)}>Dismiss</button>
+          </div>
+        )}
         {filtered.length ? (
           <div className="audit-list">
             {filtered.map((a) => {
@@ -577,9 +660,10 @@ function Records({ audits, capa, isAdmin, onDelete }) {
                   <div>
                     <b>{a.location}</b>
                     <span>{a.ref} · {formatDate(a.created_at, true)} · {a.scope}</span>
-                    <span>{a.refiller || "—"} · by {a.auditor || "—"} · {(a.expiry_items || []).length} expired · {(a.photos || []).length} photos</span>
+                    <span>{a.refiller || "—"} · by {a.auditor || "—"} · {a.imported ? `${a.imported_expired_count || 0} expired · imported` : `${(a.expiry_items || []).length} expired · ${(a.photos || []).length} photos`}</span>
                   </div>
                   <div className="audit-record-side">
+                    {a.imported && <span className="audit-pill">Imported</span>}
                     <span className={`audit-pill audit-pill-${grade.tone}`}>{a.percentage}%</span>
                     <button type="button" className="audit-btn" onClick={() => setViewing(a)}>View</button>
                     {isAdmin && <button type="button" className="audit-link-danger" onClick={() => onDelete(a)}>Delete</button>}
@@ -900,7 +984,7 @@ export default function AuditWorkspace({ token, currentUserName, isAdmin }) {
           <div hidden={tab !== "conduct"}>
             <ConductAudit headers={headers} refillers={refillers} locations={locations} currentUserName={currentUserName} prefill={prefill} onSaved={onSaved} />
           </div>
-          {tab === "records" && <Records audits={audits} capa={capa} isAdmin={isAdmin} onDelete={deleteAudit} />}
+          {tab === "records" && <Records headers={headers} audits={audits} capa={capa} isAdmin={isAdmin} onDelete={deleteAudit} onChanged={load} notify={notify} />}
           {tab === "capa" && <Capa headers={headers} capa={capa} onChanged={load} notify={notify} />}
           {tab === "refillers" && <Refillers headers={headers} refillers={refillers} isAdmin={isAdmin} onChanged={load} onAudit={startAudit} notify={notify} />}
           {tab === "locations" && <Locations headers={headers} locations={locations} refillers={refillers} isAdmin={isAdmin} onChanged={load} onAudit={startAudit} notify={notify} />}
