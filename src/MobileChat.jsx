@@ -227,6 +227,24 @@ export default function MobileChat({ chat: c }) {
 
           {tab === "chats" ? (
             <>
+              {c.pushState === "off" && (
+                <button type="button" className="wa-notify-banner" onClick={c.turnOnNotifications}>
+                  <span className="wa-notify-icon">🔔</span>
+                  <span><b>Turn on notifications</b><small>Get a pop-up when someone messages you</small></span>
+                </button>
+              )}
+              {c.pushState === "needs-install" && (
+                <div className="wa-notify-banner">
+                  <span className="wa-notify-icon">🔔</span>
+                  <span><b>Want notifications?</b><small>Tap Share → Add to Home Screen, then open Snackit Chat from your home screen</small></span>
+                </div>
+              )}
+              {c.pushState === "denied" && (
+                <div className="wa-notify-banner">
+                  <span className="wa-notify-icon">🔕</span>
+                  <span><b>Notifications are blocked</b><small>Allow them for Snackit Chat in your phone settings</small></span>
+                </div>
+              )}
               <label className="wa-search">
                 {Icons.search}
                 <input value={c.search} onChange={(e) => c.setSearch(e.target.value)} placeholder="Search chats" enterKeyHint="search" />

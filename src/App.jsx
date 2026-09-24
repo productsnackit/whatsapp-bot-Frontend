@@ -4,6 +4,7 @@ import { io } from "socket.io-client";
 import OperationsWorkspace from "./OperationsWorkspace.jsx";
 import AuditWorkspace from "./AuditWorkspace.jsx";
 import MobileChat from "./MobileChat.jsx";
+import { getPushState, enablePush, syncPush, disablePush } from "./pushNotifications.js";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell, Legend, ResponsiveContainer,
@@ -16,7 +17,12 @@ const API = axios.create({
 });
 
 // The installed app (see public/manifest.webmanifest) opens with ?view=internal-chat
-const LAUNCH_VIEW = new URLSearchParams(window.location.search).get("view") === "internal-chat" ? "internal-chat" : null;
+const LAUNCH_PARAMS = new URLSearchParams(window.location.search);
+const LAUNCH_VIEW = LAUNCH_PARAMS.get("view") === "internal-chat" ? "internal-chat" : null;
+// Tapping a chat notification opens ?view=internal-chat&chat=<id>&department=<dept>
+const LAUNCH_CHAT = LAUNCH_PARAMS.get("chat") ? { chatId: LAUNCH_PARAMS.get("chat"), department: LAUNCH_PARAMS.get("department") } : null;
+// Chat ids are numbers on the server but arrive as text from notifications.
+const toChatId = (value) => (Number.isNaN(Number(value)) ? value : Number(value));
 
 const COLORS = ["#e8192c", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4", "#f97316"];
 
@@ -161,7 +167,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const [view, setView] = useState(LAUNCH_VIEW || (localStorage.getItem("userRole") === "employee" ? "internal-chat" : "tickets"));
   // Mobile-only UI state (ignored by the desktop layout)
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const [mobileChatPane, setMobileChatPane] = useState("list");
+  const [mobileChatPane, setMobileChatPane] = useState(LAUNCH_CHAT ? "conversation" : "list");
   const [showTicketTools, setShowTicketTools] = useState(false);
   useEffect(() => { setMobileNavOpen(false); }, [view]);
   // Phones get the WhatsApp-style chat (MobileChat.jsx); desktop keeps the three-column layout
@@ -192,8 +198,8 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const canAccessAudit = isAdmin || (userRole === "employee" && ["Operations", "Audit"].includes(currentUserDepartment));
   const [internalUsers, setInternalUsers] = useState([]);
   const [internalChats, setInternalChats] = useState([]);
-  const [selectedDepartment, setSelectedDepartment] = useState(localStorage.getItem("userDepartment") || "Accounts");
-  const [selectedInternalChatId, setSelectedInternalChatId] = useState(null);
+  const [selectedDepartment, setSelectedDepartment] = useState(LAUNCH_CHAT?.department || localStorage.getItem("userDepartment") || "Accounts");
+  const [selectedInternalChatId, setSelectedInternalChatId] = useState(LAUNCH_CHAT ? toChatId(LAUNCH_CHAT.chatId) : null);
   const [internalMessage, setInternalMessage] = useState("");
   const [internalPriority, setInternalPriority] = useState("medium");
   const [selectedRecipients, setSelectedRecipients] = useState([]);
@@ -220,13 +226,18 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const selectedInternalChatIdRef = useRef(null);
   const mentionAudioContextRef = useRef(null);
 
+  // "on" means the service worker already shows a notification for every chat message.
+  const [pushState, setPushState] = useState("off");
+  const pushStateRef = useRef("off");
+  useEffect(() => { pushStateRef.current = pushState; }, [pushState]);
+
   const triggerInternalNotification = useCallback((title, priority, message) => {
     setNotificationToast({ title, priority, message });
-    if (typeof window !== "undefined" && "Notification" in window) {
-      if (Notification.permission === "granted") {
-        new Notification(title, { body: message });
-      } else if (Notification.permission === "default") {
-        Notification.requestPermission().catch(() => null);
+    if (typeof window !== "undefined" && "Notification" in window && pushStateRef.current !== "on" && document.visibilityState !== "visible") {
+      try {
+        if (Notification.permission === "granted") new Notification(title, { body: message });
+      } catch {
+        // Phones only allow notifications through the service worker.
       }
     }
     window.setTimeout(() => setNotificationToast(null), 3500);
@@ -584,6 +595,8 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   };
 
   const logout = () => {
+    disablePush(API, { Authorization: `Bearer ${token}` });
+    setPushState("off");
     localStorage.removeItem("token");
     localStorage.removeItem("userRole");
     localStorage.removeItem("userName");
@@ -605,6 +618,42 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
     () => ({ Authorization: `Bearer ${token}` }),
     [token]
   );
+
+  useEffect(() => {
+    if (!token) return;
+    getPushState().then(setPushState).catch(() => setPushState("unsupported"));
+    syncPush(API, authHeaders()).catch(() => null);
+  }, [token, authHeaders]);
+
+  const turnOnNotifications = async () => {
+    try {
+      const state = await enablePush(API, authHeaders());
+      setPushState(state);
+      if (state === "denied") alert("Notifications are blocked. Allow them for Snackit Chat in your phone or browser settings, then try again.");
+    } catch (err) {
+      console.error("Enable notifications failed:", err);
+      alert("Could not turn on notifications. Please try again.");
+    }
+  };
+
+  // Open the chat a notification was about: on launch, or when the app was already open.
+  const openChatFromNotification = useCallback(({ chatId, department }) => {
+    if (!chatId) return;
+    setView("internal-chat");
+    if (department) setSelectedDepartment(department);
+    setSelectedInternalChatId(toChatId(chatId));
+    setMobileChatPane("conversation");
+  }, []);
+
+  useEffect(() => {
+    if (LAUNCH_CHAT) window.history.replaceState(null, "", "/?view=internal-chat");
+    if (!("serviceWorker" in navigator)) return;
+    const onMessage = (event) => {
+      if (event.data?.type === "open-internal-chat") openChatFromNotification(event.data);
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", onMessage);
+  }, [openChatFromNotification]);
 
   const fetchTickets = useCallback(async () => {
     if (!token) return;
@@ -1320,6 +1369,8 @@ const monthTotal =
     setNewEmployee,
     addEmployee: handleAddEmployee,
     employeeCredentials,
+    pushState,
+    turnOnNotifications,
   };
 
   /* =========================================================================
@@ -1636,6 +1687,7 @@ const monthTotal =
             <div className="internal-chat-layout">
               <aside className="internal-thread-panel">
                 <div className="internal-panel-header">Departments</div>
+                {pushState === "off" && <button type="button" className="internal-notify-btn" onClick={turnOnNotifications}>🔔 Turn on notifications</button>}
                 <div className="internal-department-tabs">
                   {availableDepartments.map((department) => (
                     <button
