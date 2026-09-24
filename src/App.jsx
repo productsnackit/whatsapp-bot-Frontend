@@ -4,7 +4,8 @@ import { io } from "socket.io-client";
 import OperationsWorkspace from "./OperationsWorkspace.jsx";
 import AuditWorkspace from "./AuditWorkspace.jsx";
 import MobileChat from "./MobileChat.jsx";
-import { getPushState, enablePush, syncPush, disablePush } from "./pushNotifications.js";
+import { getPushState, enablePush, syncPush, disablePush, showLocalNotification, PUSH_STATE_LABELS } from "./pushNotifications.js";
+import NotificationSettings from "./NotificationSettings.jsx";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
   PieChart, Pie, Cell, Legend, ResponsiveContainer,
@@ -46,6 +47,11 @@ const Icon = {
   analytics: (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M18 20V10M12 20V4M6 20v-6" />
+    </svg>
+  ),
+  bell: (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />
     </svg>
   ),
   logout: (
@@ -234,13 +240,61 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const triggerInternalNotification = useCallback((title, priority, message) => {
     setNotificationToast({ title, priority, message });
     if (typeof window !== "undefined" && "Notification" in window && pushStateRef.current !== "on" && document.visibilityState !== "visible") {
-      try {
-        if (Notification.permission === "granted") new Notification(title, { body: message });
-      } catch {
-        // Phones only allow notifications through the service worker.
-      }
+      showLocalNotification(title, message);
     }
     window.setTimeout(() => setNotificationToast(null), 3500);
+  }, []);
+
+  // Tone for new chat messages while the app is open (the phone plays its own sound for pop-ups).
+  const [chatSoundOn, setChatSoundOn] = useState(localStorage.getItem("chatSound") !== "off");
+  const chatSoundOnRef = useRef(chatSoundOn);
+  const lastChatSoundRef = useRef(0);
+  const playMessageSound = useCallback((force = false) => {
+    if (!force && (!chatSoundOnRef.current || Date.now() - lastChatSoundRef.current < 1500)) return;
+    lastChatSoundRef.current = Date.now();
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      if (!mentionAudioContextRef.current) mentionAudioContextRef.current = new AudioContext();
+      const context = mentionAudioContextRef.current;
+      if (context.state === "suspended") context.resume().catch(() => null);
+      // Two soft rising notes, like a chat app.
+      [[660, 0], [990, 0.13]].forEach(([frequency, delay]) => {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        const start = context.currentTime + delay;
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(frequency, start);
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(0.2, start + 0.015);
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.2);
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.start(start);
+        oscillator.stop(start + 0.22);
+      });
+    } catch (err) {
+      console.log("Message sound unavailable:", err);
+    }
+  }, []);
+
+  const toggleChatSound = (on) => {
+    setChatSoundOn(on);
+    chatSoundOnRef.current = on;
+    localStorage.setItem("chatSound", on ? "on" : "off");
+    if (on) playMessageSound(true);
+  };
+
+  // iPhone only lets a page play sound after the first tap, so unlock audio then.
+  useEffect(() => {
+    const unlock = () => {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      if (!mentionAudioContextRef.current) mentionAudioContextRef.current = new AudioContext();
+      mentionAudioContextRef.current.resume().catch(() => null);
+    };
+    window.addEventListener("pointerdown", unlock, { once: true });
+    return () => window.removeEventListener("pointerdown", unlock);
   }, []);
 
   const playInternalMentionAlert = useCallback(() => {
@@ -625,16 +679,62 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
     syncPush(API, authHeaders()).catch(() => null);
   }, [token, authHeaders]);
 
+  const [showNotifySettings, setShowNotifySettings] = useState(false);
+  const [notifyBusy, setNotifyBusy] = useState(false);
+
   const turnOnNotifications = async () => {
+    setNotifyBusy(true);
     try {
       const state = await enablePush(API, authHeaders());
       setPushState(state);
-      if (state === "denied") alert("Notifications are blocked. Allow them for Snackit Chat in your phone or browser settings, then try again.");
+      // Blocked: show how to allow them in settings.
+      if (state === "denied") setShowNotifySettings(true);
     } catch (err) {
       console.error("Enable notifications failed:", err);
       alert("Could not turn on notifications. Please try again.");
+    } finally {
+      setNotifyBusy(false);
     }
   };
+
+  // After allowing notifications in phone settings.
+  const recheckNotifications = async () => {
+    const state = await getPushState().catch(() => "unsupported");
+    if (state === "denied") {
+      setPushState(state);
+      alert("Notifications still look blocked. Please check the steps again.");
+      return;
+    }
+    if (state === "off") return turnOnNotifications();
+    setPushState(state);
+  };
+
+  const sendTestNotification = async () => {
+    setNotifyBusy(true);
+    try {
+      await API.post("/internal/push/test", {}, { headers: authHeaders() });
+    } catch (err) {
+      alert(err.response?.data?.error || "Could not send a test notification.");
+    } finally {
+      setNotifyBusy(false);
+    }
+  };
+
+  // Coming back from phone settings: pick up the new permission without another tap.
+  useEffect(() => {
+    if (!token) return;
+    const onVisible = async () => {
+      if (document.visibilityState !== "visible") return;
+      const state = await getPushState().catch(() => "unsupported");
+      if (state === "off" && "Notification" in window && Notification.permission === "granted") {
+        enablePush(API, authHeaders()).then(setPushState).catch(() => setPushState("off"));
+      } else {
+        setPushState(state);
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [token, authHeaders]);
 
   // Open the chat a notification was about: on launch, or when the app was already open.
   const openChatFromNotification = useCallback(({ chatId, department }) => {
@@ -665,7 +765,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
         const hasNewTicket = incoming.some((ticket) => !previousIds.has(ticket.id));
         if (ticketsLoadedRef.current && hasNewTicket && document.visibilityState === "visible" && "Notification" in window) {
           if (Notification.permission === "granted") {
-            new Notification("New support ticket", { body: "A new customer request needs attention." });
+            showLocalNotification("New support ticket", "A new customer request needs attention.");
           } else if (Notification.permission === "default") {
             Notification.requestPermission();
           }
@@ -1072,6 +1172,7 @@ const monthTotal =
       });
 
       if (notification && notification.sourceUser !== currentUserName) {
+        if (document.visibilityState === "visible") playMessageSound();
         triggerInternalNotification(notification.title || "Department update", notification.priority || "medium", notification.message || "New internal update");
       }
     });
@@ -1103,7 +1204,7 @@ const monthTotal =
       socket.off("internal-notification");
       socket.disconnect();
     };
-  }, [token, currentUserId, currentUserName, playInternalMentionAlert, triggerInternalNotification]);
+  }, [token, currentUserId, currentUserName, playInternalMentionAlert, playMessageSound, triggerInternalNotification]);
 
   useEffect(() => {
     if (!socketRef.current || !selectedDepartment) return;
@@ -1371,6 +1472,7 @@ const monthTotal =
     employeeCredentials,
     pushState,
     turnOnNotifications,
+    openNotifySettings: () => setShowNotifySettings(true),
   };
 
   /* =========================================================================
@@ -1480,6 +1582,11 @@ const monthTotal =
             {Icon.settings}
             <span>Admin Settings</span>
           </button>}
+          <button className="nav-item" onClick={() => { setShowNotifySettings(true); setMobileNavOpen(false); }}>
+            {Icon.bell}
+            <span>Notifications</span>
+            <span className={`nav-notify-state nav-notify-${pushState}`}>{PUSH_STATE_LABELS[pushState] || "Off"}</span>
+          </button>
         </nav>
 
         <button className="sidebar-logout" onClick={logout}>
@@ -1487,6 +1594,19 @@ const monthTotal =
           <span>Logout</span>
         </button>
       </aside>
+
+      {showNotifySettings && (
+        <NotificationSettings
+          state={pushState}
+          busy={notifyBusy}
+          onTurnOn={turnOnNotifications}
+          onCheckAgain={recheckNotifications}
+          onTest={sendTestNotification}
+          soundOn={chatSoundOn}
+          onToggleSound={toggleChatSound}
+          onClose={() => setShowNotifySettings(false)}
+        />
+      )}
 
       {/* ── MAIN CONTENT ────────────────────────────────────────────────────── */}
       <main className={`main-content ${activeChat ? "chat-open" : ""}`}>
@@ -1687,7 +1807,7 @@ const monthTotal =
             <div className="internal-chat-layout">
               <aside className="internal-thread-panel">
                 <div className="internal-panel-header">Departments</div>
-                {pushState === "off" && <button type="button" className="internal-notify-btn" onClick={turnOnNotifications}>🔔 Turn on notifications</button>}
+                {["off", "denied"].includes(pushState) && <button type="button" className="internal-notify-btn" onClick={() => setShowNotifySettings(true)}>🔔 {pushState === "denied" ? "Notifications blocked: fix" : "Turn on notifications"}</button>}
                 <div className="internal-department-tabs">
                   {availableDepartments.map((department) => (
                     <button

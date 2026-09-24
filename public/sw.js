@@ -16,16 +16,23 @@ self.addEventListener("push", (event) => {
   } catch {
     data = { body: event.data ? event.data.text() : "" };
   }
-  event.waitUntil(
-    self.registration.showNotification(data.title || "Snackit Chat", {
+  event.waitUntil((async () => {
+    // Like WhatsApp: no pop-up while you're looking at the app; it plays its own tone instead.
+    // iPhone requires a visible notification for every push, so it always gets one.
+    const isIOS = /iPad|iPhone|iPod/.test(self.navigator.userAgent);
+    const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    if (!isIOS && windows.some((client) => client.focused && client.visibilityState === "visible")) return;
+    await self.registration.showNotification(data.title || "Snackit Chat", {
       body: data.body || "New message",
       icon: "/app-icon-192.png?v=2",
       badge: "/app-icon-192.png?v=2",
       tag: data.chatId ? `chat-${data.chatId}` : undefined,
       renotify: true,
+      silent: false,
+      vibrate: [200, 100, 200],
       data: { chatId: data.chatId || "", department: data.department || "" },
-    })
-  );
+    });
+  })());
 });
 
 self.addEventListener("notificationclick", (event) => {

@@ -3,6 +3,15 @@
 const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const isInstalled = () => window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true;
 
+// Shown next to Notifications in the menu.
+export const PUSH_STATE_LABELS = {
+  on: "On",
+  off: "Off",
+  denied: "Blocked",
+  "needs-install": "Off",
+  unsupported: "Not available",
+};
+
 // "on" | "off" | "denied" | "needs-install" (iPhone Safari tab) | "unsupported"
 export async function getPushState() {
   const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
@@ -51,4 +60,20 @@ export async function disablePush(api, headers) {
   if (!subscription) return;
   await api.post("/internal/push/unsubscribe", { endpoint: subscription.endpoint }, { headers }).catch(() => null);
   await subscription.unsubscribe().catch(() => null);
+}
+
+// Show a notification from the page. Phones only allow this through the service worker,
+// and `new Notification()` throws there, so never call the constructor directly.
+export async function showLocalNotification(title, body) {
+  try {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    const registration = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : null;
+    if (registration?.showNotification) {
+      await registration.showNotification(title, { body, icon: "/app-icon-192.png?v=2" });
+    } else {
+      new Notification(title, { body });
+    }
+  } catch (err) {
+    console.log("Notification unavailable:", err);
+  }
 }
