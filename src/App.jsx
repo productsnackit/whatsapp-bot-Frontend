@@ -157,6 +157,12 @@ const [totalRefundToday, setTotalRefundToday] = useState(0);
 const [totalRefundMonth, setTotalRefundMonth] = useState(0);
 
   const [view, setView] = useState(LAUNCH_VIEW || (localStorage.getItem("userRole") === "employee" ? "internal-chat" : "tickets"));
+  // Mobile-only UI state (ignored by the desktop layout)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [mobileChatPane, setMobileChatPane] = useState("list");
+  const [showComposerExtras, setShowComposerExtras] = useState(false);
+  const [showTicketTools, setShowTicketTools] = useState(false);
+  useEffect(() => { setMobileNavOpen(false); }, [view]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("");
   const [loadingId, setLoadingId] = useState(null);
@@ -1235,8 +1241,18 @@ const monthTotal =
   return (
     <div className={`dashboard ${adminProfile.compactMode ? "dashboard-compact" : ""}`}>
 
+      {/* ── MOBILE TOP BAR (phones only) ────────────────────────────────────── */}
+      <header className="mobile-topbar">
+        <button type="button" className="mobile-menu-button" aria-label="Open menu" onClick={() => setMobileNavOpen(true)}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+        </button>
+        <img src={adminProfile.logo} alt="" />
+        <span>{adminProfile.displayName || "Snackit"}</span>
+      </header>
+      {mobileNavOpen && <div className="mobile-nav-backdrop" onClick={() => setMobileNavOpen(false)} />}
+
       {/* ── SIDEBAR ─────────────────────────────────────────────────────────── */}
-      <aside className="sidebar">
+      <aside className={`sidebar ${mobileNavOpen ? "mobile-open" : ""}`}>
         <div className="sidebar-brand">
           <img src={adminProfile.logo} alt="Snackit logo" />
           <span>{adminProfile.displayName || "Snackit"}</span>
@@ -1505,7 +1521,7 @@ const monthTotal =
         )}
 
         {view === "internal-chat" && (
-          <div className="internal-chat-shell">
+          <div className={`internal-chat-shell mobile-pane-${mobileChatPane}`}>
             <div className="internal-chat-layout">
               <aside className="internal-thread-panel">
                 <div className="internal-panel-header">Departments</div>
@@ -1541,7 +1557,7 @@ const monthTotal =
                       <button
                         type="button"
                         className={`internal-thread-card ${selectedInternalChat?.id === chat.id ? "selected" : ""}`}
-                        onClick={() => { setSelectedInternalChatId(chat.id); markInternalChatRead(chat.id); }}
+                        onClick={() => { setSelectedInternalChatId(chat.id); markInternalChatRead(chat.id); setMobileChatPane("conversation"); }}
                       >
                         <div className="internal-thread-top">
                           <strong>{chat.title}</strong>
@@ -1568,7 +1584,10 @@ const monthTotal =
 
               <section className="internal-conversation-panel">
                 <div className="internal-chat-header">
-                  <div>
+                  <button type="button" className="internal-back-btn" aria-label="Back to chats" onClick={() => setMobileChatPane("list")}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+                  </button>
+                  <div className="internal-chat-title">
                     <h3>{selectedInternalChat ? selectedInternalChat.title : `${selectedDepartment} chat`}</h3>
                     <p>{departmentUsers.length} team members · Messages are visible to this department</p>
                   </div>
@@ -1649,6 +1668,7 @@ const monthTotal =
                   }}
                 >
                   {internalReplyTo && <div className="replying-banner">Replying to {internalReplyTo.sender}<button type="button" onClick={() => setInternalReplyTo(null)}>Cancel</button></div>}
+                  <div className={`composer-extras ${showComposerExtras ? "mobile-show" : ""}`}>
                   <div className="priority-picker">
                     <span className="composer-label">Priority</span>
                     {[['low', 'Low', 'green'], ['medium', 'Medium', 'yellow'], ['urgent', 'Urgent', 'red']].map(([value, label, tone]) => (
@@ -1667,7 +1687,16 @@ const monthTotal =
                     <input placeholder="Reply text" value={savedReplyDraft.text} onChange={(event) => setSavedReplyDraft((draft) => ({ ...draft, text: event.target.value }))} />
                     <button type="submit">Save</button>
                   </form>}
+                  </div>
                   <div className="message-compose-row">
+                  <button
+                    type="button"
+                    className={`composer-more-btn ${showComposerExtras ? "active" : ""}`}
+                    aria-label="More options"
+                    onClick={() => setShowComposerExtras((value) => !value)}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                  </button>
                   <input
                     type="text"
                     value={internalMessage}
@@ -1688,11 +1717,11 @@ const monthTotal =
                       accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
                       onChange={(event) => setAttachedFiles((files) => [...files, ...Array.from(event.target.files || [])])}
                     />
-                    Attach file
+                    <span className="attach-icon" aria-hidden="true">📎</span><span className="btn-text">Attach file</span>
                   </label>
                   <button className="internal-send-button" type="button" onClick={handleSendInternalMessage}>
                     {Icon.send}
-                    Send
+                    <span className="btn-text">Send</span>
                   </button>
                   </div>
                 </div>
@@ -1718,7 +1747,7 @@ const monthTotal =
                   </div>
                 )}
 
-                <div className="internal-recipient-box">
+                <div className={`internal-recipient-box ${showComposerExtras ? "mobile-show" : ""}`}>
                   <div className="recipient-heading">
                     <div className="internal-panel-header">Notify people</div>
                     <span>{selectedRecipients.length ? `${selectedRecipients.length} selected` : "Notify the whole department if none selected"}</span>
@@ -1972,7 +2001,7 @@ const monthTotal =
               </div>
             )}
 
-            <div className="table-wrapper">
+            <div className="table-wrapper tickets-table">
               <table>
                 <thead>
                   <tr>
@@ -1997,24 +2026,24 @@ const monthTotal =
                     const isClosed = t.state === "CLOSED";
                     const isAutoClosed = t.status === "auto_closed";
                     return (
-                      <tr key={t.id} className={isAutoClosed ? "row-auto-closed" : isClosed ? "row-closed" : ""}>
-                        <td><span className="row-num">{i + 1}</span></td>
-                        <td><span className="phone-tag">{t.phone}</span></td>
-                        <td>{t.main_issue || <span className="na">—</span>}</td>
-                        <td>{t.sub_issue || <span className="na">—</span>}</td>
-                        <td>{t.location || <span className="na">—</span>}</td>
-                        <td>{t.upi_id || <span className="na">—</span>}</td>
-                        <td>
+                      <tr key={t.id} className={`ticket-row ${isAutoClosed ? "row-auto-closed" : isClosed ? "row-closed" : ""}`}>
+                        <td className="cell-num"><span className="row-num">{i + 1}</span></td>
+                        <td className="cell-phone"><span className="phone-tag">{t.phone}</span></td>
+                        <td data-label="Issue">{t.main_issue || <span className="na">—</span>}</td>
+                        <td data-label="Sub issue">{t.sub_issue || <span className="na">—</span>}</td>
+                        <td data-label="Location">{t.location || <span className="na">—</span>}</td>
+                        <td data-label="UPI ID">{t.upi_id || <span className="na">—</span>}</td>
+                        <td data-label="Image">
                           {t.image ? (
                             <img src={t.image} alt="img" className="thumb" onClick={() => window.open(t.image, "_blank")} />
                           ) : <span className="na">—</span>}
                         </td>
-                        <td>
+                        <td data-label="UPI screenshot">
                           {t.upi_image ? (
                             <img src={t.upi_image} alt="upi" className="thumb" onClick={() => window.open(t.upi_image, "_blank")} />
                           ) : <span className="na">—</span>}
                         </td>
-                        <td>
+                        <td data-label="Refund">
   {editingRefundId === t.id ? (
     <div style={{ display: "flex", gap: "5px", alignItems: "center" }}>
       <input
@@ -2086,7 +2115,7 @@ const monthTotal =
     </div>
   )}
 </td>
-                        <td>
+                        <td data-label="Status">
                           <span className={`status-badge status-${(t.status || "").replace("_", "-")}`}>
                             {t.status === "auto_closed" ? "Auto Closed" : t.status || "—"}
                           </span>
@@ -2094,20 +2123,20 @@ const monthTotal =
                             {t.priority || "normal"}
                           </span>
                         </td>
-                        <td>
+                        <td data-label="State">
                           <span className={`state-pill ${t.state === "OPEN" ? "state-open" : "state-closed"}`}>
                             {isAutoClosed ? "AUTO CLOSED" : t.state}
                           </span>
                         </td>
-                        <td>
+                        <td data-label="Mode">
                           <span className={`mode-pill ${t.takeover ? "mode-admin" : "mode-bot"}`}>
                             {t.takeover ? "👤 Admin" : "🤖 Bot"}
                           </span>
                         </td>
-                        <td className="date-cell">
+                        <td className="date-cell" data-label="Date">
                           {t.created_at ? new Date(t.created_at).toLocaleString() : "—"}
                         </td>
-                        <td>
+                        <td className="cell-actions">
                           <div className="action-group">
                             {["REFUNDED", "AUTO_REFUNDED", "RESOLVED", "CLOSED"].map((action) => (
                               <button
@@ -2541,6 +2570,9 @@ const monthTotal =
               </div>
             </div>
             <div className="chat-header-actions">
+              <button type="button" className={`chat-tools-toggle ${showTicketTools ? "active" : ""}`} onClick={() => setShowTicketTools((value) => !value)}>
+                Details
+              </button>
               {!activeChat.takeover ? (
                 <button className="chat-takeover-btn" onClick={takeover}>
                   Take Over
@@ -2556,7 +2588,7 @@ const monthTotal =
             </div>
           </div>
 
-          <div className="chat-ticket-tools">
+          <div className={`chat-ticket-tools ${showTicketTools ? "mobile-show" : ""}`}>
             <div className="chat-tool-row">
               <label>
                 Priority
