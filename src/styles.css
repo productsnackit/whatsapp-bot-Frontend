@@ -3396,3 +3396,15 @@ button.wa-notify-banner { cursor: pointer; }
 .audit-list-row > div:first-child .audit-wa { justify-self: start; margin-top: 4px; padding: 3px 9px; border-radius: 999px; background: #e0f2fe; color: #075985; font-size: 12px; font-weight: 700; }
 .audit-list-row > div:first-child .audit-wa-good { background: #dcfce7; color: #166534; }
 .audit-list-row > div:first-child .audit-wa-bad { background: #fef3c7; color: #92400e; }
+
+/* Top refillers leaderboard (Refill Audit → Records) */
+.audit-leader-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.audit-leader-controls select { min-height: 36px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text-primary); font: inherit; font-size: 13px; }
+.audit-leaderboard { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.audit-leaderboard li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.audit-leaderboard li.is-winner { border-color: #f5c542; background: linear-gradient(90deg, #fff8e1, var(--surface)); }
+.audit-leader-rank { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: 50%; background: var(--surface-2); font-size: 18px; font-weight: 800; }
+.audit-leader-name { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.audit-leader-name b { font-size: 14px; }
+.audit-leader-name span { color: var(--text-muted); font-size: 12px; overflow-wrap: anywhere; }
+.audit-leader-score { font-size: 13px; }

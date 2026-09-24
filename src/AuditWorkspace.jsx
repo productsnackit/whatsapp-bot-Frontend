@@ -596,6 +596,84 @@ function AuditReport({ audit, onClose }) {
 /* =========================================================================
    RECORDS
 ========================================================================= */
+// Month key in local time, e.g. "2026-09".
+function monthKey(value) {
+  const date = new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthLabel(key) {
+  const [year, month] = key.split("-").map(Number);
+  return new Date(year, month - 1, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+}
+
+// Top refillers by average audit score, for employee of the month and incentives.
+function RefillerLeaderboard({ audits }) {
+  const months = [...new Set(audits.map((a) => monthKey(a.created_at)))].sort().reverse();
+  const current = monthKey(new Date());
+  const [month, setMonth] = useState(months.includes(current) ? current : months[0] || "all");
+  const [minAudits, setMinAudits] = useState(1);
+
+  const inPeriod = audits.filter((a) => a.refiller && (month === "all" || monthKey(a.created_at) === month));
+  const byRefiller = new Map();
+  for (const audit of inPeriod) {
+    const row = byRefiller.get(audit.refiller) || { name: audit.refiller, total: 0, count: 0, critical: 0, best: 0, worst: 100 };
+    row.total += audit.percentage;
+    row.count += 1;
+    row.critical += audit.critical_breach ? 1 : 0;
+    row.best = Math.max(row.best, audit.percentage);
+    row.worst = Math.min(row.worst, audit.percentage);
+    byRefiller.set(audit.refiller, row);
+  }
+  // Highest average first; ties go to more audits, then fewer critical breaches.
+  const ranked = [...byRefiller.values()]
+    .map((row) => ({ ...row, average: row.total / row.count }))
+    .filter((row) => row.count >= minAudits)
+    .sort((a, b) => b.average - a.average || b.count - a.count || a.critical - b.critical || a.name.localeCompare(b.name));
+  const top = ranked.slice(0, 5);
+  const medals = ["🥇", "🥈", "🥉", "4", "5"];
+
+  const exportTop = () => downloadCsv(`Snackit_Top_Refillers_${month}.csv`, [
+    ["Rank", "Refiller", "Average score %", "Audits", "Best %", "Lowest %", "Critical breaches", "Period"],
+    ...ranked.map((row, index) => [index + 1, row.name, row.average.toFixed(1), row.count, row.best, row.worst, row.critical, month === "all" ? "All time" : monthLabel(month)]),
+  ]);
+
+  return (
+    <section className="audit-card">
+      <div className="audit-card-head">
+        <div><h3>Top 5 refillers</h3><p>Ranked by average audit score · for employee of the month</p></div>
+        <div className="audit-leader-controls">
+          <select value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Period">
+            {months.map((key) => <option key={key} value={key}>{monthLabel(key)}</option>)}
+            <option value="all">All time</option>
+          </select>
+          <select value={minAudits} onChange={(e) => setMinAudits(Number(e.target.value))} aria-label="Minimum audits">
+            {[1, 2, 3, 5].map((n) => <option key={n} value={n}>{n === 1 ? "Any number of audits" : `At least ${n} audits`}</option>)}
+          </select>
+          <button type="button" className="audit-btn" onClick={exportTop} disabled={!ranked.length}>Export ranking</button>
+        </div>
+      </div>
+      {top.length ? (
+        <ol className="audit-leaderboard">
+          {top.map((row, index) => {
+            const { average } = row;
+            return (
+              <li key={row.name} className={index === 0 ? "is-winner" : ""}>
+                <span className="audit-leader-rank">{medals[index]}</span>
+                <div className="audit-leader-name">
+                  <b>{row.name}</b>
+                  <span>{row.count} audit{row.count === 1 ? "" : "s"} · best {row.best}% · lowest {row.worst}%{row.critical ? ` · ${row.critical} critical breach${row.critical === 1 ? "" : "es"}` : ""}</span>
+                </div>
+                <span className={`audit-pill audit-pill-${average >= 90 ? "good" : average >= 75 ? "warn" : "bad"} audit-leader-score`}>{row.average.toFixed(1)}%</span>
+              </li>
+            );
+          })}
+        </ol>
+      ) : <p className="audit-empty">{inPeriod.length ? `No refiller has ${minAudits}+ audits in this period.` : "No audits in this period yet."}</p>}
+    </section>
+  );
+}
+
 function Records({ headers, audits, capa, isAdmin, onDelete, onChanged, notify }) {
   const [search, setSearch] = useState("");
   const [viewing, setViewing] = useState(null);
@@ -639,6 +717,7 @@ function Records({ headers, audits, capa, isAdmin, onDelete, onChanged, notify }
         <div><span>Open CAPA</span><b className="bad">{capa.filter((c) => c.status === "OPEN").length}</b></div>
         <div><span>Expired units removed</span><b className="warn">{expiredUnits}</b></div>
       </div>
+      <RefillerLeaderboard audits={audits} />
       <section className="audit-card">
         <div className="audit-toolbar">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by audit ID, location, refiller or auditor" />
