@@ -13,6 +13,9 @@ const API = axios.create({
   baseURL: "https://whatsapp-bot-backend-b3nb.onrender.com",
 });
 
+// The installed app (see public/manifest.webmanifest) opens with ?view=internal-chat
+const LAUNCH_VIEW = new URLSearchParams(window.location.search).get("view") === "internal-chat" ? "internal-chat" : null;
+
 const COLORS = ["#e8192c", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4", "#f97316"];
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
@@ -153,7 +156,7 @@ const [refundAmountInput, setRefundAmountInput] = useState("");
 const [totalRefundToday, setTotalRefundToday] = useState(0);
 const [totalRefundMonth, setTotalRefundMonth] = useState(0);
 
-  const [view, setView] = useState(localStorage.getItem("userRole") === "employee" ? "internal-chat" : "tickets");
+  const [view, setView] = useState(LAUNCH_VIEW || (localStorage.getItem("userRole") === "employee" ? "internal-chat" : "tickets"));
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("");
   const [loadingId, setLoadingId] = useState(null);
@@ -509,7 +512,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       setCurrentUserDepartment(res.data.department || "Accounts");
       setCurrentUserId(res.data.userId || "");
       setSelectedDepartment(res.data.department || "Accounts");
-      setView(res.data.role === "employee" ? "internal-chat" : "tickets");
+      setView(LAUNCH_VIEW || (res.data.role === "employee" ? "internal-chat" : "tickets"));
       setSessionExpired(false);
     } catch {
       alert("Login failed");

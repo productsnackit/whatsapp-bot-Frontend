@@ -1,0 +1,14 @@
+{
+  "name": "Snackit Chat",
+  "short_name": "Snackit Chat",
+  "description": "Snackit internal team chat",
+  "start_url": "/?view=internal-chat",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#e8192c",
+  "icons": [
+    { "src": "/app-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/app-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
