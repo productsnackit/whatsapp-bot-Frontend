@@ -3430,3 +3430,39 @@ button.wa-notify-banner { cursor: pointer; }
 .notify-settings-toggle input { width: 20px; height: 20px; margin-top: 2px; accent-color: #00a884; }
 .notify-settings-toggle b { display: block; font-size: 14px; }
 .notify-settings-toggle small { display: block; color: #54656f; font-size: 12px; }
+
+/* Desktop Internal Chat messages, WhatsApp style */
+.internal-messages.dm-list { gap: 2px; padding: 16px 6%; border: 0; border-radius: 12px; background-color: #efeae2; background-image: radial-gradient(rgba(0, 0, 0, 0.035) 1px, transparent 1px); background-size: 18px 18px; }
+.dm-row { display: flex; padding: 2px 0; }
+.dm-row.out { justify-content: flex-end; }
+.dm-row.in + .dm-row.out, .dm-row.out + .dm-row.in { margin-top: 8px; }
+.dm-bubble { position: relative; max-width: min(65%, 520px); padding: 6px 9px 7px; border-radius: 8px; background: #fff; color: #111b21; font-size: 14.2px; line-height: 1.38; text-align: left; box-shadow: 0 1px 0.5px rgba(11, 20, 26, 0.13); overflow-wrap: anywhere; }
+.dm-row.out .dm-bubble { background: #d9fdd3; }
+.dm-row.in .dm-bubble { border-top-left-radius: 0; }
+.dm-row.out .dm-bubble { border-top-right-radius: 0; }
+.dm-bubble.is-urgent { box-shadow: inset 3px 0 0 #e11d48, 0 1px 0.5px rgba(11, 20, 26, 0.13); }
+.dm-sender { margin-bottom: 1px; color: #1f7aec; font-size: 12.8px; font-weight: 600; }
+.dm-quote { display: grid; gap: 1px; margin: 2px 0 5px; padding: 5px 8px; border-left: 4px solid #06cf9c; border-radius: 6px; background: rgba(11, 20, 26, 0.05); font-size: 12.8px; }
+.dm-quote b { color: #06a37c; font-weight: 600; }
+.dm-quote span { display: -webkit-box; overflow: hidden; color: #54656f; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.dm-urgent { display: inline-block; margin: 0 6px 2px 0; padding: 0 6px; border-radius: 4px; background: #ffe4e6; color: #be123c; font-size: 11px; font-weight: 700; }
+.dm-text { white-space: pre-wrap; }
+.dm-meta { float: right; display: inline-flex; align-items: center; gap: 5px; margin: 6px 0 -3px 12px; color: #667781; font-size: 11px; line-height: 1; white-space: nowrap; }
+.dm-ticks { color: #53bdeb; letter-spacing: -3px; }
+.dm-status { padding: 1px 5px; border-radius: 4px; background: rgba(11, 20, 26, 0.06); font-weight: 600; }
+.dm-status-resolved { background: #d1fae5; color: #047857; }
+.dm-status-in-progress { background: #fef3c7; color: #92400e; }
+.dm-reactions { position: absolute; bottom: -14px; right: 8px; display: flex; gap: 2px; padding: 1px 5px; border-radius: 12px; background: #fff; box-shadow: 0 1px 3px rgba(11, 20, 26, 0.2); font-size: 12px; }
+.dm-row:has(.dm-reactions) { margin-bottom: 14px; }
+.dm-attachments { display: grid; gap: 4px; margin-bottom: 4px; }
+.dm-image { display: block; max-width: 280px; max-height: 280px; border-radius: 6px; object-fit: cover; }
+.dm-file { color: #027eb5; font-size: 13px; }
+/* Actions appear on hover, like WhatsApp's message menu */
+.dm-actions { position: absolute; top: -30px; z-index: 2; display: none; align-items: center; gap: 2px; padding: 3px; border-radius: 18px; background: #fff; box-shadow: 0 2px 8px rgba(11, 20, 26, 0.18); white-space: nowrap; }
+.dm-row.out .dm-actions { right: 0; }
+.dm-row.in .dm-actions { left: 0; }
+.dm-bubble:hover .dm-actions, .dm-bubble:focus-within .dm-actions { display: flex; }
+.dm-actions button, .dm-actions select { height: 26px; padding: 0 8px; border: 0; border-radius: 13px; background: transparent; color: #3b4a54; font: inherit; font-size: 12px; cursor: pointer; }
+.dm-actions button:hover, .dm-actions select:hover { background: #f0f2f5; }
+.dm-row:first-child .dm-actions { top: auto; bottom: -30px; }
+.dm-empty { margin: auto; padding: 8px 14px; border-radius: 8px; background: #ffeecd; color: #54656f; font-size: 13px; }

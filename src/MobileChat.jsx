@@ -93,8 +93,7 @@ function useLongPress(onLongPress) {
   };
 }
 
-function ChatRow({ chat, onOpen, onActions }) {
-  const last = chat.messages?.at(-1);
+function ChatRow({ chat, last, onOpen, onActions }) {
   const press = useLongPress(() => onActions(chat));
   const { wasLongPress, ...handlers } = press;
   return (
@@ -263,7 +262,7 @@ export default function MobileChat({ chat: c }) {
               )}
               <div className="wa-rows">
                 {c.chats.length ? c.chats.map((chat) => (
-                  <ChatRow key={chat.id} chat={chat} onOpen={openChat} onActions={(target) => setSheet({ type: "chat", chat: target })} />
+                  <ChatRow key={chat.id} chat={chat} last={c.visibleMessages(chat).at(-1)} onOpen={openChat} onActions={(target) => setSheet({ type: "chat", chat: target })} />
                 )) : (
                   <div className="wa-empty">
                     <b>No chats here yet</b>

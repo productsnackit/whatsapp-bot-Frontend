@@ -22,6 +22,9 @@ const LAUNCH_PARAMS = new URLSearchParams(window.location.search);
 const LAUNCH_VIEW = LAUNCH_PARAMS.get("view") === "internal-chat" ? "internal-chat" : null;
 // Tapping a chat notification opens ?view=internal-chat&chat=<id>&department=<dept>
 const LAUNCH_CHAT = LAUNCH_PARAMS.get("chat") ? { chatId: LAUNCH_PARAMS.get("chat"), department: LAUNCH_PARAMS.get("department") } : null;
+// Older chats begin with an automatic "New <department> team chat started." message; don't show it.
+const isChatStartedNotice = (message) => message?.sender === "Admin" && /^New .+ team chat started\.$/.test(String(message.text || "").trim());
+
 // Chat ids are numbers on the server but arrive as text from notifications.
 const toChatId = (value) => (Number.isNaN(Number(value)) ? value : Number(value));
 
@@ -353,6 +356,11 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
 
   // Desktop always shows the selected chat, so it counts as read; on phones only once it is opened
   const internalChatOnScreen = !isMobile || mobileChatPane === "conversation";
+  const desktopMessagesRef = useRef(null);
+  const selectedMessageCount = selectedInternalChat?.messages?.length || 0;
+  useEffect(() => {
+    if (desktopMessagesRef.current) desktopMessagesRef.current.scrollTop = desktopMessagesRef.current.scrollHeight;
+  }, [selectedInternalChat?.id, selectedMessageCount, view]);
   useEffect(() => {
     if (selectedInternalChat?.id && internalChatOnScreen) markInternalChatRead(selectedInternalChat.id);
   }, [selectedInternalChat?.id, internalChatOnScreen]);
@@ -1399,6 +1407,7 @@ const monthTotal =
 
   // Recipient-targeted messages are only shown to their recipients, the sender and admins
   const visibleInternalMessages = (chat) => (chat?.messages || []).filter((message) => {
+    if (isChatStartedNotice(message)) return false;
     const recipients = (message.recipientIds || []).map(String);
     return isAdmin || !recipients.length || recipients.includes(String(currentUserId)) || message.sender === currentUserName;
   });
@@ -1847,7 +1856,7 @@ const monthTotal =
                           <span className="internal-thread-icons">{chat.pinned ? "📌" : ""}{chat.favorite ? "★" : ""}{chat.unread ? <b>{chat.unread}</b> : ""}</span>
                         </div>
                         <div className="internal-thread-meta">{chat.participants.join(", ")}</div>
-                        <div className="internal-thread-meta">{chat.messages.at(-1)?.text || "No messages"}</div>
+                        <div className="internal-thread-meta">{visibleInternalMessages(chat).at(-1)?.text || "No messages yet"}</div>
                       </button>
                       <div className="internal-thread-actions">
                         <button type="button" onClick={() => updateInternalChat(chat.id, { pinned: !chat.pinned })}>{chat.pinned ? "Unpin" : "Pin"}</button>
@@ -1881,61 +1890,67 @@ const monthTotal =
                   </div>}
                 </div>
 
-                <div className="internal-messages">
-                  {selectedInternalChat && selectedInternalChat.messages.length ? (
-                    selectedInternalChat.messages
-                      .filter((message) => {
-                        const recipients = (message.recipientIds || []).map(String);
-                        return isAdmin || !recipients.length || recipients.includes(String(currentUserId)) || message.sender === currentUserName;
-                      })
-                      .map((message) => (
-                      <div key={message.id} className={`internal-message-row ${message.sender === currentUserName || (currentUserName === "Admin" && message.sender === "You") ? "outgoing" : "incoming"} message-priority-${message.priority || selectedInternalChat?.priority || "medium"}`}>
-                        <div className="internal-message-bubble">
-                          <div className="internal-message-meta">
-                            <strong>{message.sender}</strong>
-                            <span>{message.time}</span>
-                          </div>
-                          {message.replyTo && <div className="message-reply-context">Replying to a previous message</div>}
-                          <div>{message.text}</div>
-                          {message.attachments?.length ? (
-                            <div className="message-attachment-list">
-                              {message.attachments.map((file, idx) => (
-                                <div key={`${file.name}-${idx}`} className="message-attachment-item">
-                                  {file.type?.startsWith("image/") && file.dataUrl ? (
-                                    <img className="message-image" src={file.dataUrl} alt={file.name} />
-                                  ) : null}
-                                  {file.dataUrl ? <a className="message-attachment" href={file.dataUrl} download={file.name}>{file.name}</a> : <span className="message-attachment">{file.name}</span>}
-                                </div>
+                <div className="internal-messages dm-list" ref={desktopMessagesRef}>
+                  {selectedInternalChat && visibleInternalMessages(selectedInternalChat).length ? (
+                    visibleInternalMessages(selectedInternalChat).map((message) => {
+                      const outgoing = message.sender === currentUserName || (currentUserName === "Admin" && message.sender === "You");
+                      const quoted = message.replyTo ? selectedInternalChat.messages.find((item) => String(item.id) === String(message.replyTo)) : null;
+                      const reactions = Object.entries(message.reactions || {}).filter(([, people]) => people?.length);
+                      const canSetStatus = isAdmin || message.recipientIds?.map(String).includes(String(currentUserId)) || message.sender === currentUserName;
+                      const status = message.status || "open";
+                      return (
+                        <div key={message.id} className={`dm-row ${outgoing ? "out" : "in"}`}>
+                          <div className={`dm-bubble ${message.priority === "urgent" ? "is-urgent" : ""}`}>
+                            <div className="dm-actions">
+                              {[["👍", "thumbs"], ["✅", "done"], ["⚠️", "alert"]].map(([reaction, key]) => (
+                                <button type="button" key={key} title="React" onClick={() => updateInternalMessage(selectedInternalChat.id, message.id, { reaction })}>{reaction}</button>
                               ))}
+                              <button type="button" onClick={() => { setInternalReplyTo(message); setInternalMessage(`@${message.sender} `); }}>Reply</button>
+                              <button type="button" onClick={() => updateInternalMessage(selectedInternalChat.id, message.id, { assignedTo: message.assignedTo ? null : currentUserName })}>{message.assignedTo ? "Unassign" : "Assign to me"}</button>
+                              {canSetStatus && (
+                                <select value={status} onChange={(event) => handleUpdateMessageStatus(selectedInternalChat.id, message.id, event.target.value)} aria-label="Update message status">
+                                  <option value="open">Open</option>
+                                  <option value="in-progress">In progress</option>
+                                  <option value="resolved">Resolved</option>
+                                </select>
+                              )}
                             </div>
-                          ) : null}
-                          <div className="message-status-row">
-                            <span className={`message-status status-${message.status || "open"}`}>{(message.status || "open").replace("-", " ")}</span>
-                            {(isAdmin || message.recipientIds?.map(String).includes(String(currentUserId)) || message.sender === currentUserName) && (
-                              <select
-                                value={message.status || "open"}
-                                onChange={(event) => handleUpdateMessageStatus(selectedInternalChat.id, message.id, event.target.value)}
-                                aria-label="Update message status"
-                              >
-                                <option value="open">Open</option>
-                                <option value="in-progress">In progress</option>
-                                <option value="resolved">Resolved</option>
-                              </select>
+                            {!outgoing && <div className="dm-sender">{message.sender}</div>}
+                            {message.replyTo && (
+                              <div className="dm-quote">
+                                <b>{quoted?.sender || "Earlier message"}</b>
+                                <span>{quoted?.text || "Original message"}</span>
+                              </div>
+                            )}
+                            {message.priority === "urgent" && <span className="dm-urgent">Urgent</span>}
+                            {message.attachments?.length ? (
+                              <div className="dm-attachments">
+                                {message.attachments.map((file, idx) => (
+                                  <div key={`${file.name}-${idx}`}>
+                                    {file.type?.startsWith("image/") && file.dataUrl ? <img className="dm-image" src={file.dataUrl} alt={file.name} /> : null}
+                                    {file.dataUrl ? <a className="dm-file" href={file.dataUrl} download={file.name}>📎 {file.name}</a> : <span className="dm-file">📎 {file.name}</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
+                            <span className="dm-text">{message.text}</span>
+                            <span className="dm-meta">
+                              {status !== "open" && <span className={`dm-status dm-status-${status}`}>{status === "resolved" ? "Resolved" : "In progress"}</span>}
+                              {message.assignedTo && <span className="dm-status">@{message.assignedTo}</span>}
+                              {message.time}
+                              {outgoing && <span className="dm-ticks">✓✓</span>}
+                            </span>
+                            {reactions.length > 0 && (
+                              <div className="dm-reactions">
+                                {reactions.map(([reaction, people]) => <span key={reaction} title={people.join(", ")}>{reaction}{people.length > 1 ? ` ${people.length}` : ""}</span>)}
+                              </div>
                             )}
                           </div>
-                          <div className="message-action-row">
-                            {[["👍", "thumbs"], ["✅", "done"], ["⚠️", "alert"]].map(([reaction, key]) => (
-                              <button type="button" key={key} onClick={() => updateInternalMessage(selectedInternalChat.id, message.id, { reaction })}>{reaction} {message.reactions?.[reaction]?.length || 0}</button>
-                            ))}
-                            <button type="button" onClick={() => { setInternalReplyTo(message); setInternalMessage(`@${message.sender} `); }}>Reply</button>
-                            <button type="button" onClick={() => updateInternalMessage(selectedInternalChat.id, message.id, { assignedTo: message.assignedTo ? null : currentUserName })}>{message.assignedTo ? `Assigned: ${message.assignedTo}` : "Assign to me"}</button>
-                            <button type="button" onClick={() => handleUpdateMessageStatus(selectedInternalChat.id, message.id, "in-progress")}>Escalate</button>
-                          </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   ) : (
-                    <div className="internal-empty-state large">Start a message for {selectedDepartment}.</div>
+                    <div className="dm-empty">No messages yet. Say hello to the {selectedDepartment} team 👋</div>
                   )}
                 </div>
 
