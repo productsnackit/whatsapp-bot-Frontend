@@ -4,6 +4,7 @@ import { io } from "socket.io-client";
 import OperationsWorkspace from "./OperationsWorkspace.jsx";
 import AuditWorkspace from "./AuditWorkspace.jsx";
 import FindingsWorkspace from "./FindingsWorkspace.jsx";
+import ExpiryWorkspace from "./ExpiryWorkspace.jsx";
 import MobileChat from "./MobileChat.jsx";
 import { getPushState, enablePush, syncPush, disablePush, showLocalNotification, PUSH_STATE_LABELS } from "./pushNotifications.js";
 import NotificationSettings from "./NotificationSettings.jsx";
@@ -1655,6 +1656,15 @@ const monthTotal =
             </svg>
             <span>Internal Audit</span>
           </button>
+          <button
+            className={`nav-item ${view === "expiry" ? "active" : ""}`}
+            onClick={() => setView("expiry")}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="17" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M10 14l4 4M14 14l-4 4" />
+            </svg>
+            <span>Expiry Tracking</span>
+          </button>
 
           {isAdmin && <><div className="sidebar-divider" />
           <div className="sidebar-section-label">Insights</div>
@@ -1732,6 +1742,7 @@ const monthTotal =
               {view === "import" && "Bulk Imports"}
               {view === "audit" && "Refill Audit"}
               {view === "findings" && "Internal Audit"}
+              {view === "expiry" && "Expiry Tracking"}
               {view === "analytics" && "Analytics"}
               {view === "internal-chat" && "Internal Chat"}
               {view === "employees" && "Employee Details"}
@@ -1751,6 +1762,7 @@ const monthTotal =
               {view === "import" && "Upload and audit machines, slots, clients, brands, and SKUs"}
               {view === "audit" && "Machine quality checks, refillers, sites and corrective actions"}
               {view === "findings" && "Audit findings, corrective actions, owners and follow-ups"}
+              {view === "expiry" && "Batch expiry dates, expired stock and write-off value"}
               {view === "analytics" && "Issue breakdown and trends"}
               {view === "internal-chat" && `${departmentChats.length} active ${selectedDepartment} conversations`}
               {view === "employees" && `${internalUsers.length} employees with login access`}
@@ -1899,6 +1911,8 @@ const monthTotal =
         {["inventory", "clients", "brands", "performance", "leads", "routes", "demand", "import"].includes(view) && canAccessOperations && (
           <OperationsWorkspace token={token} internalUsers={internalUsers} workspace={view} />
         )}
+
+        {view === "expiry" && <ExpiryWorkspace token={token} isAdmin={isAdmin} />}
 
         {view === "findings" && (
           <FindingsWorkspace

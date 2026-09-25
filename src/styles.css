@@ -3608,3 +3608,79 @@ button.wa-notify-banner { cursor: pointer; }
   .fnd-desc { -webkit-line-clamp: unset; display: block; }
   .main-content { margin: 0 !important; padding: 0 !important; }
 }
+
+/* Expiry Tracking */
+.exp-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.exp-kpis > div { display: grid; gap: 2px; padding: 14px 16px; border: 1px solid var(--border); border-left: 4px solid #94a3b8; border-radius: var(--radius-lg); background: var(--surface); }
+.exp-kpis span { color: var(--text-muted); font-size: 12px; font-weight: 700; }
+.exp-kpis b { font-size: 22px; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; }
+.exp-kpis small { color: var(--text-muted); font-size: 11.5px; }
+.exp-kpi-bad { border-left-color: #e11d48 !important; }
+.exp-kpi-bad b, .exp-kpi-bad small { color: #be123c; }
+.exp-kpi-warn { border-left-color: #f59e0b !important; }
+.exp-kpi-warn b { color: #b45309; }
+.exp-kpi-good { border-left-color: #10b981 !important; }
+.exp-kpi-good b { color: #047857; }
+.exp-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.exp-controls > input { flex: 1 1 220px; min-width: 0; min-height: 38px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text-primary); font: inherit; font-size: 13px; }
+.exp-segments { display: inline-flex; overflow: hidden; border: 1px solid var(--border); border-radius: 10px; }
+.exp-segments button { padding: 8px 12px; border: 0; border-left: 1px solid var(--border); background: var(--surface); color: var(--text-secondary, #475569); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.exp-segments button:first-child { border-left: 0; }
+.exp-segments button.is-active { background: var(--obsidian, #0f172a); color: #fff; }
+.exp-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.exp-excel { border-color: #047857; color: #047857; }
+.exp-form form { display: grid; gap: 12px; }
+.exp-close { background: var(--surface-2); color: var(--text-primary); }
+.exp-form-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; }
+.exp-form-grid label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; text-align: left; }
+.exp-form-grid input { min-height: 38px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text-primary); font: inherit; font-size: 13.5px; font-weight: 400; }
+.exp-form-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.exp-form-foot span { margin-right: auto; color: var(--text-muted); font-size: 13px; }
+.exp-form-foot b { color: var(--text-primary); }
+.exp-table-card { padding: 0; overflow: hidden; }
+.exp-table-card > .audit-empty, .exp-table-card > .audit-error { margin: 16px; }
+.exp-table-scroll { overflow-x: auto; }
+.exp-table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+.exp-table th { padding: 11px 12px; background: #0f172a; color: #e2e8f0; font-size: 11px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; white-space: nowrap; }
+.exp-table td { padding: 10px 12px; border-top: 1px solid var(--border); white-space: nowrap; }
+.exp-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.exp-table .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; }
+.exp-name { font-weight: 700; white-space: normal !important; }
+.exp-total { font-weight: 800; }
+.exp-row-expired { background: #fff1f2; }
+.exp-row-expired .exp-expiry, .exp-row-expired .exp-total { color: #be123c; font-weight: 700; }
+.exp-row-soon .exp-expiry { color: #b45309; font-weight: 700; }
+.exp-status { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 700; }
+.exp-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.exp-status-expired { background: #ffe4e6; color: #be123c; }
+.exp-status-soon { background: #fef3c7; color: #92400e; }
+.exp-status-active { background: #dcfce7; color: #166534; }
+.exp-row-actions { text-align: right; }
+.exp-row-actions > * { margin-left: 6px; }
+.exp-table tfoot td { border-top: 2px solid var(--border); background: var(--surface-2); font-weight: 800; }
+.exp-table tfoot td:first-child { text-align: right; color: var(--text-muted); font-size: 11px; letter-spacing: 0.4px; text-transform: uppercase; }
+.exp-foot-loss { color: #be123c; text-align: center; }
+@media (max-width: 1100px) { .exp-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } .exp-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 768px) {
+  .exp-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .exp-kpis > div:first-child { grid-column: 1 / -1; }
+  .exp-controls > * { width: 100%; }
+  .exp-segments { display: grid; grid-template-columns: repeat(4, 1fr); }
+  .exp-segments button { padding: 8px 4px; }
+  .exp-actions { margin-left: 0; }
+  .exp-actions > * { flex: 1; }
+  .exp-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* Table rows become cards */
+  .exp-table thead { display: none; }
+  .exp-table, .exp-table tbody, .exp-table tr, .exp-table td { display: block; width: 100%; box-sizing: border-box; }
+  .exp-table tbody tr { margin: 10px; width: auto; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .exp-table td { display: flex; justify-content: space-between; gap: 12px; padding: 7px 12px; border-top: 1px solid var(--border); white-space: normal; text-align: right !important; }
+  .exp-table td:first-child { border-top: 0; }
+  .exp-table td[data-label]::before { content: attr(data-label); color: var(--text-muted); font-size: 12px; font-weight: 700; text-align: left; }
+  .exp-row-actions { justify-content: flex-end !important; }
+  .exp-table tfoot { display: block; }
+  .exp-table tfoot tr { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; width: auto; margin: 10px; padding: 12px 14px; border-radius: 12px; background: var(--surface-2); }
+  .exp-table tfoot td { display: inline; width: auto; padding: 0; border: 0; background: none; text-align: left !important; }
+  .exp-table tfoot td:empty { display: none; }
+  .exp-table tfoot td:nth-child(2)::after { content: " units"; color: var(--text-muted); font-weight: 600; }
+}
