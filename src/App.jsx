@@ -5,7 +5,7 @@ import OperationsWorkspace from "./OperationsWorkspace.jsx";
 import AuditWorkspace from "./AuditWorkspace.jsx";
 import FindingsWorkspace from "./FindingsWorkspace.jsx";
 import ExpiryWorkspace from "./ExpiryWorkspace.jsx";
-import MobileChat from "./MobileChat.jsx";
+import MobileChat, { Avatar } from "./MobileChat.jsx";
 import { getPushState, enablePush, syncPush, disablePush, showLocalNotification, PUSH_STATE_LABELS } from "./pushNotifications.js";
 import NotificationSettings from "./NotificationSettings.jsx";
 import MentionText, { MentionSuggestions, TaskLine } from "./MentionText.jsx";
@@ -220,6 +220,23 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const [attachedFiles, setAttachedFiles] = useState([]);
   const attachmentInputRef = useRef(null);
   const [internalSearch, setInternalSearch] = useState("");
+  const [teamSearch, setTeamSearch] = useState("");
+  const [showTeamPanel, setShowTeamPanel] = useState(() => {
+    try { return localStorage.getItem("chatTeamPanel") !== "hidden"; } catch { return true; }
+  });
+  // On narrower screens the team panel slides over the chat, so it starts closed there.
+  const [teamOverlayOpen, setTeamOverlayOpen] = useState(false);
+  const toggleTeamPanel = () => {
+    if (window.innerWidth <= 1280) {
+      setTeamOverlayOpen((value) => !value);
+      return;
+    }
+    setShowTeamPanel((value) => {
+      try { localStorage.setItem("chatTeamPanel", value ? "hidden" : "shown"); } catch { /* per-browser preference only */ }
+      return !value;
+    });
+  };
+  const matchesTeamSearch = (...fields) => !teamSearch.trim() || fields.some((field) => String(field || "").toLowerCase().includes(teamSearch.trim().toLowerCase()));
   const [internalFilter, setInternalFilter] = useState("all");
   const [showArchivedChats, setShowArchivedChats] = useState(false);
   const [internalReplyTo, setInternalReplyTo] = useState(null);
@@ -1723,7 +1740,7 @@ const monthTotal =
       )}
 
       {/* ── MAIN CONTENT ────────────────────────────────────────────────────── */}
-      <main className={`main-content ${activeChat ? "chat-open" : ""}`}>
+      <main className={`main-content ${activeChat ? "chat-open" : ""} ${view === "internal-chat" && !isMobile ? "is-chat-view" : ""}`}>
 
         {/* ── PAGE HEADER ─────────────────────────────────────────────────── */}
         <div className="page-header">
@@ -1935,94 +1952,82 @@ const monthTotal =
 
         {view === "internal-chat" && !isMobile && (
           <div className="internal-chat-shell">
-            <div className="internal-chat-layout">
-              <aside className="internal-thread-panel">
-                <div className="internal-panel-header">Departments</div>
-                {["off", "denied"].includes(pushState) && <button type="button" className="internal-notify-btn" onClick={() => setShowNotifySettings(true)}>🔔 {pushState === "denied" ? "Notifications blocked: fix" : "Turn on notifications"}</button>}
-                <div className="internal-department-tabs">
+            <div className={`wd-layout ${showTeamPanel ? "" : "team-hidden"} ${teamOverlayOpen ? "team-overlay-open" : ""}`}>
+              <aside className="wd-sidebar">
+                <div className="wd-side-head">
+                  <h2>Chats</h2>
+                  {["off", "denied"].includes(pushState) && <button type="button" className="wd-notify-btn" onClick={() => setShowNotifySettings(true)}>🔔 {pushState === "denied" ? "Notifications blocked" : "Turn on notifications"}</button>}
+                </div>
+                <div className="wd-departments">
                   {availableDepartments.map((department) => (
-                    <button
-                      key={department}
-                      type="button"
-                      className={`department-tab ${selectedDepartment === department ? "active" : ""}`}
-                      onClick={() => setSelectedDepartment(department)}
-                    >
-                      {department === "Direct" ? "💬 Direct messages" : department}
+                    <button key={department} type="button" className={selectedDepartment === department ? "active" : ""} onClick={() => setSelectedDepartment(department)}>
+                      {department === "Direct" ? "💬 Direct" : department}
                     </button>
                   ))}
                 </div>
-
-                <div className="internal-panel-header">Chats</div>
-                <div className="internal-chat-tools">
-                  <div className="internal-search-box">
-                    {Icon.search}
-                    <input value={internalSearch} onChange={(event) => setInternalSearch(event.target.value)} placeholder="Search chats" />
-                  </div>
-                  <div className="internal-filter-row">
-                    {[["all", "All"], ["unread", "Unread"], ["pinned", "Pinned"], ["favorites", "Favorites"]].map(([value, label]) => (
-                      <button key={value} type="button" className={internalFilter === value ? "active" : ""} onClick={() => setInternalFilter(value)}>{label}</button>
-                    ))}
-                  </div>
-                  <label className="internal-archive-toggle"><input type="checkbox" checked={showArchivedChats} onChange={(event) => setShowArchivedChats(event.target.checked)} /> Show archived</label>
+                <div className="wd-search">
+                  {Icon.search}
+                  <input value={internalSearch} onChange={(event) => setInternalSearch(event.target.value)} placeholder="Search chats" />
                 </div>
-                {visibleDepartmentChats.length ? (
-                  visibleDepartmentChats.map((chat) => (
-                    <div key={chat.id} className="internal-thread-wrap">
-                      <button
-                        type="button"
-                        className={`internal-thread-card ${selectedInternalChat?.id === chat.id ? "selected" : ""}`}
-                        onClick={() => { setSelectedInternalChatId(chat.id); markInternalChatRead(chat.id); }}
-                      >
-                        {(() => {
-                          const last = visibleInternalMessages(chat).at(-1);
-                          const preview = last ? `${last.sender === currentUserName ? "You" : last.sender}: ${last.text || "📎 Attachment"}` : "No messages yet";
-                          return (
-                            <>
-                              <div className="internal-thread-top">
-                                <strong>{chatDisplayName(chat)}</strong>
-                                <span className="internal-thread-time">{last?.time || ""}</span>
-                              </div>
-                              <div className="internal-thread-bottom">
-                                <span className="internal-thread-preview">{preview}</span>
-                                <span className="internal-thread-icons">{chat.pinned ? "📌" : ""}{chat.favorite ? "★" : ""}{chat.unread ? <b>{chat.unread}</b> : ""}</span>
-                              </div>
-                            </>
-                          );
-                        })()}
-                      </button>
-                      <div className="internal-thread-actions">
-                        <button type="button" onClick={() => updateInternalChat(chat.id, { pinned: !chat.pinned })}>{chat.pinned ? "Unpin" : "Pin"}</button>
-                        <button type="button" onClick={() => updateInternalChat(chat.id, { favorite: !chat.favorite })}>{chat.favorite ? "Unfavorite" : "Favorite"}</button>
-                        <button type="button" onClick={() => updateInternalChat(chat.id, { archived: !chat.archived })}>{chat.archived ? "Restore" : "Archive"}</button>
-                        {isAdmin && chat.type !== "direct" && <button type="button" onClick={() => updateInternalChat(chat.id, { title: window.prompt("Chat name", chat.title) || chat.title })}>Rename</button>}
+                <div className="wd-filters">
+                  {[["all", "All"], ["unread", "Unread"], ["pinned", "Pinned"], ["favorites", "Favorites"]].map(([value, label]) => (
+                    <button key={value} type="button" className={internalFilter === value ? "active" : ""} onClick={() => setInternalFilter(value)}>{label}</button>
+                  ))}
+                  <button type="button" className={showArchivedChats ? "active" : ""} onClick={() => setShowArchivedChats((value) => !value)}>Archived</button>
+                </div>
+                <div className="wd-chat-list">
+                  {visibleDepartmentChats.length ? visibleDepartmentChats.map((chat) => {
+                    const last = visibleInternalMessages(chat).at(-1);
+                    const name = chatDisplayName(chat);
+                    const preview = last ? `${last.sender === currentUserName ? "You" : last.sender}: ${last.text || "📎 Attachment"}` : "No messages yet";
+                    return (
+                      <div key={chat.id} className={`wd-chat-row ${selectedInternalChat?.id === chat.id ? "selected" : ""}`}>
+                        <button type="button" className="wd-chat-main" onClick={() => { setSelectedInternalChatId(chat.id); markInternalChatRead(chat.id); }}>
+                          <Avatar name={name} size={44} />
+                          <span className="wd-chat-text">
+                            <span className="wd-chat-top"><b>{name}</b><small className={chat.unread ? "unread" : ""}>{last?.time || ""}</small></span>
+                            <span className="wd-chat-bottom">
+                              <span>{preview}</span>
+                              <span className="wd-chat-icons">{chat.pinned ? "📌" : ""}{chat.favorite ? "★" : ""}{chat.archived ? "🗄" : ""}{chat.unread ? <b>{chat.unread}</b> : ""}</span>
+                            </span>
+                          </span>
+                        </button>
+                        <div className="wd-chat-actions">
+                          <button type="button" title={chat.pinned ? "Unpin" : "Pin"} onClick={() => updateInternalChat(chat.id, { pinned: !chat.pinned })}>📌</button>
+                          <button type="button" title={chat.favorite ? "Remove favorite" : "Favorite"} onClick={() => updateInternalChat(chat.id, { favorite: !chat.favorite })}>{chat.favorite ? "★" : "☆"}</button>
+                          <button type="button" title={chat.archived ? "Restore" : "Archive"} onClick={() => updateInternalChat(chat.id, { archived: !chat.archived })}>🗄</button>
+                          {isAdmin && chat.type !== "direct" && <button type="button" title="Rename" onClick={() => updateInternalChat(chat.id, { title: window.prompt("Chat name", chat.title) || chat.title })}>✏️</button>}
+                          {isAdmin && <button type="button" title="Delete chat" className="danger" onClick={() => handleDeleteChat(chat.id)}>🗑</button>}
+                        </div>
                       </div>
-                      {isAdmin && (
-                        <button type="button" className="internal-delete-btn" onClick={() => handleDeleteChat(chat.id)}>Delete</button>
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  <div className="internal-empty-state">{selectedDepartment === "Direct" ? "No direct chats yet. Pick a person on the right to start one." : "No chats match these filters."}</div>
-                )}
+                    );
+                  }) : (
+                    <div className="wd-empty-list">{selectedDepartment === "Direct" ? "No direct chats yet. Pick a person on the right to start one." : "No chats match these filters."}</div>
+                  )}
+                </div>
               </aside>
 
-              <section className="internal-conversation-panel">
-                <div className="internal-chat-header">
-                  <div>
+              <section className="wd-conversation">
+                <header className="wd-chat-head">
+                  <Avatar name={selectedInternalChat ? chatDisplayName(selectedInternalChat) : selectedDepartment} size={40} />
+                  <div className="wd-chat-title">
                     <h3>{selectedInternalChat ? chatDisplayName(selectedInternalChat) : selectedDepartment === "Direct" ? "Direct messages" : `${selectedDepartment} chat`}</h3>
-                    <p>{selectedDepartment === "Direct" ? "🔒 Private chat · only the two of you can see these messages" : `Everyone is in this group · type @ to tag ${selectedDepartment} people (${departmentUsers.length})`}</p>
+                    <p>{selectedDepartment === "Direct" ? "🔒 Private · only the two of you can see these messages" : `Everyone is in this group · type @ to tag ${selectedDepartment} people (${departmentUsers.length})`}</p>
                   </div>
-                  {selectedInternalChat && <div className="internal-header-actions">
-                    <select value={selectedInternalChat.priority || "medium"} onChange={(event) => updateInternalChat(selectedInternalChat.id, { priority: event.target.value })} aria-label="Chat priority">
-                      <option value="low">Low priority</option>
-                      <option value="medium">Medium priority</option>
-                      <option value="urgent">Urgent priority</option>
-                    </select>
-                    <button type="button" onClick={() => updateInternalChat(selectedInternalChat.id, { archived: !selectedInternalChat.archived })}>{selectedInternalChat.archived ? "Restore" : "Archive"}</button>
-                  </div>}
-                </div>
+                  <div className="wd-head-actions">
+                    {selectedInternalChat && <>
+                      <select value={selectedInternalChat.priority || "medium"} onChange={(event) => updateInternalChat(selectedInternalChat.id, { priority: event.target.value })} aria-label="Chat priority">
+                        <option value="low">🟢 Low priority</option>
+                        <option value="medium">🟡 Medium priority</option>
+                        <option value="urgent">🔴 Urgent priority</option>
+                      </select>
+                      <button type="button" onClick={() => updateInternalChat(selectedInternalChat.id, { archived: !selectedInternalChat.archived })}>{selectedInternalChat.archived ? "Restore" : "Archive"}</button>
+                    </>}
+                    <button type="button" className={`wd-team-toggle ${showTeamPanel ? "active" : ""} ${teamOverlayOpen ? "overlay-active" : ""}`} onClick={toggleTeamPanel} title={showTeamPanel ? "Hide team" : "Show team"}>👥 Team</button>
+                  </div>
+                </header>
 
-                <div className="internal-messages dm-list" ref={desktopMessagesRef}>
+                <div className="internal-messages dm-list wd-messages" ref={desktopMessagesRef}>
                   {selectedInternalChat && visibleInternalMessages(selectedInternalChat).length ? (
                     visibleInternalMessages(selectedInternalChat).map((message) => {
                       const outgoing = message.sender === currentUserName || (currentUserName === "Admin" && message.sender === "You");
@@ -2079,173 +2084,187 @@ const monthTotal =
                       );
                     })
                   ) : (
-                    <div className="dm-empty">No messages yet. Say hello to the {selectedDepartment} team 👋</div>
+                    <div className="dm-empty">No messages yet. Say hello to the {selectedDepartment === "Direct" ? "team" : `${selectedDepartment} team`} 👋</div>
                   )}
                 </div>
 
+                {selectedDepartment === "Direct" && !selectedInternalChat ? (
+                  <div className="wd-composer wd-composer-hint">Pick a person in the list on the right to start a private chat.</div>
+                ) : (
                 <div
-                  className="internal-composer"
+                  className="wd-composer"
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={(event) => {
                     event.preventDefault();
                     setAttachedFiles((files) => [...files, ...Array.from(event.dataTransfer.files || [])]);
                   }}
                 >
-                  {internalReplyTo && <div className="replying-banner">Replying to {internalReplyTo.sender}<button type="button" onClick={() => setInternalReplyTo(null)}>Cancel</button></div>}
-                  <div className="priority-picker">
-                    <span className="composer-label">Priority</span>
-                    {[['low', 'Low', 'green'], ['medium', 'Medium', 'yellow'], ['urgent', 'Urgent', 'red']].map(([value, label, tone]) => (
-                      <button type="button" key={value} className={`priority-choice ${tone} ${internalPriority === value ? "selected" : ""}`} onClick={() => setInternalPriority(value)}><span className="priority-dot" />{label}</button>
-                    ))}
-                  </div>
-                  <div className="saved-reply-row">
+                  {internalReplyTo && <div className="wd-reply-banner"><span><b>Replying to {internalReplyTo.sender}</b>{internalReplyTo.text}</span><button type="button" onClick={() => setInternalReplyTo(null)} aria-label="Cancel reply">✕</button></div>}
+                  {attachedFiles.length > 0 && (
+                    <div className="wd-attachments">
+                      {attachedFiles.map((file, index) => (
+                        <span key={`${file.name}-${index}`}>
+                          📎 {file.name}
+                          <button
+                            type="button"
+                            aria-label={`Remove ${file.name}`}
+                            onClick={() => {
+                              setAttachedFiles((files) => files.filter((_, fileIndex) => fileIndex !== index));
+                              if (attachmentInputRef.current && attachedFiles.length === 1) attachmentInputRef.current.value = "";
+                            }}
+                          >✕</button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="wd-tools">
+                    <div className="wd-priority">
+                      {[["low", "Low", "green"], ["medium", "Medium", "yellow"], ["urgent", "Urgent", "red"]].map(([value, label, tone]) => (
+                        <button type="button" key={value} className={`${tone} ${internalPriority === value ? "selected" : ""}`} onClick={() => setInternalPriority(value)}><i />{label}</button>
+                      ))}
+                    </div>
                     <select value="" onChange={(event) => { const reply = savedReplies.find((item) => item.id === event.target.value); if (reply) setInternalMessage((value) => `${value}${value ? " " : ""}${reply.text}`); }} aria-label="Insert saved reply">
-                      <option value="">Insert saved reply</option>
+                      <option value="">⚡ Saved replies</option>
                       {savedReplies.map((reply) => <option key={reply.id} value={reply.id}>{reply.title}</option>)}
                     </select>
-                    <button type="button" onClick={() => setShowSavedReplyForm((value) => !value)}>{showSavedReplyForm ? "Close" : "Save reply"}</button>
+                    <button type="button" className="wd-link" onClick={() => setShowSavedReplyForm((value) => !value)}>{showSavedReplyForm ? "Close" : "+ Save reply"}</button>
                   </div>
-                  {showSavedReplyForm && <form className="saved-reply-form" onSubmit={saveInternalReply}>
+                  {showSavedReplyForm && <form className="wd-saved-form" onSubmit={saveInternalReply}>
                     <input placeholder="Reply title" value={savedReplyDraft.title} onChange={(event) => setSavedReplyDraft((draft) => ({ ...draft, title: event.target.value }))} />
                     <input placeholder="Reply text" value={savedReplyDraft.text} onChange={(event) => setSavedReplyDraft((draft) => ({ ...draft, text: event.target.value }))} />
                     <button type="submit">Save</button>
                   </form>}
-                  <div className="message-compose-row">
-                  <div className="mention-input-wrap">
-                    {deskMention.open && <MentionSuggestions people={deskMention.suggestions} department={selectedDepartment} onPick={deskMention.pick} />}
-                    <input
-                      ref={deskInputRef}
-                      type="text"
-                      value={internalMessage}
-                      onChange={deskMention.onChange}
-                      onKeyDown={deskMention.onKeyDown}
-                      onBlur={() => setTimeout(deskMention.close, 150)}
-                      placeholder={selectedDepartment === "Direct" ? `Message ${selectedInternalChat ? chatDisplayName(selectedInternalChat) : ""}…` : `Message ${selectedInternalChat ? chatDisplayName(selectedInternalChat) : selectedDepartment}… (type @ to tag ${selectedDepartment})`}
-                    />
-                  </div>
-                  {selectedDepartment !== "Direct" && <button type="button" className="mention-at-btn" title={`Tag someone from ${selectedDepartment}`} onClick={deskMention.openPicker}>@ Tag</button>}
-                  <label className="internal-file-picker">
-                    <input
-                      ref={attachmentInputRef}
-                      type="file"
-                      multiple
-                      accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
-                      onChange={(event) => setAttachedFiles((files) => [...files, ...Array.from(event.target.files || [])])}
-                    />
-                    Attach file
-                  </label>
-                  <button className="internal-send-button" type="button" onClick={handleSendInternalMessage}>
-                    {Icon.send}
-                    Send
-                  </button>
+                  <div className="wd-input-row">
+                    <label className="wd-icon-btn" title="Attach file">
+                      <input
+                        ref={attachmentInputRef}
+                        type="file"
+                        multiple
+                        hidden
+                        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+                        onChange={(event) => setAttachedFiles((files) => [...files, ...Array.from(event.target.files || [])])}
+                      />
+                      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.4 11.1l-9.2 9.2a6 6 0 01-8.5-8.5l9.2-9.2a4 4 0 015.7 5.7l-9.2 9.2a2 2 0 01-2.8-2.8l8.5-8.5" /></svg>
+                    </label>
+                    {selectedDepartment !== "Direct" && <button type="button" className="wd-icon-btn wd-at" title={`Tag someone from ${selectedDepartment}`} onClick={deskMention.openPicker}>@</button>}
+                    <div className="mention-input-wrap wd-input">
+                      {deskMention.open && <MentionSuggestions people={deskMention.suggestions} department={selectedDepartment} onPick={deskMention.pick} />}
+                      <input
+                        ref={deskInputRef}
+                        type="text"
+                        value={internalMessage}
+                        onChange={deskMention.onChange}
+                        onKeyDown={deskMention.onKeyDown}
+                        onBlur={() => setTimeout(deskMention.close, 150)}
+                        placeholder={selectedDepartment === "Direct" ? "Type a message" : `Type a message · @ to tag ${selectedDepartment}`}
+                      />
+                    </div>
+                    <button className="wd-send" type="button" onClick={handleSendInternalMessage} title="Send" aria-label="Send">{Icon.send}</button>
                   </div>
                 </div>
-
-                {attachedFiles.length > 0 && (
-                  <div className="attachment-preview-row">
-                    {attachedFiles.map((file, index) => (
-                      <span key={`${file.name}-${index}`} className="attachment-preview-chip">
-                        <span className="message-attachment">{file.name}</span>
-                        <button
-                          type="button"
-                          className="attachment-remove-btn"
-                          aria-label={`Remove ${file.name}`}
-                          onClick={() => {
-                            setAttachedFiles((files) => files.filter((_, fileIndex) => fileIndex !== index));
-                            if (attachmentInputRef.current && attachedFiles.length === 1) attachmentInputRef.current.value = "";
-                          }}
-                        >
-                          ×
-                        </button>
-                      </span>
-                    ))}
-                  </div>
                 )}
-
               </section>
 
-              <aside className="internal-team-panel">
-                <div className="internal-panel-header">{selectedDepartment === "Direct" ? "Start a chat" : `Members (${internalUsers.length + 1})`}</div>
-                {selectedDepartment === "Direct" ? (
-                  <div className="internal-team-list">
-                    {directPeople.map((person) => (
-                      <button type="button" key={person.key} className="internal-team-card direct-person" onClick={() => startDirectChat(person.key)}>
-                        <div className="internal-team-name">{person.name}</div>
-                        <div className="internal-team-role">{person.role}</div>
-                        <span className="direct-person-cta">Message</span>
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                <>
-                <div className="internal-team-subhead">{selectedDepartment} · can be tagged here</div>
-                <div className="internal-team-list">
-                  {departmentUsers.length ? departmentUsers.map((user) => (
-                    <div key={user.id} className="internal-team-card">
-                      <div className="internal-team-head">
-                        <div>
-                          <div className="internal-team-name">{user.name}</div>
-                          <div className="internal-team-role">{user.role}</div>
-                        </div>
-                        {isAdmin && (
-                          <button type="button" className="internal-delete-row" onClick={() => handleDeleteUser(user.id)}>Delete</button>
-                        )}
-                      </div>
-                      <div className="internal-tags">
-                        {(user.tags || []).map((tag) => <span key={tag} className="team-tag">#{tag}</span>)}
-                      </div>
-                      {String(user.id) !== myChatKey && <button type="button" className="direct-person-cta" onClick={() => startDirectChat(String(user.id))}>Message</button>}
-                    </div>
-                  )) : <div className="internal-empty-state">No team members for this department yet.</div>}
+              <aside className="wd-team">
+                <div className="wd-team-head">
+                  <h3>{selectedDepartment === "Direct" ? "Start a chat" : "Team"}</h3>
+                  <span>{selectedDepartment === "Direct" ? directPeople.length : internalUsers.length + 1} people</span>
+                  <button type="button" className="wd-close" onClick={toggleTeamPanel} aria-label="Hide team">✕</button>
                 </div>
-                <div className="internal-team-subhead">Other members</div>
-                <div className="internal-team-list internal-team-compact">
-                  {internalUsers.filter((user) => user.department !== selectedDepartment).map((user) => (
-                    <div key={user.id} className="internal-member-row">
-                      <span><b>{user.name}</b><small>{user.department}</small></span>
-                      {String(user.id) !== myChatKey && <button type="button" className="direct-person-cta" onClick={() => startDirectChat(String(user.id))}>Message</button>}
-                    </div>
-                  ))}
+                <div className="wd-search wd-team-search">
+                  {Icon.search}
+                  <input value={teamSearch} onChange={(event) => setTeamSearch(event.target.value)} placeholder="Search people" />
                 </div>
-                </>
-                )}
+                <div className="wd-team-body">
+                  {selectedDepartment === "Direct" ? (
+                    <div className="wd-people">
+                      {directPeople.filter((person) => matchesTeamSearch(person.name, person.role)).map((person) => (
+                        <button type="button" key={person.key} className="wd-person is-clickable" onClick={() => startDirectChat(person.key)}>
+                          <Avatar name={person.name} size={38} />
+                          <span className="wd-person-text"><b>{person.name}</b><small>{person.role}</small></span>
+                          <span className="wd-person-msg" aria-hidden="true">{Icon.chat}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="wd-team-subhead"><span>{selectedDepartment}</span><small>can be tagged here · {departmentUsers.length}</small></div>
+                      <div className="wd-people">
+                        {departmentUsers.filter((user) => matchesTeamSearch(user.name, user.role)).map((user) => (
+                          <div key={user.id} className="wd-person">
+                            <Avatar name={user.name} size={38} />
+                            <span className="wd-person-text">
+                              <b>{user.name}{String(user.id) === myChatKey ? " (you)" : ""}</b>
+                              <small>{user.role}{(user.tags || []).length ? ` · ${(user.tags || []).map((tag) => `#${tag}`).join(" ")}` : ""}</small>
+                            </span>
+                            {String(user.id) !== myChatKey && <button type="button" className="wd-person-msg" title={`Message ${user.name}`} onClick={() => startDirectChat(String(user.id))}>{Icon.chat}</button>}
+                            {isAdmin && <button type="button" className="wd-person-del" title={`Delete ${user.name}`} onClick={() => handleDeleteUser(user.id)}>🗑</button>}
+                          </div>
+                        ))}
+                        {!departmentUsers.length && <div className="wd-empty-list">No team members in {selectedDepartment} yet.</div>}
+                      </div>
+                      {departments.filter((department) => department !== selectedDepartment).map((department) => {
+                        const people = internalUsers.filter((user) => user.department === department && matchesTeamSearch(user.name, user.role));
+                        if (!people.length) return null;
+                        return (
+                          <div key={department}>
+                            <div className="wd-team-subhead"><span>{department}</span><small>{people.length}</small></div>
+                            <div className="wd-people">
+                              {people.map((user) => (
+                                <div key={user.id} className="wd-person">
+                                  <Avatar name={user.name} size={38} />
+                                  <span className="wd-person-text"><b>{user.name}{String(user.id) === myChatKey ? " (you)" : ""}</b><small>{user.role}</small></span>
+                                  {String(user.id) !== myChatKey && <button type="button" className="wd-person-msg" title={`Message ${user.name}`} onClick={() => startDirectChat(String(user.id))}>{Icon.chat}</button>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
 
-                {isAdmin && <><div className="internal-panel-header">Add employee</div>
-                <form className="internal-add-user" onSubmit={handleAddEmployee}>
-                  <input
-                    type="text"
-                    placeholder="Employee name"
-                    value={newEmployee.name}
-                    onChange={(event) => setNewEmployee((prev) => ({ ...prev, name: event.target.value }))}
-                  />
-                  <select
-                    value={newEmployee.department}
-                    onChange={(event) => setNewEmployee((prev) => ({ ...prev, department: event.target.value }))}
-                  >
-                    {departments.map((department) => <option key={department} value={department}>{department}</option>)}
-                  </select>
-                  <input
-                    type="text"
-                    placeholder="Role"
-                    value={newEmployee.role}
-                    onChange={(event) => setNewEmployee((prev) => ({ ...prev, role: event.target.value }))}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Tags, comma separated"
-                    value={newEmployee.tags}
-                    onChange={(event) => setNewEmployee((prev) => ({ ...prev, tags: event.target.value }))}
-                  />
-                  <button type="submit">Add employee</button>
-                </form>
-                {employeeCredentials && (
-                  <div className="employee-credentials">
-                    <strong>Login created</strong>
-                    <span>Username: <b>{employeeCredentials.username}</b></span>
-                    <span>Password: <b>{employeeCredentials.password}</b></span>
-                    <small>Share these details securely. The password is shown once.</small>
-                  </div>
-                )}</>}
+                  {isAdmin && (
+                    <details className="wd-add-employee">
+                      <summary>+ Add employee</summary>
+                      <form className="internal-add-user" onSubmit={handleAddEmployee}>
+                        <input
+                          type="text"
+                          placeholder="Employee name"
+                          value={newEmployee.name}
+                          onChange={(event) => setNewEmployee((prev) => ({ ...prev, name: event.target.value }))}
+                        />
+                        <select
+                          value={newEmployee.department}
+                          onChange={(event) => setNewEmployee((prev) => ({ ...prev, department: event.target.value }))}
+                        >
+                          {departments.map((department) => <option key={department} value={department}>{department}</option>)}
+                        </select>
+                        <input
+                          type="text"
+                          placeholder="Role"
+                          value={newEmployee.role}
+                          onChange={(event) => setNewEmployee((prev) => ({ ...prev, role: event.target.value }))}
+                        />
+                        <input
+                          type="text"
+                          placeholder="Tags, comma separated"
+                          value={newEmployee.tags}
+                          onChange={(event) => setNewEmployee((prev) => ({ ...prev, tags: event.target.value }))}
+                        />
+                        <button type="submit">Add employee</button>
+                      </form>
+                      {employeeCredentials && (
+                        <div className="employee-credentials">
+                          <strong>Login created</strong>
+                          <span>Username: <b>{employeeCredentials.username}</b></span>
+                          <span>Password: <b>{employeeCredentials.password}</b></span>
+                          <small>Share these details securely. The password is shown once.</small>
+                        </div>
+                      )}
+                    </details>
+                  )}
+                </div>
               </aside>
             </div>
 

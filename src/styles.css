@@ -3765,3 +3765,117 @@ button.wa-notify-banner { cursor: pointer; }
   .ootm-table tr.is-winner td { background: transparent; }
   .ootm-profile-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Desktop internal chat (WhatsApp Web style) */
+.main-content.is-chat-view { padding: 16px 20px; }
+.main-content.is-chat-view > .page-header { display: none; }
+.wd-layout { display: grid; grid-template-columns: 340px minmax(0, 1fr) 300px; height: calc(100vh - 32px); min-height: 560px; overflow: hidden; border: 1px solid #e3e6ea; border-radius: 16px; background: #fff; box-shadow: 0 8px 30px rgba(11, 20, 26, .08); text-align: left; }
+.wd-layout.team-hidden { grid-template-columns: 340px minmax(0, 1fr); }
+.wd-layout.team-hidden .wd-team { display: none; }
+.wd-sidebar, .wd-team { display: flex; flex-direction: column; min-height: 0; background: #fff; }
+.wd-sidebar { border-right: 1px solid #e9edef; }
+.wd-team { border-left: 1px solid #e9edef; }
+.wd-side-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 16px 16px 8px; }
+.wd-side-head h2 { margin: 0; color: #111b21; font-size: 21px; font-weight: 800; }
+.wd-notify-btn { padding: 5px 10px; border: 0; border-radius: 999px; background: #fff4d6; color: #7a5a00; font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+.wd-departments { display: flex; gap: 6px; padding: 4px 16px 8px; overflow-x: auto; scrollbar-width: none; }
+.wd-departments::-webkit-scrollbar { display: none; }
+.wd-departments button, .wd-filters button { flex: none; padding: 6px 12px; border: 0; border-radius: 999px; background: #f0f2f5; color: #54656f; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.wd-departments button.active { background: #111b21; color: #fff; }
+.wd-filters button.active { background: #d9fdd3; color: #008069; }
+.wd-search { display: flex; align-items: center; gap: 10px; margin: 2px 16px 8px; padding: 0 12px; border-radius: 10px; background: #f0f2f5; color: #54656f; }
+.wd-search input { flex: 1; min-width: 0; height: 36px; border: 0; background: transparent; color: #111b21; font: inherit; font-size: 13.5px; outline: none; }
+.wd-filters { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 10px; border-bottom: 1px solid #f0f2f5; }
+.wd-filters button { padding: 4px 11px; font-size: 12px; }
+.wd-chat-list { flex: 1; min-height: 0; overflow-y: auto; }
+.wd-chat-row { position: relative; }
+.wd-chat-main { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 16px; border: 0; border-bottom: 1px solid #f0f2f5; background: transparent; font: inherit; text-align: left; cursor: pointer; }
+.wd-chat-row:hover .wd-chat-main { background: #f5f6f6; }
+.wd-chat-row.selected .wd-chat-main { background: #f0f2f5; }
+.wd-chat-text { display: grid; gap: 3px; flex: 1; min-width: 0; }
+.wd-chat-top, .wd-chat-bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.wd-chat-top b { overflow: hidden; color: #111b21; font-size: 15px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.wd-chat-top small { flex: none; color: #667781; font-size: 11.5px; }
+.wd-chat-top small.unread { color: #1daa61; font-weight: 700; }
+.wd-chat-bottom > span:first-child { overflow: hidden; color: #667781; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.wd-chat-icons { display: flex; flex: none; align-items: center; gap: 4px; color: #8696a0; font-size: 12px; }
+.wd-chat-icons b { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: #25d366; color: #fff; font-size: 11px; }
+.wd-chat-actions { position: absolute; right: 12px; bottom: 6px; display: none; gap: 2px; padding: 2px; border-radius: 8px; background: #fff; box-shadow: 0 2px 8px rgba(11, 20, 26, .15); }
+.wd-chat-row:hover .wd-chat-actions, .wd-chat-actions:focus-within { display: flex; }
+.wd-chat-actions button { width: 28px; height: 26px; border: 0; border-radius: 6px; background: transparent; font-size: 13px; cursor: pointer; }
+.wd-chat-actions button:hover { background: #f0f2f5; }
+.wd-chat-actions button.danger:hover { background: #fde8e8; }
+.wd-empty-list { padding: 24px 18px; color: #667781; font-size: 13px; text-align: center; }
+
+.wd-conversation { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: #efeae2; }
+.wd-chat-head { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid #e9edef; background: #f0f2f5; }
+.wd-chat-title { flex: 1; min-width: 0; }
+.wd-chat-title h3 { margin: 0; overflow: hidden; color: #111b21; font-size: 16px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.wd-chat-title p { margin: 1px 0 0; overflow: hidden; color: #667781; font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
+.wd-head-actions { display: flex; flex: none; align-items: center; gap: 6px; }
+.wd-head-actions select, .wd-head-actions button { height: 34px; padding: 0 12px; border: 1px solid #d1d7db; border-radius: 999px; background: #fff; color: #3b4a54; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.wd-head-actions button.active { border-color: #00a884; background: #e7f8f1; color: #008069; }
+.internal-messages.dm-list.wd-messages { flex: 1; min-height: 0; max-height: none; margin: 0; overflow-y: auto; border-radius: 0; }
+.wd-composer { display: grid; gap: 6px; padding: 8px 14px 10px; border-top: 1px solid #e9edef; background: #f0f2f5; }
+.wd-composer-hint { padding: 18px; color: #667781; font-size: 13px; text-align: center; }
+.wd-reply-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border-left: 4px solid #06cf9c; border-radius: 8px; background: #fff; }
+.wd-reply-banner span { display: grid; min-width: 0; color: #667781; font-size: 12.5px; }
+.wd-reply-banner span b { color: #008069; }
+.wd-reply-banner button, .wd-attachments button { border: 0; background: transparent; color: #667781; cursor: pointer; }
+.wd-attachments { display: flex; flex-wrap: wrap; gap: 6px; }
+.wd-attachments span { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 10px; border-radius: 999px; background: #fff; font-size: 12px; }
+.wd-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.wd-priority { display: flex; gap: 4px; }
+.wd-priority button { display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px; border: 1px solid transparent; border-radius: 999px; background: transparent; color: #54656f; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.wd-priority button i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.wd-priority button.green { color: #15803d; } .wd-priority button.yellow { color: #a16207; } .wd-priority button.red { color: #dc2626; }
+.wd-priority button.selected { border-color: currentColor; background: #fff; }
+.wd-tools select { height: 26px; max-width: 200px; padding: 0 8px; border: 1px solid #d1d7db; border-radius: 999px; background: #fff; color: #3b4a54; font: inherit; font-size: 12px; }
+.wd-link { border: 0; background: transparent; color: #008069; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.wd-saved-form { display: grid; grid-template-columns: 1fr 2fr auto; gap: 6px; }
+.wd-saved-form input { height: 34px; padding: 0 10px; border: 1px solid #d1d7db; border-radius: 8px; font: inherit; font-size: 13px; }
+.wd-saved-form button { padding: 0 14px; border: 0; border-radius: 8px; background: #00a884; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.wd-input-row { display: flex; align-items: center; gap: 6px; }
+.wd-icon-btn { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border: 0; border-radius: 50%; background: transparent; color: #54656f; font: inherit; font-size: 19px; font-weight: 700; cursor: pointer; }
+.wd-icon-btn:hover { background: #e2e6e9; }
+.wd-input { flex: 1; min-width: 0; }
+.wd-input input { width: 100%; height: 42px; padding: 0 16px; border: 0; border-radius: 10px; background: #fff; color: #111b21; font: inherit; font-size: 14.5px; outline: none; }
+.wd-send { display: grid; place-items: center; width: 42px; height: 42px; flex: none; border: 0; border-radius: 50%; background: #00a884; color: #fff; cursor: pointer; }
+.wd-send:hover { background: #008f72; }
+.wd-send svg { width: 18px; height: 18px; }
+
+.wd-team-head { display: flex; align-items: baseline; gap: 8px; padding: 16px 16px 8px; }
+.wd-team-head h3 { margin: 0; color: #111b21; font-size: 17px; font-weight: 800; }
+.wd-team-head span { flex: 1; color: #667781; font-size: 12px; }
+.wd-close { border: 0; background: transparent; color: #8696a0; font-size: 14px; cursor: pointer; }
+.wd-team-body { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 12px; }
+.wd-team-subhead { position: sticky; top: 0; z-index: 1; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 10px 16px 6px; background: #fff; }
+.wd-team-subhead span { color: #008069; font-size: 11.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.wd-team-subhead small { color: #8696a0; font-size: 11px; }
+.wd-people { display: grid; }
+.wd-person { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 16px; border: 0; background: transparent; font: inherit; text-align: left; }
+.wd-person:hover { background: #f5f6f6; }
+.wd-person.is-clickable { cursor: pointer; }
+.wd-person-text { display: grid; flex: 1; min-width: 0; }
+.wd-person-text b { overflow: hidden; color: #111b21; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.wd-person-text small { overflow: hidden; color: #667781; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.wd-person-msg, .wd-person-del { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border: 0; border-radius: 50%; background: transparent; color: #00a884; cursor: pointer; }
+.wd-person-msg svg { width: 17px; height: 17px; }
+.wd-person-msg:hover { background: #e7f8f1; }
+.wd-person-del { display: none; font-size: 13px; }
+.wd-person:hover .wd-person-del { display: grid; }
+.wd-person-del:hover { background: #fde8e8; }
+.is-chat-view .internal-toast { top: 84px; right: 28px; bottom: auto; z-index: 20; display: grid; gap: 2px; text-align: left; }
+.is-chat-view .internal-toast .toast-header { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+.wd-add-employee { margin: 12px 16px 0; padding: 10px 12px; border: 1px dashed #d1d7db; border-radius: 12px; }
+.wd-add-employee summary { color: #008069; font-size: 13px; font-weight: 700; cursor: pointer; }
+.wd-add-employee .internal-add-user { margin-top: 10px; }
+
+@media (max-width: 1280px) {
+  .wd-layout, .wd-layout.team-hidden { grid-template-columns: 300px minmax(0, 1fr); position: relative; }
+  .wd-layout .wd-team, .wd-layout.team-hidden .wd-team { position: absolute; top: 0; right: 0; bottom: 0; width: 300px; z-index: 5; display: none; box-shadow: -8px 0 24px rgba(11, 20, 26, .12); }
+  .wd-layout.team-overlay-open .wd-team { display: flex; }
+  .wd-head-actions .wd-team-toggle.active { border-color: #d1d7db; background: #fff; color: #3b4a54; }
+  .wd-head-actions .wd-team-toggle.overlay-active { border-color: #00a884; background: #e7f8f1; color: #008069; }
+  .wd-head-actions select { max-width: 150px; }
+}

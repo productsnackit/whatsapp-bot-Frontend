@@ -20,7 +20,7 @@ function colorFor(name) {
   return AVATAR_COLORS[hash % AVATAR_COLORS.length];
 }
 
-function Avatar({ name, size = 46 }) {
+export function Avatar({ name, size = 46 }) {
   return (
     <span className="wa-avatar" style={{ width: size, height: size, background: colorFor(name), fontSize: size * 0.36 }}>
       {initials(name)}
