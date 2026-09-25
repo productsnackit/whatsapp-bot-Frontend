@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { parseCsv } from "./csv.js";
 
 const API = axios.create({ baseURL: "https://whatsapp-bot-backend-b3nb.onrender.com" });
 
@@ -39,6 +40,34 @@ function downloadCsv(filename, rows) {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+// CSV headers we understand (Export CSV's own columns plus common alternatives), matched ignoring case and spaces.
+const IMPORT_COLUMNS = {
+  ref: ["ref", "refid", "reference", "auditid", "findingid", "id"],
+  department: ["department", "dept", "area", "departmentprocessarea"],
+  observed_on: ["observed", "observedon", "observationdate", "dateobserved", "date"],
+  title: ["finding", "title", "findingtitle", "nonconformance", "auditfindingtitle"],
+  description: ["evidence", "description", "observation", "detailedobservation", "whatwasobserved"],
+  risk: ["risk", "risklevel", "severity"],
+  status: ["status", "lifecyclestatus"],
+  root_cause: ["rootcause", "rca"],
+  action_plan: ["actionplan", "capa", "capaplan", "correctiveaction"],
+  assignee_name: ["actionowner", "owner", "assignee", "responsible"],
+  due_date: ["due", "duedate", "targetdate", "targetcompletionduedate"],
+  created_by: ["loggedby", "createdby"],
+};
+const TEMPLATE_HEADER = ["Ref", "Department", "Observed", "Finding", "Evidence", "Risk", "Status", "Root cause", "Action plan", "Action owner", "Due"];
+
+function findingRowsFromCsv(text) {
+  const [header, ...lines] = parseCsv(text.replace(/^\uFEFF/, ""));
+  if (!header) return [];
+  const keys = header.map((cell) => {
+    const name = cell.toLowerCase().replace(/[^a-z]/g, "");
+    return Object.keys(IMPORT_COLUMNS).find((key) => IMPORT_COLUMNS[key].includes(name)) || null;
+  });
+  if (!keys.includes("title")) throw new Error('The file needs a "Finding" (title) column. Download the template to see the columns.');
+  return lines.map((cells) => Object.fromEntries(keys.map((key, i) => [key, cells[i]]).filter(([key]) => key)));
 }
 
 const emptyForm = (department) => ({
@@ -231,6 +260,8 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
   const [followUpId, setFollowUpId] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
 
   const notify = useCallback((message, isError = false) => {
     setToast({ message, isError });
@@ -345,6 +376,31 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
     ...filtered.map((f) => [f.ref, f.department, dateOnly(f.observed_on), f.title, f.description, f.risk, f.status, f.root_cause, f.action_plan, f.assignee_name, dateOnly(f.due_date), isOverdue(f) ? "YES" : "NO", (f.follow_ups || []).length, f.created_by]),
   ]);
 
+  const importCsv = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const rows = findingRowsFromCsv(await file.text());
+      if (!rows.length) throw new Error("The file has no finding rows.");
+      const response = await API.post("/findings/import", { rows }, { headers });
+      setImportResult(response.data);
+      if (response.data.inserted) notify(`Imported ${response.data.inserted} finding${response.data.inserted === 1 ? "" : "s"}`);
+      load();
+    } catch (err) {
+      setImportResult({ inserted: 0, skipped: 0, errors: [err.response?.data?.error || err.message || "Import failed"] });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const downloadTemplate = () => downloadCsv("Snackit_Audit_Findings_Template.csv", [
+    TEMPLATE_HEADER,
+    ["", "Accounts", today(), "Refunds approved without UPI proof", "7 of 20 September refunds had no proof attached", "Major", "Open", "No checklist in refund SOP", "Add proof upload step; retrain team", "Deepika", today()],
+  ]);
+
   const followUpFinding = findings.find((f) => f.id === followUpId);
 
   return (
@@ -398,11 +454,28 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
           </div>
           <div className="fnd-actions">
             <button type="button" className="audit-btn" onClick={exportCsv} disabled={!filtered.length}>Export CSV</button>
+            {isAdmin && (
+              <>
+                <label className={`audit-btn ${importing ? "is-busy" : ""}`}>
+                  {importing ? "Importing…" : "Import CSV"}
+                  <input type="file" accept=".csv,text/csv" onChange={importCsv} disabled={importing} hidden />
+                </label>
+                <button type="button" className="audit-btn fnd-template-btn" onClick={downloadTemplate} title="Download a CSV with the right columns">Template</button>
+              </>
+            )}
             <button type="button" className="audit-btn" onClick={() => window.print()} disabled={!filtered.length}>Print</button>
             <button type="button" className="audit-btn audit-btn-primary" onClick={() => { setFormError(""); setEditing(emptyForm(deptFilter !== "ALL" ? deptFilter : undefined)); }}>+ Log finding</button>
           </div>
         </div>
       </section>
+
+      {importResult && (
+        <div className={importResult.errors.length ? "audit-error audit-import-result" : "audit-import-result audit-import-ok"}>
+          <b>Import finished:</b> {importResult.inserted} added, {importResult.skipped} already existed (skipped){importResult.errors.length ? `, ${importResult.errors.length} not imported:` : "."}
+          {importResult.errors.length > 0 && <ul>{importResult.errors.slice(0, 20).map((e) => <li key={e}>{e}</li>)}</ul>}
+          <button type="button" className="audit-link-danger" onClick={() => setImportResult(null)}>Dismiss</button>
+        </div>
+      )}
 
       <section className="audit-card">
         <div className="audit-card-head">
