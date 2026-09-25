@@ -10,6 +10,9 @@ import { getPushState, enablePush, syncPush, disablePush, showLocalNotification,
 import NotificationSettings from "./NotificationSettings.jsx";
 import { UpiIdCell, UpiScanSummary, UpiScanDetails } from "./UpiScan.jsx";
 import TicketChat from "./TicketChat.jsx";
+import EmployeesAccess from "./EmployeesAccess.jsx";
+import ActivityLog from "./ActivityLog.jsx";
+import AccountPanel from "./AccountPanel.jsx";
 import MentionText, { MentionSuggestions, TaskLine } from "./MentionText.jsx";
 import { useMentionInput, mentionIds } from "./mentions.js";
 import {
@@ -31,6 +34,24 @@ const LAUNCH_VIEW = ["internal-chat", "findings"].includes(LAUNCH_PARAMS.get("vi
 const LAUNCH_CHAT = LAUNCH_PARAMS.get("chat") ? { chatId: LAUNCH_PARAMS.get("chat"), department: LAUNCH_PARAMS.get("department") } : null;
 // A "customer replied" notification opens ?view=tickets&ticket=<id>&phone=<phone>
 const LAUNCH_TICKET = LAUNCH_PARAMS.get("ticket") ? { ticketId: LAUNCH_PARAMS.get("ticket"), phone: LAUNCH_PARAMS.get("phone") || "" } : null;
+// Pages a person can be given (the server decides; this mirrors it for the menu).
+const ALL_PAGE_KEYS = ["tickets", "feedback", "products", "operations", "audit", "findings", "expiry", "analytics", "activity", "settings"];
+const OPERATIONS_VIEWS = ["inventory", "clients", "brands", "performance", "leads", "routes", "demand", "import"];
+// Until the server answers /me, people keep what they had before roles existed.
+function defaultAccess(role, department) {
+  if (role === "admin") return { accessRole: "admin", roleLabel: "Owner", pages: ALL_PAGE_KEYS, readOnly: false, isAdmin: true };
+  const pages = department === "Operations" ? ["operations", "audit", "findings", "expiry"] : department === "Audit" ? ["audit", "findings", "expiry"] : ["findings", "expiry"];
+  return { accessRole: "staff", roleLabel: "Staff", pages, readOnly: false, isAdmin: false };
+}
+function readStoredAccess() {
+  try {
+    return JSON.parse(localStorage.getItem("userAccess") || "null");
+  } catch {
+    return null;
+  }
+}
+const pickAccess = (data) => ({ accessRole: data.accessRole, roleLabel: data.roleLabel, pages: data.pages || [], readOnly: Boolean(data.readOnly), isAdmin: Boolean(data.isAdmin) });
+
 // Older chats begin with an automatic "New <department> team chat started." message; don't show it.
 const isChatStartedNotice = (message) => message?.sender === "Admin" && /^New .+ team chat started\.$/.test(String(message.text || "").trim());
 
@@ -152,6 +173,9 @@ export default function App() {
   const [currentUserName, setCurrentUserName] = useState(localStorage.getItem("userName") || "Admin");
   const [currentUserDepartment, setCurrentUserDepartment] = useState(localStorage.getItem("userDepartment") || "Accounts");
   const [currentUserId, setCurrentUserId] = useState(localStorage.getItem("userId") || "");
+  const [currentUsername, setCurrentUsername] = useState(localStorage.getItem("userUsername") || "");
+  const [access, setAccess] = useState(readStoredAccess);
+  const [showAccount, setShowAccount] = useState(false);
   const [employeeCredentials, setEmployeeCredentials] = useState(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -182,7 +206,22 @@ const [refundAmountInput, setRefundAmountInput] = useState("");
 const [totalRefundToday, setTotalRefundToday] = useState(0);
 const [totalRefundMonth, setTotalRefundMonth] = useState(0);
 
-  const [view, setView] = useState(LAUNCH_VIEW || (localStorage.getItem("userRole") === "employee" ? "internal-chat" : "tickets"));
+  const [requestedView, setView] = useState(LAUNCH_VIEW || "tickets");
+  // The shared owner login is "admin" in chats; named admins keep their own chat identity.
+  const isOwner = userRole === "admin";
+  const myAccess = access || defaultAccess(userRole, currentUserDepartment);
+  const isAdmin = isOwner || Boolean(myAccess.isAdmin);
+  const can = (page) => isAdmin || (myAccess.pages || []).includes(page);
+  const canAccessOperations = can("operations");
+  const canAccessAudit = can("audit");
+  // A page someone can't open falls back to their home page.
+  const viewAllowed = (name) => {
+    if (OPERATIONS_VIEWS.includes(name)) return canAccessOperations;
+    if (["employees", "admin-settings"].includes(name)) return isAdmin;
+    if (name === "internal-chat") return true;
+    return ALL_PAGE_KEYS.includes(name) ? can(name) : false;
+  };
+  const view = viewAllowed(requestedView) ? requestedView : can("tickets") ? "tickets" : "internal-chat";
   // Mobile-only UI state (ignored by the desktop layout)
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobileChatPane, setMobileChatPane] = useState(LAUNCH_CHAT ? "conversation" : "list");
@@ -211,9 +250,6 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const [ticketDraft, setTicketDraft] = useState({ priority: "normal", assigned_to: "", admin_notes: "" });
 
   const departments = ["Accounts", "HR", "Operations", "Product", "Audit", "Technical", "Orders", "Logistics"];
-  const isAdmin = userRole === "admin";
-  const canAccessOperations = isAdmin || (userRole === "employee" && currentUserDepartment === "Operations");
-  const canAccessAudit = isAdmin || (userRole === "employee" && ["Operations", "Audit"].includes(currentUserDepartment));
   const [internalUsers, setInternalUsers] = useState([]);
   const [internalChats, setInternalChats] = useState([]);
   const [selectedDepartment, setSelectedDepartment] = useState(LAUNCH_CHAT?.department || localStorage.getItem("userDepartment") || "Accounts");
@@ -249,8 +285,6 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const [savedReplyDraft, setSavedReplyDraft] = useState({ title: "", text: "" });
   const [notificationToast, setNotificationToast] = useState(null);
   const [newEmployee, setNewEmployee] = useState({ name: "", department: "Accounts", role: "Analyst", tags: "finance, operations" });
-  const [editingEmployeeId, setEditingEmployeeId] = useState(null);
-  const [employeeDraft, setEmployeeDraft] = useState({});
   const [adminProfile, setAdminProfile] = useState(() => ({
     displayName: localStorage.getItem("adminDisplayName") || "Snackit Admin",
     email: localStorage.getItem("adminEmail") || "",
@@ -352,7 +386,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const departmentUsers = internalUsers.filter((user) => user.department === selectedDepartment);
   const departmentChats = internalChats.filter((chat) => chat.department === selectedDepartment);
   // Direct (one-to-one) chats live under the "Direct" tab; the server only sends your own.
-  const myChatKey = isAdmin ? "admin" : String(currentUserId);
+  const myChatKey = isOwner ? "admin" : String(currentUserId);
   const nameForChatKey = (key) => (key === "admin" ? "Admin" : internalUsers.find((user) => String(user.id) === String(key))?.name);
   const chatDisplayName = (chat) => {
     if (chat?.type !== "direct") return chat?.title || "";
@@ -619,27 +653,6 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
     }
   };
 
-  const startEditingEmployee = (user) => {
-    setEditingEmployeeId(user.id);
-    setEmployeeDraft({ ...user, tags: (user.tags || []).join(", ") });
-  };
-
-  const saveEmployee = async () => {
-    if (!editingEmployeeId) return;
-    try {
-      const response = await API.patch(`/internal/users/${editingEmployeeId}`, employeeDraft, { headers: authHeaders() });
-      if (response.data?.user) {
-        setInternalUsers((prev) => prev.map((user) => String(user.id) === String(response.data.user.id) ? response.data.user : user));
-      }
-      setEditingEmployeeId(null);
-      setEmployeeDraft({});
-      triggerInternalNotification("Employee details updated", "low", `${employeeDraft.name} profile and login details were saved.`);
-    } catch (err) {
-      alert("Failed to update employee details");
-      console.log(err);
-    }
-  };
-
   // ✅ Track previous message count and typing timeout for indicator
   const prevMessageCountRef = useRef(0);
   const typingTimeoutRef = useRef(null);
@@ -658,16 +671,20 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       localStorage.setItem("userName", res.data.name || "Admin");
       localStorage.setItem("userDepartment", res.data.department || "Accounts");
       localStorage.setItem("userId", res.data.userId || "");
+      localStorage.setItem("userUsername", res.data.username || "");
+      localStorage.setItem("userAccess", JSON.stringify(pickAccess(res.data)));
+      setCurrentUsername(res.data.username || "");
+      setAccess(pickAccess(res.data));
       setToken(res.data.token);
       setUserRole(res.data.role || "admin");
       setCurrentUserName(res.data.name || "Admin");
       setCurrentUserDepartment(res.data.department || "Accounts");
       setCurrentUserId(res.data.userId || "");
       setSelectedDepartment(res.data.department || "Accounts");
-      setView(LAUNCH_VIEW || (res.data.role === "employee" ? "internal-chat" : "tickets"));
+      setView(LAUNCH_VIEW || (res.data.isAdmin || (res.data.pages || []).includes("tickets") ? "tickets" : "internal-chat"));
       setSessionExpired(false);
-    } catch {
-      alert("Login failed");
+    } catch (err) {
+      alert(err.response?.status === 401 ? "Wrong username or password" : "Login failed. Check your connection and try again.");
     } finally {
       setLoginInProgress(false);
     }
@@ -720,12 +737,17 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const logoutRef = useRef(null);
   const logout = () => {
     disablePush(API, { Authorization: `Bearer ${token}` });
+    API.post("/logout", {}, { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
     setPushState("off");
     localStorage.removeItem("token");
     localStorage.removeItem("userRole");
     localStorage.removeItem("userName");
     localStorage.removeItem("userDepartment");
     localStorage.removeItem("userId");
+    localStorage.removeItem("userUsername");
+    localStorage.removeItem("userAccess");
+    setAccess(null);
+    setCurrentUsername("");
     setToken("");
     setUserRole("admin");
     setCurrentUserName("Admin");
@@ -853,6 +875,25 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
     return () => navigator.serviceWorker.removeEventListener("message", onMessage);
   }, [openChatFromNotification, openTicketFromNotification]);
 
+  // Access can change while someone is logged in (an admin edits their role), so check regularly.
+  const refreshMe = useCallback(async () => {
+    if (!token) return;
+    try {
+      const response = await API.get("/me", { headers: authHeaders() });
+      const next = pickAccess(response.data);
+      localStorage.setItem("userAccess", JSON.stringify(next));
+      setAccess((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next));
+    } catch (err) {
+      if (err.response?.status === 401) logoutRef.current?.();
+    }
+  }, [token, authHeaders]);
+
+  useEffect(() => {
+    const first = setTimeout(refreshMe, 0);
+    const timer = setInterval(refreshMe, 60000);
+    return () => { clearTimeout(first); clearInterval(timer); };
+  }, [refreshMe]);
+
   const fetchTickets = useCallback(async () => {
     if (!token) return;
     try {
@@ -925,7 +966,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   }, [token, authHeaders]);
 
   const fetchOperationsSummary = useCallback(async () => {
-    if (!token || !isAdmin) return;
+    if (!token || !canAccessOperations) return;
     try {
       const headers = authHeaders();
       const [lowStock, renewals] = await Promise.all([
@@ -937,7 +978,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
     } catch (err) {
       console.log("Operations summary error:", err);
     }
-  }, [token, authHeaders, isAdmin]);
+  }, [token, authHeaders, canAccessOperations]);
 
   const fetchInternalData = useCallback(async () => {
     if (!token) return;
@@ -1235,23 +1276,22 @@ const monthTotal =
   useEffect(() => {
     if (!token) return;
     const loadData = async () => {
-      if (!isAdmin) {
-        await fetchInternalData();
-        return;
-      }
+      // Only load what this person's pages need; the server refuses the rest anyway.
+      const pages = isAdmin ? ALL_PAGE_KEYS : myAccess.pages || [];
+      const has = (page) => pages.includes(page);
       await Promise.all([
-        fetchTickets(),
-        fetchProducts(),
-        fetchOperationsSummary(),
         fetchInternalData(),
-        fetchAnalytics(),
-        fetchRefundAnalytics(),
-        fetchFeedback(),
-        fetchSettings(),
+        has("tickets") && fetchTickets(),
+        has("products") && fetchProducts(),
+        has("operations") && fetchOperationsSummary(),
+        has("analytics") && fetchAnalytics(),
+        (has("tickets") || has("analytics")) && fetchRefundAnalytics(),
+        has("feedback") && fetchFeedback(),
+        (has("tickets") || has("settings")) && fetchSettings(),
       ]);
     };
     loadData();
-  }, [token, isAdmin, fetchInternalData]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token, isAdmin, fetchInternalData, (myAccess.pages || []).join()]); // eslint-disable-line react-hooks/exhaustive-deps
 
   
 
@@ -1275,7 +1315,7 @@ const monthTotal =
     socket.on("connect", () => {
       console.log("Internal socket connected");
       // Admin has no employee id; direct chats address admin as "admin".
-      const userRoom = currentUserId || (isAdmin ? "admin" : "");
+      const userRoom = currentUserId || (isOwner ? "admin" : "");
       if (userRoom) socket.emit("join-internal-user", { userId: userRoom });
     });
 
@@ -1325,7 +1365,7 @@ const monthTotal =
       socket.off("internal-notification");
       socket.disconnect();
     };
-  }, [token, currentUserId, currentUserName, playInternalMentionAlert, playMessageSound, triggerInternalNotification]);
+  }, [token, isOwner, currentUserId, currentUserName, playInternalMentionAlert, playMessageSound, triggerInternalNotification]);
 
   useEffect(() => {
     if (!socketRef.current || !selectedDepartment) return;
@@ -1499,7 +1539,7 @@ const monthTotal =
   const visibleInternalMessages = (chat) => (chat?.messages || []).filter((message) => {
     if (isChatStartedNotice(message)) return false;
     const recipients = (message.recipientIds || []).map(String);
-    return isAdmin || !recipients.length || recipients.includes(String(currentUserId)) || message.sender === currentUserName;
+    return isOwner || !recipients.length || recipients.includes(String(currentUserId)) || message.sender === currentUserName;
   });
 
   const startDirectChat = async (userKey) => {
@@ -1620,7 +1660,7 @@ const monthTotal =
 
         <nav className="sidebar-nav">
           <div className="sidebar-section-label">Main Menu</div>
-          {isAdmin && <button
+          {can("tickets") && <button
             className={`nav-item ${view === "tickets" ? "active" : ""}`}
             onClick={() => setView("tickets")}
           >
@@ -1628,14 +1668,14 @@ const monthTotal =
             <span>Tickets</span>
             {openCount > 0 && <span className="nav-badge">{openCount}</span>}
           </button>}
-          {isAdmin && <button
+          {can("feedback") && <button
             className={`nav-item ${view === "feedback" ? "active" : ""}`}
             onClick={() => setView("feedback")}
           >
             {Icon.feedback}
             <span>Feedback</span>
           </button>}
-          {isAdmin && <button
+          {can("products") && <button
             className={`nav-item ${view === "products" ? "active" : ""}`}
             onClick={() => setView("products")}
           >
@@ -1658,8 +1698,10 @@ const monthTotal =
             ))}
           </>}
 
+          {(canAccessAudit || can("findings") || can("expiry")) && <>
           <div className="sidebar-divider" />
           <div className="sidebar-section-label">Quality</div>
+          </>}
           {canAccessAudit && (
             <button
               className={`nav-item ${view === "audit" ? "active" : ""}`}
@@ -1671,7 +1713,7 @@ const monthTotal =
               <span>Refill Audit</span>
             </button>
           )}
-          <button
+          {can("findings") && <button
             className={`nav-item ${view === "findings" ? "active" : ""}`}
             onClick={() => setView("findings")}
           >
@@ -1679,8 +1721,8 @@ const monthTotal =
               <rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 3v3h6V3M9 12h6M9 16h4" />
             </svg>
             <span>Internal Audit</span>
-          </button>
-          <button
+          </button>}
+          {can("expiry") && <button
             className={`nav-item ${view === "expiry" ? "active" : ""}`}
             onClick={() => setView("expiry")}
           >
@@ -1688,17 +1730,17 @@ const monthTotal =
               <rect x="3" y="4" width="18" height="17" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M10 14l4 4M14 14l-4 4" />
             </svg>
             <span>Expiry Tracking</span>
-          </button>
+          </button>}
 
-          {isAdmin && <><div className="sidebar-divider" />
-          <div className="sidebar-section-label">Insights</div>
-          <button
+          <div className="sidebar-divider" />
+          <div className="sidebar-section-label">{can("analytics") ? "Insights" : "Team"}</div>
+          {can("analytics") && <button
             className={`nav-item ${view === "analytics" ? "active" : ""}`}
             onClick={() => setView("analytics")}
           >
             {Icon.analytics}
             <span>Analytics</span>
-          </button></>}
+          </button>}
           <button
             className={`nav-item ${view === "internal-chat" ? "active" : ""}`}
             onClick={() => setView("internal-chat")}
@@ -1711,7 +1753,14 @@ const monthTotal =
             onClick={() => setView("employees")}
           >
             {Icon.chat}
-            <span>Employee Details</span>
+            <span>Employees & Access</span>
+          </button>}
+          {can("activity") && <button
+            className={`nav-item ${view === "activity" ? "active" : ""}`}
+            onClick={() => setView("activity")}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 109-9 9.7 9.7 0 00-6.7 2.8L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></svg>
+            <span>Activity Log</span>
           </button>}
           {isAdmin && <button
             className={`nav-item ${view === "admin-settings" ? "active" : ""}`}
@@ -1720,6 +1769,11 @@ const monthTotal =
             {Icon.settings}
             <span>Admin Settings</span>
           </button>}
+          <button className="nav-item" onClick={() => { setShowAccount(true); setMobileNavOpen(false); }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4" /><path d="M4 21a8 8 0 0116 0" /></svg>
+            <span>My Account</span>
+            <span className="nav-role-chip">{myAccess.roleLabel || (isOwner ? "Owner" : "Staff")}</span>
+          </button>
           <button className="nav-item" onClick={() => { setShowNotifySettings(true); setMobileNavOpen(false); }}>
             {Icon.bell}
             <span>Notifications</span>
@@ -1732,6 +1786,10 @@ const monthTotal =
           <span>Logout</span>
         </button>
       </aside>
+
+      {showAccount && (
+        <AccountPanel api={API} headers={authHeaders()} name={currentUserName} username={isOwner ? "" : currentUsername} access={myAccess} isOwner={isOwner} onClose={() => setShowAccount(false)} />
+      )}
 
       {showNotifySettings && (
         <NotificationSettings
@@ -1748,6 +1806,8 @@ const monthTotal =
 
       {/* ── MAIN CONTENT ────────────────────────────────────────────────────── */}
       <main className={`main-content ${activeChat ? "chat-open" : ""} ${view === "internal-chat" && !isMobile ? "is-chat-view" : ""}`}>
+
+        {myAccess.readOnly && <div className="readonly-banner">👀 View-only access: you can look around, but changes are turned off for your account.</div>}
 
         {/* ── PAGE HEADER ─────────────────────────────────────────────────── */}
         <div className="page-header">
@@ -1769,7 +1829,8 @@ const monthTotal =
               {view === "expiry" && "Expiry Tracking"}
               {view === "analytics" && "Analytics"}
               {view === "internal-chat" && "Internal Chat"}
-              {view === "employees" && "Employee Details"}
+              {view === "employees" && "Employees & Access"}
+              {view === "activity" && "Activity Log"}
               {view === "admin-settings" && "Admin Settings"}
             </h1>
             <p className="page-sub">
@@ -1789,7 +1850,8 @@ const monthTotal =
               {view === "expiry" && "Batch expiry dates, expired stock and write-off value"}
               {view === "analytics" && "Issue breakdown and trends"}
               {view === "internal-chat" && `${departmentChats.length} active ${selectedDepartment} conversations`}
-              {view === "employees" && `${internalUsers.length} employees with login access`}
+              {view === "employees" && `${internalUsers.length} people with their own login`}
+              {view === "activity" && "Who changed what, and when"}
               {view === "admin-settings" && "Profile, branding, and workspace preferences"}
             </p>
           </div>
@@ -1800,56 +1862,10 @@ const monthTotal =
         </div>
 
         {view === "employees" && isAdmin && (
-          <section className="employee-details-page">
-            <div className="employee-details-intro">
-              <div>
-                <span className="employee-eyebrow">Admin workspace</span>
-                <h2>Employee details and login credentials</h2>
-                <p>Edit department access, role, tags, username, or password. Share passwords directly with employees when they forget them.</p>
-              </div>
-              <strong>{internalUsers.length} employees</strong>
-            </div>
-            <div className="employee-details-list">
-              {internalUsers.map((user) => (
-                <div className="employee-detail-card" key={user.id}>
-                  {editingEmployeeId === user.id ? (
-                    <div className="employee-edit-grid">
-                      <input value={employeeDraft.name || ""} onChange={(event) => setEmployeeDraft((prev) => ({ ...prev, name: event.target.value }))} placeholder="Name" />
-                      <select value={employeeDraft.department || ""} onChange={(event) => setEmployeeDraft((prev) => ({ ...prev, department: event.target.value }))}>
-                        {departments.map((department) => <option key={department}>{department}</option>)}
-                      </select>
-                      <input value={employeeDraft.role || ""} onChange={(event) => setEmployeeDraft((prev) => ({ ...prev, role: event.target.value }))} placeholder="Role" />
-                      <input value={employeeDraft.tags || ""} onChange={(event) => setEmployeeDraft((prev) => ({ ...prev, tags: event.target.value }))} placeholder="Tags" />
-                      <input value={employeeDraft.username || ""} onChange={(event) => setEmployeeDraft((prev) => ({ ...prev, username: event.target.value }))} placeholder="Username" />
-                      <input value={employeeDraft.password || ""} onChange={(event) => setEmployeeDraft((prev) => ({ ...prev, password: event.target.value }))} placeholder="Password" />
-                      <div className="employee-edit-actions">
-                        <button type="button" className="employee-save-btn" onClick={saveEmployee}>Save changes</button>
-                        <button type="button" className="employee-cancel-btn" onClick={() => setEditingEmployeeId(null)}>Cancel</button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="employee-detail-main">
-                        <div className="employee-avatar">{user.name.slice(0, 1).toUpperCase()}</div>
-                        <div>
-                          <h3>{user.name}</h3>
-                          <p>{user.department} · {user.role}</p>
-                          <div className="internal-tags">{(user.tags || []).map((tag) => <span className="team-tag" key={tag}>#{tag}</span>)}</div>
-                        </div>
-                      </div>
-                      <div className="employee-login-details">
-                        <span>Username <b>{user.username}</b></span>
-                        <span>Password <b>{user.password}</b></span>
-                      </div>
-                      <button type="button" className="employee-edit-btn" onClick={() => startEditingEmployee(user)}>Edit details</button>
-                    </>
-                  )}
-
-                </div>
-              ))}
-            </div>
-          </section>
+          <EmployeesAccess api={API} headers={authHeaders()} departments={departments} currentUserId={currentUserId} onChanged={fetchInternalData} />
         )}
+
+        {view === "activity" && can("activity") && <ActivityLog api={API} headers={authHeaders()} />}
 
         {view === "admin-settings" && isAdmin && (
           <section className="admin-settings-page">
@@ -2353,14 +2369,14 @@ const monthTotal =
                 <option value="normal">Normal priority</option>
                 <option value="low">Low priority</option>
               </select>
-              <button
+              {can("settings") && <button
                 type="button"
                 className="settings-trigger"
                 onClick={() => setShowSettings((prev) => !prev)}
               >
                 Bot Settings
-              </button>
-              <button
+              </button>}
+              {can("settings") && <button
                 type="button"
                 className={`paytm-toggle ${paytmVerificationEnabled ? "paytm-toggle-on" : ""}`}
                 onClick={() => updatePaytmSetting(!paytmVerificationEnabled)}
@@ -2368,7 +2384,7 @@ const monthTotal =
               >
                 <span className="paytm-toggle-dot" />
                 <span>{paytmVerificationEnabled ? "Paytm ON" : "Paytm OFF"}</span>
-              </button>
+              </button>}
               <button className="btn-icon" onClick={fetchTickets} title="Refresh">
                 {Icon.refresh}
                 Refresh
@@ -2378,7 +2394,7 @@ const monthTotal =
               </button>
             </div>
 
-            {showSettings && (
+            {showSettings && can("settings") && (
               <div className="settings-panel">
                 <div className="setting-group">
                   <div className="setting-row">
@@ -2611,7 +2627,7 @@ const monthTotal =
           </>
         )}
 
-        {view === "tickets" && isAdmin && (
+        {view === "tickets" && canAccessOperations && (
           <div className="ops-home-widgets">
             <section className="ops-home-widget">
               <div className="ops-home-widget-heading"><div><span className="ops-eyebrow">Inventory</span><h3>Low stock queue</h3></div><button onClick={() => setView("inventory")}>Open inventory</button></div>
