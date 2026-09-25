@@ -8,6 +8,7 @@ import ExpiryWorkspace from "./ExpiryWorkspace.jsx";
 import MobileChat, { Avatar } from "./MobileChat.jsx";
 import { getPushState, enablePush, syncPush, disablePush, showLocalNotification, PUSH_STATE_LABELS } from "./pushNotifications.js";
 import NotificationSettings from "./NotificationSettings.jsx";
+import { UpiScanSummary, UpiScanDetails } from "./UpiScan.jsx";
 import MentionText, { MentionSuggestions, TaskLine } from "./MentionText.jsx";
 import { useMentionInput, mentionIds } from "./mentions.js";
 import {
@@ -155,6 +156,7 @@ export default function App() {
   const chatEndRef = useRef(null);
 
   const [tickets, setTickets] = useState([]);
+  const [upiScanTicketId, setUpiScanTicketId] = useState(null);
   const [feedback, setFeedback] = useState([]);
   const [products, setProducts] = useState([]);
   const [lowStockSummary, setLowStockSummary] = useState([]);
@@ -1090,6 +1092,11 @@ const monthTotal =
       console.log("Refund analytics error:", err);
     }
   }, [token, authHeaders]);
+
+  const rescanUpi = async (ticketId) => {
+    const response = await API.post(`/tickets/${ticketId}/scan-upi`, {}, { headers: authHeaders() });
+    setTickets((list) => list.map((ticket) => (ticket.id === ticketId ? { ...ticket, upi_scan: response.data, upi_utr: response.data.utr } : ticket)));
+  };
 
   const updateRefundAmount = async (ticketId, amount) => {
     try {
@@ -2476,7 +2483,10 @@ const monthTotal =
                         </td>
                         <td data-label="UPI screenshot">
                           {t.upi_image ? (
-                            <img src={t.upi_image} alt="upi" className="thumb" onClick={() => window.open(t.upi_image, "_blank")} />
+                            <div className="upi-scan-cell">
+                              <img src={t.upi_image} alt="upi" className="thumb" onClick={() => window.open(t.upi_image, "_blank")} />
+                              <UpiScanSummary ticket={t} onOpen={() => setUpiScanTicketId(t.id)} />
+                            </div>
                           ) : <span className="na">—</span>}
                         </td>
                         <td data-label="Refund">
@@ -2991,6 +3001,10 @@ const monthTotal =
       </main>
 
       {/* ── CHAT PANEL ──────────────────────────────────────────────────────── */}
+      {upiScanTicketId && tickets.some((ticket) => ticket.id === upiScanTicketId) && (
+        <UpiScanDetails ticket={tickets.find((ticket) => ticket.id === upiScanTicketId)} onClose={() => setUpiScanTicketId(null)} onRescan={rescanUpi} />
+      )}
+
       {activeChat && (
         <div className="chat-panel">
           <div className="chat-header">
