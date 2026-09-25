@@ -584,70 +584,307 @@ function monthLabel(key) {
   return new Date(year, month - 1, 1).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 }
 
-// Top refillers by average audit score, for employee of the month and incentives.
-function RefillerLeaderboard({ audits }) {
+// Composite merit score weights for Operator of the Month.
+const MERIT_WEIGHTS = [
+  ["quality", "Audit quality", 0.4],
+  ["route", "Route capacity & workload", 0.25],
+  ["breaches", "Zero critical breaches", 0.2],
+  ["expiry", "Expiry vigilance", 0.15],
+];
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+}
+
+// Ranks refillers for a period. Route capacity compares each refiller's sites
+// with the biggest route; expiry vigilance is the share of audits whose expiry
+// check scored full marks (audits without that check don't count against them).
+function rankOperators(audits, refillers, month, minAudits) {
+  const roster = new Map(refillers.map((r) => [r.name.trim().toLowerCase(), r]));
+  const maxSites = Math.max(1, ...refillers.map((r) => r.site_count || 0));
+  const byName = new Map();
+  for (const audit of audits) {
+    if (!audit.refiller || (month !== "all" && monthKey(audit.created_at) !== month)) continue;
+    const row = byName.get(audit.refiller) || { name: audit.refiller, audits: [], total: 0, critical: 0, expiryChecks: 0, expiryPassed: 0, expiredUnits: 0 };
+    row.audits.push(audit);
+    row.total += audit.percentage;
+    row.critical += audit.critical_breach ? 1 : 0;
+    const expiryItem = (audit.checklist || []).find((item) => item.id === "product_expiry" && item.score !== -1);
+    if (expiryItem) {
+      row.expiryChecks += 1;
+      row.expiryPassed += expiryItem.score >= expiryItem.maxPts ? 1 : 0;
+    }
+    row.expiredUnits += (audit.imported_expired_count || 0) + (audit.expiry_items || []).reduce((s, i) => s + (Number(i.qty) || 1), 0);
+    byName.set(audit.refiller, row);
+  }
+  return [...byName.values()]
+    .filter((row) => row.audits.length >= minAudits)
+    .map((row) => {
+      const profile = roster.get(row.name.trim().toLowerCase()) || {};
+      const count = row.audits.length;
+      const sites = profile.site_count || 0;
+      const parts = {
+        quality: row.total / count,
+        route: Math.min(100, (sites / maxSites) * 100),
+        breaches: 100 * (1 - row.critical / count),
+        expiry: row.expiryChecks ? (100 * row.expiryPassed) / row.expiryChecks : 100,
+      };
+      const score = MERIT_WEIGHTS.reduce((sum, [key, , weight]) => sum + parts[key] * weight, 0);
+      return {
+        ...row, count, parts, score, sites, maxSites,
+        average: parts.quality,
+        phone: profile.phone || row.audits.find((a) => a.refiller_phone)?.refiller_phone || "",
+        workload: profile.workload || "",
+        siteNames: profile.sites || [],
+        best: Math.max(...row.audits.map((a) => a.percentage)),
+        worst: Math.min(...row.audits.map((a) => a.percentage)),
+      };
+    })
+    .sort((a, b) => b.score - a.score || b.average - a.average || b.count - a.count || a.name.localeCompare(b.name));
+}
+
+function certificateHtml(winner, periodLabel, certNo, logo) {
+  const issued = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Certificate of Excellence - ${escapeHtml(winner.name)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Great+Vibes&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+@page { size: A4 landscape; margin: 0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.page { width: 297mm; height: 210mm; padding: 10mm; }
+.frame { position: relative; height: 100%; padding: 6mm; border: 3mm solid #0b1220; background: #0b1220; }
+.inner { position: relative; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 12mm 18mm 10mm; border: 1.2mm solid #d4a017; outline: .4mm solid #d4a017; outline-offset: -3mm; background: radial-gradient(circle at 50% 0%, #fffaf0, #fff 60%); text-align: center; font-family: Inter, Arial, sans-serif; color: #1f2937; }
+.corner { position: absolute; width: 22mm; height: 22mm; border: 1mm solid #d4a017; }
+.tl { top: 5mm; left: 5mm; border-right: 0; border-bottom: 0; } .tr { top: 5mm; right: 5mm; border-left: 0; border-bottom: 0; }
+.bl { bottom: 5mm; left: 5mm; border-right: 0; border-top: 0; } .br { bottom: 5mm; right: 5mm; border-left: 0; border-top: 0; }
+.brand { display: flex; align-items: center; gap: 4mm; }
+.brand img { width: 16mm; height: 16mm; border-radius: 3mm; }
+.brand b { font-family: Cinzel, serif; font-size: 20pt; letter-spacing: 2pt; color: #0b1220; }
+h1 { margin: 2mm 0 0; font-family: Cinzel, serif; font-size: 34pt; font-weight: 800; letter-spacing: 3pt; color: #0b1220; }
+.sub { margin-top: 1mm; font-size: 11pt; font-weight: 800; letter-spacing: 4pt; text-transform: uppercase; color: #b8860b; }
+.presented { margin-top: 4mm; font-size: 11pt; color: #6b7280; }
+.name { margin: 1mm 0 0; font-family: "Great Vibes", cursive; font-size: 50pt; line-height: 1.1; color: #0b1220; }
+.rule { width: 120mm; height: .5mm; margin: 1mm auto 3mm; background: linear-gradient(90deg, transparent, #d4a017, transparent); }
+.text { max-width: 200mm; margin: 0 auto; font-size: 11.5pt; line-height: 1.6; }
+.stats { display: flex; justify-content: center; gap: 5mm; margin-top: 4mm; }
+.stats div { min-width: 34mm; padding: 2.5mm 4mm; border: .4mm solid #ecd9a0; border-radius: 2mm; background: #fffbeb; }
+.stats b { display: block; font-size: 15pt; color: #0b1220; } .stats span { font-size: 7.5pt; font-weight: 800; letter-spacing: .6pt; text-transform: uppercase; color: #92400e; }
+.foot { display: flex; align-items: flex-end; justify-content: space-between; width: 100%; }
+.sign { width: 60mm; border-top: .4mm solid #374151; padding-top: 2mm; font-size: 9pt; font-weight: 600; color: #374151; }
+.seal { display: grid; place-items: center; width: 30mm; height: 30mm; border-radius: 50%; background: radial-gradient(circle, #f5c542, #b8860b); color: #0b1220; font-family: Cinzel, serif; font-size: 8pt; font-weight: 800; line-height: 1.25; box-shadow: 0 0 0 1.2mm #fff, 0 0 0 1.8mm #d4a017; }
+.seal big { display: block; font-size: 18pt; }
+.meta { margin-top: 2mm; font-size: 8pt; color: #9ca3af; }
+</style></head><body><div class="page"><div class="frame"><div class="inner">
+<i class="corner tl"></i><i class="corner tr"></i><i class="corner bl"></i><i class="corner br"></i>
+<div>
+  <div class="brand"><img src="${logo}" alt=""><b>SNACKIT</b></div>
+</div>
+<div>
+  <h1>Certificate of Excellence</h1>
+  <div class="sub">Operator of the Month · ${escapeHtml(periodLabel)}</div>
+  <div class="presented">This certificate is proudly presented to</div>
+  <div class="name">${escapeHtml(winner.name)}</div>
+  <div class="rule"></div>
+  <p class="text">In recognition of outstanding refill quality, hygiene and operational discipline across Snackit vending machines,
+  ranking <b>#1 among all refillers</b> with a composite merit score of <b>${winner.score.toFixed(1)}</b>.</p>
+  <div class="stats">
+    <div><b>${winner.average.toFixed(1)}%</b><span>Avg audit quality</span></div>
+    <div><b>${winner.count}</b><span>Audits</span></div>
+    <div><b>${winner.sites}</b><span>Sites managed</span></div>
+    <div><b>${winner.critical}</b><span>Critical breaches</span></div>
+  </div>
+</div>
+<div class="foot">
+  <div class="sign">Operations Head<br><span style="font-weight:400;color:#6b7280">Snackit</span></div>
+  <div><div class="seal"><div><big>#1</big>OPERATOR<br>OF THE MONTH</div></div><div class="meta">${escapeHtml(certNo)} · Issued ${escapeHtml(issued)}</div></div>
+  <div class="sign">Quality Auditor<br><span style="font-weight:400;color:#6b7280">Snackit Quality Team</span></div>
+</div>
+</div></div></div>
+<script>window.onload = () => setTimeout(() => window.print(), 600);</script>
+</body></html>`;
+}
+
+function openCertificate(winner, periodLabel, certNo) {
+  const win = window.open("", "_blank");
+  if (!win) {
+    window.alert("Allow pop-ups for this site to print the certificate.");
+    return;
+  }
+  // The logo is embedded so it shows in the blank print window on every browser.
+  const write = (logo) => {
+    win.document.open();
+    win.document.write(certificateHtml(winner, periodLabel, certNo, logo));
+    win.document.close();
+  };
+  fetch("/app-icon-512.png")
+    .then((response) => response.blob())
+    .then((blob) => new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsDataURL(blob);
+    }))
+    .then(write, () => write(`${window.location.origin}/app-icon-512.png`));
+}
+
+function OperatorProfile({ operator, periodLabel, onClose }) {
+  return (
+    <div className="audit-modal-backdrop" onClick={onClose}>
+      <div className="audit-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="audit-modal-actions">
+          <button type="button" className="audit-btn" onClick={onClose}>Close</button>
+        </div>
+        <span className="audit-eyebrow">Audit analytics · {periodLabel}</span>
+        <h2 className="ootm-profile-name">{operator.name}</h2>
+        <p className="audit-muted">{[operator.phone, operator.workload, `${operator.sites} site${operator.sites === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}</p>
+        <div className="ootm-bars">
+          {MERIT_WEIGHTS.map(([key, label, weight]) => (
+            <div key={key}>
+              <div><span>{label} <small>({Math.round(weight * 100)}%)</small></span><b>{operator.parts[key].toFixed(0)}</b></div>
+              <i><em style={{ width: `${operator.parts[key]}%` }} /></i>
+            </div>
+          ))}
+        </div>
+        <div className="audit-stats ootm-profile-stats">
+          <div><span>Merit score</span><b className="warn">{operator.score.toFixed(1)}</b></div>
+          <div><span>Audits</span><b>{operator.count}</b><small>best {operator.best}% · lowest {operator.worst}%</small></div>
+          <div><span>Critical breaches</span><b className={operator.critical ? "bad" : "good"}>{operator.critical}</b></div>
+          <div><span>Expired units found</span><b>{operator.expiredUnits}</b></div>
+        </div>
+        {operator.siteNames.length > 0 && <><h4>Assigned sites</h4><p className="audit-muted">{operator.siteNames.join(", ")}</p></>}
+        <h4>Audits in this period</h4>
+        <div className="audit-list">
+          {operator.audits.map((a) => (
+            <div className="audit-list-row" key={a.id}>
+              <div><b>{a.location}</b><span>{a.ref} · {formatDate(a.created_at)} · {a.scope}{a.critical_breach ? " · critical breach" : ""}</span></div>
+              <span className={`audit-pill audit-pill-${gradeFor(a.percentage, a.critical_breach).tone}`}>{a.percentage}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PodiumCard({ operator, place, onProfile }) {
+  const badges = { 1: ["🏆", "#1 Gold winner"], 2: ["🥈", "#2 Silver runner-up"], 3: ["🥉", "#3 Bronze"] };
+  const [icon, label] = badges[place];
+  return (
+    <div className={`ootm-podium-card ootm-place-${place}`}>
+      <div className="ootm-podium-top">
+        <span className="ootm-badge">{icon} {label}</span>
+        <span className="ootm-sites">{operator.sites} site{operator.sites === 1 ? "" : "s"}</span>
+      </div>
+      <div className="ootm-person">
+        <span className="ootm-avatar">{operator.name.charAt(0).toUpperCase()}</span>
+        <div>
+          <b>{operator.name}</b>
+          {operator.phone && <span>{operator.phone}</span>}
+          {operator.workload && <em>{operator.workload}</em>}
+        </div>
+      </div>
+      <dl className="ootm-facts">
+        <div><dt>Avg audit quality</dt><dd>{operator.average.toFixed(1)}%</dd></div>
+        <div><dt>Route capacity</dt><dd>{operator.sites}/{operator.maxSites} sites</dd></div>
+        <div><dt>Critical breaches</dt><dd className={operator.critical ? "bad" : "good"}>{operator.critical}</dd></div>
+      </dl>
+      <div className="ootm-merit"><span>Composite merit score</span><strong>{operator.score.toFixed(1)}</strong></div>
+      <button type="button" className="ootm-dark-btn" onClick={() => onProfile(operator)}>View audit analytics</button>
+    </div>
+  );
+}
+
+// Operator of the Month: weighted ranking of refillers with a certificate for the winner.
+function OperatorOfMonth({ audits, refillers }) {
   const months = [...new Set(audits.map((a) => monthKey(a.created_at)))].sort().reverse();
   const current = monthKey(new Date());
   const [month, setMonth] = useState(months.includes(current) ? current : months[0] || "all");
   const [minAudits, setMinAudits] = useState(1);
+  const [profile, setProfile] = useState(null);
 
-  const inPeriod = audits.filter((a) => a.refiller && (month === "all" || monthKey(a.created_at) === month));
-  const byRefiller = new Map();
-  for (const audit of inPeriod) {
-    const row = byRefiller.get(audit.refiller) || { name: audit.refiller, total: 0, count: 0, critical: 0, best: 0, worst: 100 };
-    row.total += audit.percentage;
-    row.count += 1;
-    row.critical += audit.critical_breach ? 1 : 0;
-    row.best = Math.max(row.best, audit.percentage);
-    row.worst = Math.min(row.worst, audit.percentage);
-    byRefiller.set(audit.refiller, row);
-  }
-  // Highest average first; ties go to more audits, then fewer critical breaches.
-  const ranked = [...byRefiller.values()]
-    .map((row) => ({ ...row, average: row.total / row.count }))
-    .filter((row) => row.count >= minAudits)
-    .sort((a, b) => b.average - a.average || b.count - a.count || a.critical - b.critical || a.name.localeCompare(b.name));
-  const top = ranked.slice(0, 5);
-  const medals = ["🥇", "🥈", "🥉", "4", "5"];
+  const ranked = useMemo(() => rankOperators(audits, refillers, month, minAudits), [audits, refillers, month, minAudits]);
+  const periodLabel = month === "all" ? "All time" : monthLabel(month);
+  const winner = ranked[0];
+  const certNo = `SNK-OOTM-${month === "all" ? "ALL" : month}`;
+  const podium = [[ranked[1], 2], [ranked[0], 1], [ranked[2], 3]].filter(([operator]) => operator);
 
-  const exportTop = () => downloadCsv(`Snackit_Top_Refillers_${month}.csv`, [
-    ["Rank", "Refiller", "Average score %", "Audits", "Best %", "Lowest %", "Critical breaches", "Period"],
-    ...ranked.map((row, index) => [index + 1, row.name, row.average.toFixed(1), row.count, row.best, row.worst, row.critical, month === "all" ? "All time" : monthLabel(month)]),
+  const shareWhatsApp = () => {
+    const lines = [
+      `🏆 *Snackit Operator of the Month — ${periodLabel}*`,
+      "",
+      `Congratulations *${winner.name}*! Composite merit score ${winner.score.toFixed(1)} with ${winner.average.toFixed(1)}% average audit quality across ${winner.count} audit${winner.count === 1 ? "" : "s"}.`,
+      "",
+      ...ranked.slice(0, 3).map((row, index) => `${["🥇", "🥈", "🥉"][index]} ${row.name} — ${row.score.toFixed(1)}`),
+      "",
+      "Thank you for keeping every machine clean, stocked and fresh! 👏",
+    ];
+    window.open(`https://wa.me/?text=${encodeURIComponent(lines.join("\n"))}`, "_blank", "noopener");
+  };
+
+  const exportRanking = () => downloadCsv(`Snackit_Operator_Rankings_${month}.csv`, [
+    ["Rank", "Refiller", "Phone", "Composite score", "Average audit %", "Audits", "Sites", "Critical breaches", "Expiry vigilance %", "Expired units found", "Period"],
+    ...ranked.map((row, index) => [index + 1, row.name, row.phone, row.score.toFixed(1), row.average.toFixed(1), row.count, row.sites, row.critical, row.parts.expiry.toFixed(0), row.expiredUnits, periodLabel]),
   ]);
 
   return (
-    <section className="audit-card">
-      <div className="audit-card-head">
-        <div><h3>Top 5 refillers</h3><p>Ranked by average audit score · for employee of the month</p></div>
-        <div className="audit-leader-controls">
-          <select value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Period">
-            {months.map((key) => <option key={key} value={key}>{monthLabel(key)}</option>)}
-            <option value="all">All time</option>
-          </select>
-          <select value={minAudits} onChange={(e) => setMinAudits(Number(e.target.value))} aria-label="Minimum audits">
-            {[1, 2, 3, 5].map((n) => <option key={n} value={n}>{n === 1 ? "Any number of audits" : `At least ${n} audits`}</option>)}
-          </select>
-          <button type="button" className="audit-btn" onClick={exportTop} disabled={!ranked.length}>Export ranking</button>
+    <div className="audit-stack">
+      <section className="ootm-hero">
+        <div>
+          <span className="ootm-eyebrow">🏆 Operational excellence recognition</span>
+          <h2>Operator of the Month</h2>
+          <p>Weighted score: <b>audit quality (40%)</b>, <b>route capacity & workload (25%)</b>, <b>zero critical breaches (20%)</b> and <b>expiry vigilance (15%)</b>.</p>
         </div>
+        <div className="ootm-hero-actions">
+          <button type="button" className="ootm-gold-btn" onClick={() => openCertificate(winner, periodLabel, certNo)} disabled={!winner}>🎖️ Print award certificate</button>
+          <button type="button" className="ootm-ghost-btn" onClick={shareWhatsApp} disabled={!winner}>Share on WhatsApp</button>
+        </div>
+      </section>
+
+      <div className="audit-leader-controls ootm-controls">
+        <select value={month} onChange={(e) => setMonth(e.target.value)} aria-label="Period">
+          {months.map((key) => <option key={key} value={key}>{monthLabel(key)}</option>)}
+          <option value="all">All time</option>
+        </select>
+        <select value={minAudits} onChange={(e) => setMinAudits(Number(e.target.value))} aria-label="Minimum audits">
+          {[1, 2, 3, 5].map((n) => <option key={n} value={n}>{n === 1 ? "Any number of audits" : `At least ${n} audits`}</option>)}
+        </select>
+        <button type="button" className="audit-btn" onClick={exportRanking} disabled={!ranked.length}>Export ranking</button>
       </div>
-      {top.length ? (
-        <ol className="audit-leaderboard">
-          {top.map((row, index) => {
-            const { average } = row;
-            return (
-              <li key={row.name} className={index === 0 ? "is-winner" : ""}>
-                <span className="audit-leader-rank">{medals[index]}</span>
-                <div className="audit-leader-name">
-                  <b>{row.name}</b>
-                  <span>{row.count} audit{row.count === 1 ? "" : "s"} · best {row.best}% · lowest {row.worst}%{row.critical ? ` · ${row.critical} critical breach${row.critical === 1 ? "" : "es"}` : ""}</span>
-                </div>
-                <span className={`audit-pill audit-pill-${average >= 90 ? "good" : average >= 75 ? "warn" : "bad"} audit-leader-score`}>{row.average.toFixed(1)}%</span>
-              </li>
-            );
-          })}
-        </ol>
-      ) : <p className="audit-empty">{inPeriod.length ? `No refiller has ${minAudits}+ audits in this period.` : "No audits in this period yet."}</p>}
-    </section>
+
+      {ranked.length ? <>
+        <div className="ootm-podium">
+          {podium.map(([operator, place]) => <PodiumCard key={operator.name} operator={operator} place={place} onProfile={setProfile} />)}
+        </div>
+
+        <section className="audit-card">
+          <div className="audit-card-head">
+            <div><h3>Complete operator merit rankings</h3><p>{ranked.length} refiller{ranked.length === 1 ? "" : "s"} ranked by composite score · {periodLabel}</p></div>
+          </div>
+          <div className="ootm-table-wrap">
+            <table className="ootm-table">
+              <thead>
+                <tr><th>Rank</th><th>Refiller</th><th>Route</th><th>Avg audit quality</th><th>Audits</th><th>Critical breaches</th><th>Composite score</th><th /></tr>
+              </thead>
+              <tbody>
+                {ranked.map((row, index) => (
+                  <tr key={row.name} className={index === 0 ? "is-winner" : ""}>
+                    <td data-label="Rank"><span className={`ootm-rank ootm-rank-${index + 1}`}>{index + 1}</span></td>
+                    <td data-label="Refiller"><b>{row.name}</b><small>{row.phone}</small></td>
+                    <td data-label="Route">{row.sites} site{row.sites === 1 ? "" : "s"}<small>{row.workload}</small></td>
+                    <td data-label="Avg audit quality"><span className={`audit-pill audit-pill-${row.average >= 90 ? "good" : row.average >= 75 ? "warn" : "bad"}`}>{row.average.toFixed(1)}%</span></td>
+                    <td data-label="Audits">{row.count}</td>
+                    <td data-label="Critical breaches"><span className={`audit-pill audit-pill-${row.critical ? "bad" : "good"}`}>{row.critical}</span></td>
+                    <td data-label="Composite score"><strong className="ootm-score">{row.score.toFixed(1)}</strong></td>
+                    <td><button type="button" className="audit-btn" onClick={() => setProfile(row)}>Profile</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </> : <section className="audit-card"><p className="audit-empty">{minAudits > 1 ? `No refiller has ${minAudits}+ audits in this period.` : "No audits in this period yet."}</p></section>}
+
+      {profile && <OperatorProfile operator={profile} periodLabel={periodLabel} onClose={() => setProfile(null)} />}
+    </div>
   );
 }
 
@@ -694,7 +931,6 @@ function Records({ headers, audits, capa, isAdmin, onDelete, onChanged, notify }
         <div><span>Open CAPA</span><b className="bad">{capa.filter((c) => c.status === "OPEN").length}</b></div>
         <div><span>Expired units removed</span><b className="warn">{expiredUnits}</b></div>
       </div>
-      <RefillerLeaderboard audits={audits} />
       <section className="audit-card">
         <div className="audit-toolbar">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by audit ID, location, refiller or auditor" />
@@ -1058,6 +1294,7 @@ export default function AuditWorkspace({ token, currentUserName, isAdmin }) {
   const tabs = [
     ["conduct", "Conduct audit"],
     ["records", `Records (${audits.length})`],
+    ["ootm", "🏆 Operator of the Month"],
     ["capa", `CAPA${openCapa ? ` (${openCapa})` : ""}`],
     ["refillers", `Refillers (${refillers.length})`],
     ["locations", `Locations (${locations.length})`],
@@ -1079,6 +1316,7 @@ export default function AuditWorkspace({ token, currentUserName, isAdmin }) {
             <ConductAudit headers={headers} refillers={refillers} locations={locations} currentUserName={currentUserName} prefill={prefill} onSaved={onSaved} />
           </div>
           {tab === "records" && <Records headers={headers} audits={audits} capa={capa} isAdmin={isAdmin} onDelete={deleteAudit} onChanged={load} notify={notify} />}
+          {tab === "ootm" && <OperatorOfMonth audits={audits} refillers={refillers} />}
           {tab === "capa" && <Capa headers={headers} capa={capa} onChanged={load} notify={notify} />}
           {tab === "refillers" && <Refillers headers={headers} refillers={refillers} isAdmin={isAdmin} onChanged={load} onAudit={startAudit} notify={notify} />}
           {tab === "locations" && <Locations headers={headers} locations={locations} refillers={refillers} isAdmin={isAdmin} onChanged={load} onAudit={startAudit} notify={notify} />}
