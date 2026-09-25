@@ -17,6 +17,21 @@ function flagsFor(ticket) {
   return flags;
 }
 
+// UPI ID column: the customer's UPI ID read from the screenshot, plus what they typed if it differs.
+export function UpiIdCell({ ticket }) {
+  const fromScreenshot = ticket.screenshot_upi_id || ticket.upi_scan?.payer_upi || "";
+  const typed = String(ticket.upi_id || "").trim();
+  if (!fromScreenshot) return typed ? <>{typed}</> : <span className="na">—</span>;
+  const differs = typed && typed.toLowerCase() !== fromScreenshot.toLowerCase();
+  return (
+    <div className="upi-id-cell">
+      <b>{fromScreenshot}</b>
+      <small>📷 From screenshot</small>
+      {differs && <small className="upi-id-typed">Typed: {typed}</small>}
+    </div>
+  );
+}
+
 export function UpiScanSummary({ ticket, onOpen }) {
   const scan = ticket.upi_scan;
   if (!ticket.upi_image) return null;
@@ -53,8 +68,7 @@ export function UpiScanDetails({ ticket, onClose, onRescan }) {
   const rows = scan ? [
     ["UTR / UPI ref", scan.utr],
     ["Amount", scan.amount != null ? `₹${scan.amount}` : null],
-    ["Customer UPI ID", scan.payer_upi],
-    ["Paid to", scan.payee_upi],
+    ["Customer UPI ID (screenshot)", scan.payer_upi],
     ["Status", scan.status && { SUCCESS: "✅ Successful", FAILED: "❌ Failed", PENDING: "⏳ Pending" }[scan.status]],
     ["Date & time", scan.paid_at],
     ["App", scan.app],
@@ -81,7 +95,7 @@ export function UpiScanDetails({ ticket, onClose, onRescan }) {
                 {rows.map(([label, value]) => (
                   <div key={label}>
                     <dt>{label}</dt>
-                    <dd>{value ? <>{value}{["UTR / UPI ref", "Customer UPI ID"].includes(label) && <button type="button" onClick={() => copy(String(value))}>Copy</button>}</> : <span className="na">Not found</span>}</dd>
+                    <dd>{value ? <>{value}{["UTR / UPI ref", "Customer UPI ID (screenshot)"].includes(label) && <button type="button" onClick={() => copy(String(value))}>Copy</button>}</> : <span className="na">Not found</span>}</dd>
                   </div>
                 ))}
                 <div><dt>Customer typed UPI ID</dt><dd>{ticket.upi_id || <span className="na">—</span>}</dd></div>

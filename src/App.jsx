@@ -8,7 +8,7 @@ import ExpiryWorkspace from "./ExpiryWorkspace.jsx";
 import MobileChat, { Avatar } from "./MobileChat.jsx";
 import { getPushState, enablePush, syncPush, disablePush, showLocalNotification, PUSH_STATE_LABELS } from "./pushNotifications.js";
 import NotificationSettings from "./NotificationSettings.jsx";
-import { UpiScanSummary, UpiScanDetails } from "./UpiScan.jsx";
+import { UpiIdCell, UpiScanSummary, UpiScanDetails } from "./UpiScan.jsx";
 import MentionText, { MentionSuggestions, TaskLine } from "./MentionText.jsx";
 import { useMentionInput, mentionIds } from "./mentions.js";
 import {
@@ -1094,8 +1094,8 @@ const monthTotal =
   }, [token, authHeaders]);
 
   const rescanUpi = async (ticketId) => {
-    const response = await API.post(`/tickets/${ticketId}/scan-upi`, {}, { headers: authHeaders() });
-    setTickets((list) => list.map((ticket) => (ticket.id === ticketId ? { ...ticket, upi_scan: response.data, upi_utr: response.data.utr } : ticket)));
+    await API.post(`/tickets/${ticketId}/scan-upi`, {}, { headers: authHeaders() });
+    await fetchTickets();
   };
 
   const updateRefundAmount = async (ticketId, amount) => {
@@ -1393,6 +1393,7 @@ const monthTotal =
     const matchSearch =
       t.phone?.toLowerCase().includes(s) ||
       (t.upi_id || "").toLowerCase().includes(s) ||
+      (t.screenshot_upi_id || "").toLowerCase().includes(s) ||
       t.issue?.toLowerCase().includes(s) ||
       t.main_issue?.toLowerCase().includes(s) ||
       t.sub_issue?.toLowerCase().includes(s) ||
@@ -2475,7 +2476,7 @@ const monthTotal =
                         <td data-label="Issue">{t.main_issue || <span className="na">—</span>}</td>
                         <td data-label="Sub issue">{t.sub_issue || <span className="na">—</span>}</td>
                         <td data-label="Location">{t.location || <span className="na">—</span>}</td>
-                        <td data-label="UPI ID">{t.upi_id || <span className="na">—</span>}</td>
+                        <td data-label="UPI ID"><UpiIdCell ticket={t} /></td>
                         <td data-label="Image">
                           {t.image ? (
                             <img src={t.image} alt="img" className="thumb" onClick={() => window.open(t.image, "_blank")} />
