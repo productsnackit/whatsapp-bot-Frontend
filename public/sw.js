@@ -30,14 +30,26 @@ self.addEventListener("push", (event) => {
       renotify: true,
       silent: false,
       vibrate: [200, 100, 200],
-      data: { chatId: data.chatId || "", department: data.department || "" },
+      data: { chatId: data.chatId || "", department: data.department || "", view: data.view || "" },
     });
   })());
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const { chatId, department } = event.notification.data || {};
+  const { chatId, department, view } = event.notification.data || {};
+  // Internal Audit notifications open that page; everything else opens the chat.
+  if (view === "findings") {
+    event.waitUntil((async () => {
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      if (windows[0]) {
+        windows[0].postMessage({ type: "open-view", view });
+        return windows[0].focus();
+      }
+      return self.clients.openWindow("/?view=findings");
+    })());
+    return;
+  }
   const params = new URLSearchParams({ view: "internal-chat" });
   if (chatId) params.set("chat", chatId);
   if (department) params.set("department", department);

@@ -3,6 +3,7 @@ import axios from "axios";
 import { io } from "socket.io-client";
 import OperationsWorkspace from "./OperationsWorkspace.jsx";
 import AuditWorkspace from "./AuditWorkspace.jsx";
+import FindingsWorkspace from "./FindingsWorkspace.jsx";
 import MobileChat from "./MobileChat.jsx";
 import { getPushState, enablePush, syncPush, disablePush, showLocalNotification, PUSH_STATE_LABELS } from "./pushNotifications.js";
 import NotificationSettings from "./NotificationSettings.jsx";
@@ -21,7 +22,8 @@ const API = axios.create({
 
 // The installed app (see public/manifest.webmanifest) opens with ?view=internal-chat
 const LAUNCH_PARAMS = new URLSearchParams(window.location.search);
-const LAUNCH_VIEW = LAUNCH_PARAMS.get("view") === "internal-chat" ? "internal-chat" : null;
+// Notifications can also open straight into Internal Audit (?view=findings).
+const LAUNCH_VIEW = ["internal-chat", "findings"].includes(LAUNCH_PARAMS.get("view")) ? LAUNCH_PARAMS.get("view") : null;
 // Tapping a chat notification opens ?view=internal-chat&chat=<id>&department=<dept>
 const LAUNCH_CHAT = LAUNCH_PARAMS.get("chat") ? { chatId: LAUNCH_PARAMS.get("chat"), department: LAUNCH_PARAMS.get("department") } : null;
 // Older chats begin with an automatic "New <department> team chat started." message; don't show it.
@@ -802,6 +804,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
     if (!("serviceWorker" in navigator)) return;
     const onMessage = (event) => {
       if (event.data?.type === "open-internal-chat") openChatFromNotification(event.data);
+      if (event.data?.type === "open-view" && event.data.view === "findings") setView("findings");
     };
     navigator.serviceWorker.addEventListener("message", onMessage);
     return () => navigator.serviceWorker.removeEventListener("message", onMessage);
@@ -1630,9 +1633,9 @@ const monthTotal =
             ))}
           </>}
 
-          {canAccessAudit && <>
-            <div className="sidebar-divider" />
-            <div className="sidebar-section-label">Quality</div>
+          <div className="sidebar-divider" />
+          <div className="sidebar-section-label">Quality</div>
+          {canAccessAudit && (
             <button
               className={`nav-item ${view === "audit" ? "active" : ""}`}
               onClick={() => setView("audit")}
@@ -1642,7 +1645,16 @@ const monthTotal =
               </svg>
               <span>Refill Audit</span>
             </button>
-          </>}
+          )}
+          <button
+            className={`nav-item ${view === "findings" ? "active" : ""}`}
+            onClick={() => setView("findings")}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 3v3h6V3M9 12h6M9 16h4" />
+            </svg>
+            <span>Internal Audit</span>
+          </button>
 
           {isAdmin && <><div className="sidebar-divider" />
           <div className="sidebar-section-label">Insights</div>
@@ -1719,6 +1731,7 @@ const monthTotal =
               {view === "demand" && "Demand Analytics"}
               {view === "import" && "Bulk Imports"}
               {view === "audit" && "Refill Audit"}
+              {view === "findings" && "Internal Audit"}
               {view === "analytics" && "Analytics"}
               {view === "internal-chat" && "Internal Chat"}
               {view === "employees" && "Employee Details"}
@@ -1737,6 +1750,7 @@ const monthTotal =
               {view === "demand" && "Hourly demand and sector comparison"}
               {view === "import" && "Upload and audit machines, slots, clients, brands, and SKUs"}
               {view === "audit" && "Machine quality checks, refillers, sites and corrective actions"}
+              {view === "findings" && "Audit findings, corrective actions, owners and follow-ups"}
               {view === "analytics" && "Issue breakdown and trends"}
               {view === "internal-chat" && `${departmentChats.length} active ${selectedDepartment} conversations`}
               {view === "employees" && `${internalUsers.length} employees with login access`}
@@ -1884,6 +1898,17 @@ const monthTotal =
 
         {["inventory", "clients", "brands", "performance", "leads", "routes", "demand", "import"].includes(view) && canAccessOperations && (
           <OperationsWorkspace token={token} internalUsers={internalUsers} workspace={view} />
+        )}
+
+        {view === "findings" && (
+          <FindingsWorkspace
+            token={token}
+            isAdmin={isAdmin}
+            currentUserName={currentUserName}
+            currentUserId={currentUserId}
+            internalUsers={internalUsers}
+            departments={departments}
+          />
         )}
 
         {view === "audit" && canAccessAudit && (
