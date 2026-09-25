@@ -9,6 +9,7 @@ import MobileChat, { Avatar } from "./MobileChat.jsx";
 import { getPushState, enablePush, syncPush, disablePush, showLocalNotification, PUSH_STATE_LABELS } from "./pushNotifications.js";
 import NotificationSettings from "./NotificationSettings.jsx";
 import { UpiIdCell, UpiScanSummary, UpiScanDetails } from "./UpiScan.jsx";
+import TicketChat from "./TicketChat.jsx";
 import MentionText, { MentionSuggestions, TaskLine } from "./MentionText.jsx";
 import { useMentionInput, mentionIds } from "./mentions.js";
 import {
@@ -28,6 +29,8 @@ const LAUNCH_PARAMS = new URLSearchParams(window.location.search);
 const LAUNCH_VIEW = ["internal-chat", "findings"].includes(LAUNCH_PARAMS.get("view")) ? LAUNCH_PARAMS.get("view") : null;
 // Tapping a chat notification opens ?view=internal-chat&chat=<id>&department=<dept>
 const LAUNCH_CHAT = LAUNCH_PARAMS.get("chat") ? { chatId: LAUNCH_PARAMS.get("chat"), department: LAUNCH_PARAMS.get("department") } : null;
+// A "customer replied" notification opens ?view=tickets&ticket=<id>&phone=<phone>
+const LAUNCH_TICKET = LAUNCH_PARAMS.get("ticket") ? { ticketId: LAUNCH_PARAMS.get("ticket"), phone: LAUNCH_PARAMS.get("phone") || "" } : null;
 // Older chats begin with an automatic "New <department> team chat started." message; don't show it.
 const isChatStartedNotice = (message) => message?.sender === "Admin" && /^New .+ team chat started\.$/.test(String(message.text || "").trim());
 
@@ -164,7 +167,6 @@ export default function App() {
 
   const [activeChat, setActiveChat] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [chatInput, setChatInput] = useState("");
   const [typing, setTyping] = useState(false);
 
   const [analyticsDaily, setAnalyticsDaily] = useState([]);
@@ -819,16 +821,37 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
     setMobileChatPane("conversation");
   }, []);
 
+  // Opens a customer ticket chat from a notification; the notification only
+  // comes for tickets an admin has taken over.
+  const ticketsRef = useRef([]);
+  useEffect(() => { ticketsRef.current = tickets; }, [tickets]);
+  const openTicketFromNotification = useCallback(({ ticketId, phone }) => {
+    const id = Number(ticketId);
+    if (!id) return;
+    setView("tickets");
+    setActiveChat(ticketsRef.current.find((ticket) => ticket.id === id) || { id, phone, takeover: true });
+    setMessages([]);
+  }, []);
+
+  useEffect(() => {
+    if (!token || !LAUNCH_TICKET) return;
+    window.history.replaceState(null, "", "/");
+    // Give the ticket list a moment to load so the chat shows the full ticket.
+    const timer = setTimeout(() => openTicketFromNotification(LAUNCH_TICKET), 1200);
+    return () => clearTimeout(timer);
+  }, [token, openTicketFromNotification]);
+
   useEffect(() => {
     if (LAUNCH_CHAT) window.history.replaceState(null, "", "/?view=internal-chat");
     if (!("serviceWorker" in navigator)) return;
     const onMessage = (event) => {
       if (event.data?.type === "open-internal-chat") openChatFromNotification(event.data);
       if (event.data?.type === "open-view" && event.data.view === "findings") setView("findings");
+      if (event.data?.type === "open-ticket") openTicketFromNotification(event.data);
     };
     navigator.serviceWorker.addEventListener("message", onMessage);
     return () => navigator.serviceWorker.removeEventListener("message", onMessage);
-  }, [openChatFromNotification]);
+  }, [openChatFromNotification, openTicketFromNotification]);
 
   const fetchTickets = useCallback(async () => {
     if (!token) return;
@@ -1360,30 +1383,6 @@ const monthTotal =
     }
   };
 
-  const sendMessage = async () => {
-    if (!activeChat || !chatInput.trim()) return;
-    const messageText = chatInput.trim();
-    setChatInput("");
-    try {
-      await API.post(
-        "/admin/send",
-        { phone: activeChat.phone, message: messageText, ticketId: activeChat.id },
-        { headers: authHeaders() }
-      );
-      await fetchMessages(activeChat.id);
-    } catch (err) {
-      alert("Send failed");
-      setChatInput(messageText);
-      console.log(err);
-    }
-  };
-
-  const handleChatKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
 
   /* =========================================================================
      FILTERING
@@ -3079,54 +3078,15 @@ const monthTotal =
             </div>
           </div>
 
-          <div className="chat-body">
-            {messages.length === 0 && !typing && (
-              <div className="chat-empty">
-                <div className="chat-empty-icon">💬</div>
-                <p>No messages yet</p>
-              </div>
-            )}
-            {messages.map((m, idx) => (
-              <div
-                key={m.id || `${m.created_at}-${idx}`}
-                className={`msg ${m.sender === "admin" ? "msg-admin" : m.sender === "bot" ? "msg-bot" : "msg-user"}`}
-              >
-                <div className="msg-bubble">{m.message || m.text || ""}</div>
-                {m.created_at && (
-                  <div className="msg-time">
-                    {new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </div>
-                )}
-              </div>
-            ))}
-            {/* ✅ FIX: Show typing indicator when user is typing */}
-            {typing && (
-              <div className="msg msg-user">
-                <div className="msg-bubble typing-indicator">
-                  <span></span><span></span><span></span>
-                </div>
-              </div>
-            )}
-            <div ref={chatEndRef} />
-          </div>
-
-          <div className="chat-input-area">
-            <input
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={handleChatKeyDown}
-              placeholder={activeChat.takeover ? "Type a message…" : "Take over to send messages"}
-              disabled={!activeChat.takeover}
-              className={!activeChat.takeover ? "input-disabled" : ""}
-            />
-            <button
-              className="send-btn"
-              onClick={sendMessage}
-              disabled={!activeChat.takeover || !chatInput.trim()}
-            >
-              {Icon.send}
-            </button>
-          </div>
+          <TicketChat
+            ticket={activeChat}
+            messages={messages}
+            typing={typing}
+            api={API}
+            headers={authHeaders()}
+            onChanged={() => fetchMessages(activeChat.id)}
+            onTakeover={takeover}
+          />
         </div>
       )}
     </div>

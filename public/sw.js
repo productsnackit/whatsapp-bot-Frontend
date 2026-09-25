@@ -26,18 +26,30 @@ self.addEventListener("push", (event) => {
       body: data.body || "New message",
       icon: "/app-icon-192.png?v=2",
       badge: "/app-icon-192.png?v=2",
-      tag: data.chatId ? `chat-${data.chatId}` : undefined,
+      tag: data.ticketId ? `ticket-${data.ticketId}` : data.chatId ? `chat-${data.chatId}` : undefined,
       renotify: true,
       silent: false,
       vibrate: [200, 100, 200],
-      data: { chatId: data.chatId || "", department: data.department || "", view: data.view || "" },
+      data: { chatId: data.chatId || "", department: data.department || "", view: data.view || "", ticketId: data.ticketId || "", phone: data.phone || "" },
     });
   })());
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const { chatId, department, view } = event.notification.data || {};
+  const { chatId, department, view, ticketId, phone } = event.notification.data || {};
+  // A customer replied to a ticket the admin took over: open that ticket's chat.
+  if (view === "tickets" && ticketId) {
+    event.waitUntil((async () => {
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      if (windows[0]) {
+        windows[0].postMessage({ type: "open-ticket", ticketId, phone });
+        return windows[0].focus();
+      }
+      return self.clients.openWindow(`/?${new URLSearchParams({ view: "tickets", ticket: ticketId, phone })}`);
+    })());
+    return;
+  }
   // Internal Audit notifications open that page; everything else opens the chat.
   if (view === "findings") {
     event.waitUntil((async () => {
