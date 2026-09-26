@@ -18,13 +18,9 @@ import ActivityLog from "./ActivityLog.jsx";
 import AccountPanel from "./AccountPanel.jsx";
 import RefillWorkspace from "./RefillWorkspace.jsx";
 import TasksWorkspace from "./TasksWorkspace.jsx";
+import AnalyticsWorkspace from "./AnalyticsWorkspace.jsx";
 import MentionText, { MentionSuggestions, TaskLine } from "./MentionText.jsx";
 import { useMentionInput, mentionIds } from "./mentions.js";
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
-  PieChart, Pie, Cell, Legend, ResponsiveContainer,
-  AreaChart, Area,
-} from "recharts";
 import "./styles.css";
 
 const API = axios.create({
@@ -65,8 +61,6 @@ const isChatStartedNotice = (message) => message?.sender === "Admin" && /^New .+
 
 // Chat ids are numbers on the server but arrive as text from notifications.
 const toChatId = (value) => (Number.isNaN(Number(value)) ? value : Number(value));
-
-const COLORS = ["#e8192c", "#3b82f6", "#10b981", "#f59e0b", "#8b5cf6", "#06b6d4", "#f97316"];
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 const Icon = {
@@ -138,43 +132,6 @@ const Icon = {
   ),
 };
 
-// ─── Custom Tooltip ───────────────────────────────────────────────────────────
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div style={{
-        background: "#fff",
-        border: "1px solid #e2e6ef",
-        borderRadius: "12px",
-        padding: "12px 16px",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
-        fontSize: "12.5px",
-        minWidth: "130px",
-      }}>
-        <div style={{
-          fontWeight: 700, color: "#8c96ae", marginBottom: 8,
-          fontSize: 10, textTransform: "uppercase", letterSpacing: "0.8px"
-        }}>
-          {label}
-        </div>
-        {payload.map((p, i) => (
-          <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 4 }}>
-            <span style={{
-              width: 9, height: 9, borderRadius: "50%",
-              background: p.fill || p.stroke, flexShrink: 0, display: "inline-block"
-            }} />
-            <span style={{ color: "#4a5468", fontSize: 12 }}>{p.name}:</span>
-            <span style={{ fontWeight: 700, color: "#0b0f1a", marginLeft: "auto", paddingLeft: 10 }}>
-              {p.value}
-            </span>
-          </div>
-        ))}
-      </div>
-    );
-  }
-  return null;
-};
-
 export default function App() {
   const [token, setToken] = useState(localStorage.getItem("token") || "");
   const [userRole, setUserRole] = useState(localStorage.getItem("userRole") || "admin");
@@ -210,18 +167,8 @@ export default function App() {
   const [messages, setMessages] = useState([]);
   const [typing, setTyping] = useState(false);
 
-  const [analyticsDaily, setAnalyticsDaily] = useState([]);
-  const [analyticsDailyKeys, setAnalyticsDailyKeys] = useState([]);
-  const [analyticsMonthly, setAnalyticsMonthly] = useState([]);
-  const [analyticsCategory, setAnalyticsCategory] = useState([]);
-  const [selectedIssue, setSelectedIssue] = useState("ALL");
-  const [refundDaily, setRefundDaily] = useState([]);
-
-const [refundMonthly, setRefundMonthly] = useState([]);
-const [editingRefundId, setEditingRefundId] = useState(null);
-const [refundAmountInput, setRefundAmountInput] = useState("");
-const [totalRefundToday, setTotalRefundToday] = useState(0);
-const [totalRefundMonth, setTotalRefundMonth] = useState(0);
+  const [editingRefundId, setEditingRefundId] = useState(null);
+  const [refundAmountInput, setRefundAmountInput] = useState("");
 
   const [requestedView, setView] = useState(LAUNCH_VIEW || "tickets");
   // The shared owner login is "admin" in chats; named admins keep their own chat identity.
@@ -1101,92 +1048,6 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
     }
   }, [token, authHeaders]);
 
-  const fetchAnalytics = useCallback(async () => {
-    if (!token) return;
-    try {
-      const headers = authHeaders();
-      const [daily, monthly, category] = await Promise.all([
-        API.get("/analytics/product-not-dispensed", { headers }),
-        API.get("/analytics/monthly", { headers }),
-        API.get("/analytics/category", { headers }),
-      ]);
-
-      if (Array.isArray(daily.data)) {
-        const grouped = {};
-        const keys = [];
-        daily.data.forEach((x) => {
-          const date = x.date ? new Date(x.date).toLocaleDateString() : "-";
-          const subIssue = x.sub_issue || "No Sub Issue";
-          const count = Number(x.count || 0);
-          if (!keys.includes(subIssue)) keys.push(subIssue);
-          if (!grouped[date]) grouped[date] = { date };
-          grouped[date][subIssue] = count;
-        });
-        setAnalyticsDaily(Object.values(grouped));
-        setAnalyticsDailyKeys(keys);
-      }
-
-      setAnalyticsMonthly(
-        Array.isArray(monthly.data)
-          ? monthly.data.map((x) => ({
-              month: x.month
-                ? new Date(x.month).toLocaleDateString("en-US", { month: "short", year: "numeric" })
-                : "-",
-              count: Number(x.count || 0),
-            }))
-          : []
-      );
-
-      setAnalyticsCategory(
-        Array.isArray(category.data)
-          ? category.data.map((x) => ({
-              issue: `${x.main_issue || "Unknown"} - ${x.sub_issue || "Unknown"}`,
-              count: Number(x.count || 0),
-            }))
-          : []
-      );
-    } catch (err) {
-      console.log("Analytics error:", err);
-    }
-  }, [token, authHeaders]);
-
-  const fetchRefundAnalytics = useCallback(async () => {
-    if (!token) return;
-    try {
-      const headers = authHeaders();
-      const [daily, monthly] = await Promise.all([
-        API.get("/analytics/refunds-daily", { headers }),
-        API.get("/analytics/refunds-monthly", { headers }),
-      ]);
-
-      setRefundDaily(Array.isArray(daily.data) ? daily.data : []);
-      setRefundMonthly(Array.isArray(monthly.data) ? monthly.data : []);
-
-      // Calculate totals
-      const todayDate = new Date().toLocaleDateString("en-CA");
-
-const todayTotal =
-  daily.data?.find((d) => {
-    const formattedDate = new Date(d.date)
-      .toLocaleDateString("en-CA");
-    return formattedDate === todayDate;
-  })?.total_refund || 0;
-      const currentMonth = new Date().toLocaleDateString("en-CA").slice(0, 7); // YYYY-MM
-
-const monthTotal =
-  monthly.data?.find((m) => {
-    const formattedMonth = new Date(m.month)
-      .toLocaleDateString("en-CA")
-      .slice(0, 7);
-    return formattedMonth === currentMonth;
-  })?.total_refund || 0;
-
-      setTotalRefundToday(todayTotal);
-      setTotalRefundMonth(monthTotal);
-    } catch (err) {
-      console.log("Refund analytics error:", err);
-    }
-  }, [token, authHeaders]);
 
   const rescanUpi = async (ticketId) => {
     await API.post(`/tickets/${ticketId}/scan-upi`, {}, { headers: authHeaders() });
@@ -1204,7 +1065,6 @@ const monthTotal =
       setEditingRefundId(null);
       setRefundAmountInput("");
       await fetchTickets();
-      await fetchRefundAnalytics();
     } catch (err) {
       alert("Failed to update refund amount");
       console.log(err);
@@ -1325,8 +1185,6 @@ const monthTotal =
         has("tickets") && fetchTickets(),
         has("products") && fetchProducts(),
         has("operations") && fetchOperationsSummary(),
-        has("analytics") && fetchAnalytics(),
-        (has("tickets") || has("analytics")) && fetchRefundAnalytics(),
         has("feedback") && fetchFeedback(),
         (has("tickets") || has("settings")) && fetchSettings(),
       ]);
@@ -1504,20 +1362,6 @@ const monthTotal =
   const autoClosedCount = tickets.filter((t) => t.status === "auto_closed").length;
   const adminCount = tickets.filter((t) => t.takeover).length;
   const refundedCount = tickets.filter((t) => t.status === "refunded" || t.status === "auto_refunded").length;
-
-  // Analytics summary stats
-  const totalIssues = analyticsCategory.reduce((sum, c) => sum + c.count, 0);
-  const topIssue = analyticsCategory.length > 0
-    ? analyticsCategory.reduce((a, b) => a.count > b.count ? a : b)
-    : null;
-  const avgMonthly = analyticsMonthly.length > 0
-    ? Math.round(analyticsMonthly.reduce((s, m) => s + m.count, 0) / analyticsMonthly.length)
-    : 0;
-  const resolvedCount = tickets.filter((t) => ["resolved", "refunded", "auto_refunded"].includes(t.status)).length;
-  const closureRate = tickets.length ? Math.round(((resolvedCount + closedCount + autoClosedCount) / tickets.length) * 100) : 0;
-  const automationRate = tickets.length ? Math.round((autoClosedCount / tickets.length) * 100) : 0;
-  const topIssueLabel = topIssue?.issue?.split(" - ")[0] || "No data yet";
-  const latestMonth = analyticsMonthly[analyticsMonthly.length - 1];
 
   /* =========================================================================
      LOGIN SCREEN
@@ -1910,7 +1754,7 @@ const monthTotal =
               {view === "expiry" && "Batch expiry dates, expired stock and write-off value"}
               {view === "refills" && "Refill days and times per site, WhatsApp reminders and photo proof"}
               {view === "tasks" && `${myTaskCounts.open} open for you${myTaskCounts.overdue ? ` · ${myTaskCounts.overdue} overdue` : ""} · from @tags in Internal Chat`}
-              {view === "analytics" && "Issue breakdown and trends"}
+              {view === "analytics" && "Complaints, refunds and resolution · India time"}
               {view === "internal-chat" && `${departmentChats.length} active ${selectedDepartment} conversations`}
               {view === "employees" && `${internalUsers.length} people with their own login`}
               {view === "activity" && "Who changed what, and when"}
@@ -2764,329 +2608,7 @@ const monthTotal =
         )}
 
         {/* ── ANALYTICS VIEW ──────────────────────────────────────────────── */}
-        {view === "analytics" && (
-          <>
-            <section className="analytics-hero">
-              <div className="analytics-hero-copy">
-                <div className="analytics-eyebrow"><span className="analytics-status-dot" /> Operations intelligence</div>
-                <h2>Understand every customer moment.</h2>
-                <p>Monitor demand, resolution health, and refund movement from one focused workspace.</p>
-              </div>
-              <div className="analytics-hero-meta">
-                <span className="analytics-meta-label">Reporting window</span>
-                <strong>All available activity</strong>
-                <span className="analytics-meta-date">Updated {new Date().toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</span>
-              </div>
-            </section>
-
-            <div className="analytics-signal-grid">
-              <div className="analytics-signal-card signal-primary">
-                <div className="signal-label">Resolution health</div>
-                <div className="signal-value">{closureRate}%</div>
-                <div className="signal-foot">Closed, resolved, or refunded</div>
-                <div className="signal-progress"><span style={{ width: `${Math.min(100, closureRate)}%` }} /></div>
-              </div>
-              <div className="analytics-signal-card">
-                <div className="signal-label">Open workload</div>
-                <div className="signal-value">{openCount}</div>
-                <div className="signal-foot">Tickets needing attention now</div>
-                <div className="signal-accent accent-blue" />
-              </div>
-              <div className="analytics-signal-card">
-                <div className="signal-label">Automation share</div>
-                <div className="signal-value">{automationRate}%</div>
-                <div className="signal-foot">Tickets closed by inactivity rule</div>
-                <div className="signal-accent accent-amber" />
-              </div>
-              <div className="analytics-signal-card">
-                <div className="signal-label">Leading demand</div>
-                <div className="signal-value signal-value-text">{topIssueLabel}</div>
-                <div className="signal-foot">{topIssue?.count || 0} reported cases</div>
-                <div className="signal-accent accent-green" />
-              </div>
-            </div>
-
-            {/* Analytics KPI strip */}
-            <div className="stat-cards analytics-kpi" style={{ marginBottom: 28 }}>
-              <div className="stat-card">
-                <div className="stat-icon red"><span>📋</span></div>
-                <div>
-                  <div className="stat-num">{totalIssues}</div>
-                  <div className="stat-label">Total Issues</div>
-                </div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-icon amber"><span>⚠️</span></div>
-                <div>
-                  <div className="stat-num">{analyticsCategory.length}</div>
-                  <div className="stat-label">Issue Types</div>
-                </div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-icon blue"><span>📅</span></div>
-                <div>
-                  <div className="stat-num">{avgMonthly}</div>
-                  <div className="stat-label">Avg / Month</div>
-                </div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-icon green"><span>🏆</span></div>
-                <div>
-                  <div className="stat-num" style={{ fontSize: 16, letterSpacing: "-0.4px", marginTop: 3 }}>
-                    {topIssue ? topIssue.count : "—"}
-                  </div>
-                  <div className="stat-label">Top Issue Count</div>
-                </div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-icon purple"><span>↗</span></div>
-                <div>
-                  <div className="stat-num">{latestMonth?.count || 0}</div>
-                  <div className="stat-label">Latest Month</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Refund Analytics */}
-            <div className="stat-cards" style={{ marginBottom: 28 }}>
-              <div className="stat-card">
-                <div className="stat-icon green"><span>💰</span></div>
-                <div>
-                  <div className="stat-num">₹{totalRefundToday || "0"}</div>
-                  <div className="stat-label">Refunds Today</div>
-                </div>
-              </div>
-              <div className="stat-card">
-                <div className="stat-icon blue"><span>📊</span></div>
-                <div>
-                  <div className="stat-num">₹{totalRefundMonth || "0"}</div>
-                  <div className="stat-label">Refunds This Month</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Refund Charts */}
-            <div className="analytics-grid">
-              {/* Daily Refunds Chart */}
-              <div className="analytics-card full-width">
-                <div className="analytics-card-header">
-                  <div className="analytics-card-header-left">
-                    <span className="analytics-card-eyebrow">Daily</span>
-                    <h3>Refunds Per Day</h3>
-                  </div>
-                  <span className="chart-badge">Bar</span>
-                </div>
-                <ResponsiveContainer width="100%" height={250}>
-                  <BarChart data={refundDaily} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f2f7" vertical={false} />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fontSize: 11, fill: "#8c96ae", fontFamily: "Inter" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: "#8c96ae", fontFamily: "Inter" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Bar dataKey="total_refund" fill="#10b981" radius={[5, 5, 0, 0]} name="Refund Amount" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Monthly Refunds Chart */}
-              <div className="analytics-card full-width">
-                <div className="analytics-card-header">
-                  <div className="analytics-card-header-left">
-                    <span className="analytics-card-eyebrow">Monthly</span>
-                    <h3>Refunds Per Month</h3>
-                  </div>
-                  <span className="chart-badge">Area</span>
-                </div>
-                <ResponsiveContainer width="100%" height={250}>
-                  <AreaChart data={refundMonthly} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="refundGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.18} />
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f2f7" vertical={false} />
-                    <XAxis
-                      dataKey="month"
-                      tick={{ fontSize: 11, fill: "#8c96ae", fontFamily: "Inter" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: "#8c96ae", fontFamily: "Inter" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Area
-                      type="monotone"
-                      dataKey="total_refund"
-                      stroke="#10b981"
-                      strokeWidth={2.5}
-                      fill="url(#refundGrad)"
-                      dot={{ fill: "#10b981", r: 4, strokeWidth: 2, stroke: "#fff" }}
-                      name="Monthly Refunds"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            <div className="analytics-grid">
-
-              {/* ── Daily Sub-Issues Stacked Bar ── */}
-              <div className="analytics-card full-width">
-                <div className="analytics-card-header">
-                  <div className="analytics-card-header-left">
-                    <span className="analytics-card-eyebrow">Daily Breakdown</span>
-                    <h3>Sub-Issues Over Time</h3>
-                  </div>
-                  <span className="chart-badge">Stacked Bar</span>
-                </div>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={analyticsDaily} barCategoryGap="30%" margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f2f7" vertical={false} />
-                    <XAxis
-                      dataKey="date"
-                      tick={{ fontSize: 11, fill: "#8c96ae", fontFamily: "Inter" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: "#8c96ae", fontFamily: "Inter" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend
-                      wrapperStyle={{ fontSize: 12, color: "#4a5468", fontFamily: "Inter", paddingTop: 20 }}
-                      iconType="circle"
-                      iconSize={8}
-                    />
-                    {analyticsDailyKeys.map((key, i) => (
-                      <Bar
-                        key={key}
-                        dataKey={key}
-                        stackId="subIssues"
-                        fill={COLORS[i % COLORS.length]}
-                        radius={i === analyticsDailyKeys.length - 1 ? [5, 5, 0, 0] : [0, 0, 0, 0]}
-                      />
-                    ))}
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* ── Monthly Trend Area Chart ── */}
-              <div className="analytics-card">
-                <div className="analytics-card-header">
-                  <div className="analytics-card-header-left">
-                    <span className="analytics-card-eyebrow">Trend</span>
-                    <h3>Monthly Volume</h3>
-                  </div>
-                  <span className="chart-badge">Area</span>
-                </div>
-                <ResponsiveContainer width="100%" height={260}>
-                  <AreaChart data={analyticsMonthly} margin={{ top: 4, right: 8, left: -10, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#e8192c" stopOpacity={0.18} />
-                        <stop offset="95%" stopColor="#e8192c" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f2f7" vertical={false} />
-                    <XAxis
-                      dataKey="month"
-                      tick={{ fontSize: 11, fill: "#8c96ae", fontFamily: "Inter" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: "#8c96ae", fontFamily: "Inter" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Area
-                      type="monotone"
-                      dataKey="count"
-                      stroke="#e8192c"
-                      strokeWidth={2.5}
-                      fill="url(#areaGrad)"
-                      dot={{ fill: "#e8192c", r: 4, strokeWidth: 2, stroke: "#fff" }}
-                      activeDot={{ r: 6, stroke: "#e8192c", strokeWidth: 2, fill: "#fff" }}
-                      name="Issues"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* ── Issue Breakdown Donut + Legend ── */}
-              <div className="analytics-card">
-                <div className="analytics-card-header">
-                  <div className="analytics-card-header-left">
-                    <span className="analytics-card-eyebrow">Composition</span>
-                    <h3>Issue Breakdown</h3>
-                  </div>
-                  <span className="chart-badge">Donut</span>
-                </div>
-                <div className="pie-container">
-                  <PieChart width={210} height={210}>
-                    <Pie
-                      data={selectedIssue === "ALL"
-                        ? analyticsCategory
-                        : analyticsCategory.filter((i) => i.issue === selectedIssue)}
-                      dataKey="count"
-                      nameKey="issue"
-                      outerRadius={95}
-                      innerRadius={52}
-                      paddingAngle={2}
-                    >
-                      {(selectedIssue === "ALL"
-                        ? analyticsCategory
-                        : analyticsCategory.filter((i) => i.issue === selectedIssue)
-                      ).map((_, i) => (
-                        <Cell key={i} fill={COLORS[i % COLORS.length]} stroke="none" />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      content={<CustomTooltip />}
-                      formatter={(value, name) => [`${value}`, name]}
-                    />
-                  </PieChart>
-
-                  <div className="pie-legend">
-                    <button
-                      className={`legend-btn ${selectedIssue === "ALL" ? "active" : ""}`}
-                      onClick={() => setSelectedIssue("ALL")}
-                    >
-                      All Issues
-                    </button>
-                    {analyticsCategory.map((item, i) => (
-                      <button
-                        key={item.issue}
-                        className={`legend-btn ${selectedIssue === item.issue ? "active" : ""}`}
-                        onClick={() => setSelectedIssue(item.issue)}
-                      >
-                        <span className="legend-dot" style={{ background: COLORS[i % COLORS.length] }} />
-                        <span style={{ flex: 1 }}>{item.issue}</span>
-                        <strong style={{ marginLeft: 6, color: "#0b0f1a", fontSize: 12 }}>{item.count}</strong>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-            </div>
-          </>
-        )}
+        {view === "analytics" && <AnalyticsWorkspace token={token} />}
       </main>
 
       {/* ── CHAT PANEL ──────────────────────────────────────────────────────── */}
