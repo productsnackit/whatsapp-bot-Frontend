@@ -33,10 +33,13 @@ const LAUNCH_PARAMS = new URLSearchParams(window.location.search);
 const LAUNCH_VIEW = ["internal-chat", "findings", "refills", "tickets"].includes(LAUNCH_PARAMS.get("view")) ? LAUNCH_PARAMS.get("view") : null;
 // Tapping a chat notification opens ?view=internal-chat&chat=<id>&department=<dept>
 const LAUNCH_CHAT = LAUNCH_PARAMS.get("chat") ? { chatId: LAUNCH_PARAMS.get("chat"), department: LAUNCH_PARAMS.get("department") } : null;
+// The Operations pages (inventory, clients, brands, demand, imports…) are hidden: nothing feeds
+// them sales or stock data. Their code and data are kept; set this to true to bring them back.
+const SHOW_OPERATIONS = false;
 // A "customer replied" notification opens ?view=tickets&ticket=<id>&phone=<phone>
 const LAUNCH_TICKET = LAUNCH_PARAMS.get("ticket") ? { ticketId: LAUNCH_PARAMS.get("ticket"), phone: LAUNCH_PARAMS.get("phone") || "" } : null;
 // Pages a person can be given (the server decides; this mirrors it for the menu).
-const ALL_PAGE_KEYS = ["tickets", "feedback", "products", "operations", "audit", "refills", "findings", "expiry", "analytics", "activity", "settings"];
+const ALL_PAGE_KEYS = ["tickets", "feedback", "products", ...(SHOW_OPERATIONS ? ["operations"] : []), "audit", "refills", "findings", "expiry", "analytics", "activity", "settings"];
 const OPERATIONS_VIEWS = ["inventory", "clients", "brands", "performance", "leads", "routes", "demand", "import"];
 // Until the server answers /me, people keep what they had before roles existed.
 function defaultAccess(role, department) {
@@ -213,7 +216,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const myAccess = access || defaultAccess(userRole, currentUserDepartment);
   const isAdmin = isOwner || Boolean(myAccess.isAdmin);
   const can = (page) => isAdmin || (myAccess.pages || []).includes(page);
-  const canAccessOperations = can("operations");
+  const canAccessOperations = SHOW_OPERATIONS && can("operations");
   const canAccessAudit = can("audit");
   // A page someone can't open falls back to their home page.
   const viewAllowed = (name) => {
