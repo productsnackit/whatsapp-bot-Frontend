@@ -11,6 +11,7 @@ import NotificationSettings from "./NotificationSettings.jsx";
 import { TxnIdCell, UpiScanSummary, UpiScanDetails } from "./UpiScan.jsx";
 import { transactionIdOf, isClosedTicket } from "./transactionId.js";
 import TicketChat from "./TicketChat.jsx";
+import ImageViewer from "./ImageViewer.jsx";
 import EmployeesAccess from "./EmployeesAccess.jsx";
 import ActivityLog from "./ActivityLog.jsx";
 import AccountPanel from "./AccountPanel.jsx";
@@ -190,6 +191,15 @@ export default function App() {
 
   const [tickets, setTickets] = useState([]);
   const [upiScanTicketId, setUpiScanTicketId] = useState(null);
+  const [imageViewer, setImageViewer] = useState(null); // { images, index }
+  // A ticket's photos (product photo + payment screenshot) open together in the viewer.
+  const openTicketImages = (ticket, which) => {
+    const images = [
+      ticket.image && { url: ticket.image, caption: `Ticket #${ticket.id} · product / machine photo` },
+      ticket.upi_image && { url: ticket.upi_image, caption: `Ticket #${ticket.id} · payment screenshot` },
+    ].filter(Boolean);
+    setImageViewer({ images, index: Math.max(0, images.findIndex((image) => image.url === which)) });
+  };
   const [feedback, setFeedback] = useState([]);
   const [products, setProducts] = useState([]);
   const [lowStockSummary, setLowStockSummary] = useState([]);
@@ -2555,16 +2565,16 @@ const monthTotal =
                         <td data-label="UPI transaction ID"><TxnIdCell ticket={t} /></td>
                         <td data-label="Image">
                           {t.image ? (
-                            <img src={t.image} alt="img" className="thumb" onClick={() => window.open(t.image, "_blank")} />
-                          ) : <span className="na">—</span>}
+                            <img src={t.image} alt="img" className="thumb" onClick={() => openTicketImages(t, t.image)} />
+                          ) : t.images_deleted_at ? <span className="image-gone" title={`Deleted ${new Date(t.images_deleted_at).toLocaleDateString("en-IN")}`}>🗑 Deleted after 10 days</span> : <span className="na">—</span>}
                         </td>
                         <td data-label="UPI screenshot">
                           {t.upi_image ? (
                             <div className="upi-scan-cell">
-                              <img src={t.upi_image} alt="upi" className="thumb" onClick={() => window.open(t.upi_image, "_blank")} />
+                              <img src={t.upi_image} alt="upi" className="thumb" onClick={() => openTicketImages(t, t.upi_image)} />
                               <UpiScanSummary ticket={t} onOpen={() => setUpiScanTicketId(t.id)} />
                             </div>
-                          ) : <span className="na">—</span>}
+                          ) : t.images_deleted_at ? <span className="image-gone">🗑 Deleted after 10 days</span> : <span className="na">—</span>}
                         </td>
                         <td data-label="Refund">
   {editingRefundId === t.id ? (
@@ -3083,6 +3093,10 @@ const monthTotal =
       </main>
 
       {/* ── CHAT PANEL ──────────────────────────────────────────────────────── */}
+      {imageViewer && (
+        <ImageViewer images={imageViewer.images} index={imageViewer.index} onIndex={(index) => setImageViewer((current) => ({ ...current, index }))} onClose={() => setImageViewer(null)} />
+      )}
+
       {upiScanTicketId && tickets.some((ticket) => ticket.id === upiScanTicketId) && (
         <UpiScanDetails ticket={tickets.find((ticket) => ticket.id === upiScanTicketId)} onClose={() => setUpiScanTicketId(null)} onRescan={rescanUpi} />
       )}

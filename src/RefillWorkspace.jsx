@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { downloadFile } from "./download.js";
 
 /* Refill Schedule: sites get refill days/times, refillers get WhatsApp reminders,
    and prove each refill with a photo; supervisors verify them here. */
@@ -69,7 +70,7 @@ function Lightbox({ photos, index, onClose, onIndex }) {
     <div className="tc-lightbox" onClick={onClose}>
       <div className="tc-lightbox-bar" onClick={(event) => event.stopPropagation()}>
         <span>Received {new Date(photo.at).toLocaleString("en-IN")} · {index + 1} / {photos.length}</span>
-        <a href={photo.url} target="_blank" rel="noreferrer">Open original</a>
+        <button type="button" className="iv-btn" onClick={() => downloadFile(photo.url).catch(() => window.alert("Could not download this photo."))}>Download</button>
         <button type="button" onClick={onClose} aria-label="Close">✕</button>
       </div>
       {index > 0 && <button type="button" className="tc-lightbox-nav is-prev" onClick={(event) => { event.stopPropagation(); onIndex(index - 1); }}>‹</button>}
@@ -233,6 +234,7 @@ function VerifyCard({ task, grace, onDecide, onPhotos }) {
   };
   return (
     <div className={`rf-verify-card rf-task-${task.status}`}>
+      {task.photos_deleted_at && !photos.length && <p className="image-gone">🗑 Photos deleted after 10 days</p>}
       <div className="rf-verify-photos">
         {photos.map((photo, index) => (
           <button type="button" key={photo.url} onClick={() => onPhotos(photos, index)}><img src={photo.url} alt="" loading="lazy" /></button>

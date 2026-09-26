@@ -4399,3 +4399,13 @@ button:disabled.rf-ok, button:disabled.rf-danger { opacity: .55; cursor: default
 .action-closed { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; background: #f1f5f9; color: #475569; font-size: 11px; font-weight: 800; white-space: nowrap; }
 .tc-locked.is-closed { background: #f8fafc; color: #475569; }
 .tc-locked.is-closed button { background: #0b0f1a; }
+/* In-dashboard image viewer */
+.iv .iv-stage { display: grid; place-items: center; width: 100%; height: 100%; overflow: auto; }
+.iv .iv-stage img { max-width: 100%; max-height: calc(100vh - 90px); cursor: zoom-in; }
+.iv .iv-stage.is-zoomed { place-items: start center; }
+.iv .iv-stage.is-zoomed img { max-width: none; max-height: none; width: auto; cursor: zoom-out; }
+.iv-btn { padding: 5px 12px !important; border: 1px solid rgba(255, 255, 255, .3) !important; border-radius: 8px; color: #e9edef; font: inherit !important; font-size: 13px !important; font-weight: 700; }
+.iv-btn:disabled { opacity: .6; }
+.upi-scan-image { padding: 0; border: 0; background: transparent; cursor: zoom-in; }
+.audit-photo { padding: 0; border: 0; cursor: zoom-in; }
+.image-gone { color: var(--text-muted); font-size: 11px; font-style: italic; }

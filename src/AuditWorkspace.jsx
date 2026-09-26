@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { parseCsv } from "./csv.js";
+import ImageViewer from "./ImageViewer.jsx";
 
 const API = axios.create({ baseURL: "https://whatsapp-bot-backend-b3nb.onrender.com" });
 
@@ -508,6 +509,7 @@ function ConductAudit({ headers, refillers, locations, currentUserName, prefill,
    AUDIT REPORT (printable)
 ========================================================================= */
 function AuditReport({ audit, onClose }) {
+  const [photoIndex, setPhotoIndex] = useState(null);
   const grade = gradeFor(audit.percentage, audit.critical_breach);
   const checklist = audit.checklist || [];
   const issues = checklist.filter((item) => item.score !== -1 && item.score < item.maxPts);
@@ -555,12 +557,14 @@ function AuditReport({ audit, onClose }) {
             ))}
           </div>
         </>}
+        {audit.photos_deleted_at && !audit.photos?.length && <p className="audit-muted">🗑 Photos were deleted 10 days after the audit to save storage.</p>}
         {audit.photos?.length > 0 && <>
           <h4>Photos</h4>
           <div className="audit-photo-grid">
-            {audit.photos.map((src) => <a key={src} className="audit-photo" href={src} target="_blank" rel="noreferrer"><img src={src} alt="Audit proof" /></a>)}
+            {audit.photos.map((src, index) => <button type="button" key={src} className="audit-photo" onClick={() => setPhotoIndex(index)}><img src={src} alt="Audit proof" /></button>)}
           </div>
         </>}
+        {photoIndex !== null && <ImageViewer images={audit.photos.map((url, index) => ({ url, caption: `${audit.ref} · photo ${index + 1}` }))} index={photoIndex} onIndex={setPhotoIndex} onClose={() => setPhotoIndex(null)} />}
         <div className="audit-signoff">
           <div><span>Verified by auditor</span><b>{audit.auditor}</b></div>
           <div><span>Acknowledged by refiller</span><b>{audit.refiller}</b><small>{audit.refiller_phone}</small></div>

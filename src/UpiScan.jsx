@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { transactionIdOf } from "./transactionId.js";
+import ImageViewer from "./ImageViewer.jsx";
 
 /* What was read from a customer's UPI screenshot (UTR, amount, UPI IDs),
    shown under the screenshot in the tickets table, with a details window. */
@@ -62,6 +63,7 @@ export function UpiScanDetails({ ticket, onClose, onRescan }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [showText, setShowText] = useState(false);
+  const [viewing, setViewing] = useState(false);
   const scan = ticket.upi_scan;
 
   const rescan = async () => {
@@ -96,7 +98,8 @@ export function UpiScanDetails({ ticket, onClose, onRescan }) {
           <button type="button" className="upi-scan-close" onClick={onClose} aria-label="Close">✕</button>
         </div>
         <div className="upi-scan-body">
-          <a href={ticket.upi_image} target="_blank" rel="noreferrer" className="upi-scan-image"><img src={ticket.upi_image} alt="UPI screenshot" /></a>
+          <button type="button" className="upi-scan-image" onClick={() => setViewing(true)} title="View full screen"><img src={ticket.upi_image} alt="UPI screenshot" /></button>
+          {viewing && <ImageViewer images={[{ url: ticket.upi_image, caption: `Ticket #${ticket.id} · payment screenshot` }]} index={0} onIndex={() => {}} onClose={() => setViewing(false)} />}
           <div className="upi-scan-info">
             {scan ? <>
               {flagsFor(ticket).length > 0 ? (

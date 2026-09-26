@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { downloadFile } from "./download.js";
 
 /* Customer ticket chat for admin takeover: photos, videos, documents and voice
    notes both ways, delivery ticks, quick replies and WhatsApp's 24-hour window. */
@@ -99,7 +100,7 @@ function Lightbox({ images, index, onClose, onIndex }) {
     <div className="tc-lightbox" onClick={onClose}>
       <div className="tc-lightbox-bar" onClick={(event) => event.stopPropagation()}>
         <span>{current.sender === "admin" ? `Sent by ${current.sent_by || "support"}` : "From customer"} · {timeLabel(new Date(current.created_at))} · {index + 1} / {images.length}</span>
-        <a href={current.media_url} target="_blank" rel="noreferrer" download>Open original</a>
+        <button type="button" className="iv-btn" onClick={() => downloadFile(current.media_url).catch(() => window.alert("Could not download this photo."))}>Download</button>
         <button type="button" onClick={onClose} aria-label="Close">✕</button>
       </div>
       {index > 0 && <button type="button" className="tc-lightbox-nav is-prev" onClick={(event) => { event.stopPropagation(); onIndex(index - 1); }} aria-label="Previous">‹</button>}
@@ -341,7 +342,8 @@ export default function TicketChat({ ticket, messages, typing, api, headers, onC
                   {side === "out" && m.sent_by && <div className="tc-sender">{m.sent_by}</div>}
                   {side === "bot" && <div className="tc-sender">🤖 Bot</div>}
                   <MediaBlock message={m} onOpenImage={() => setLightbox(images.findIndex((img) => img.id === m.id))} />
-                  {!m.media_url && m.message === "[media]" && <div className="tc-legacy-media">📎 Photo or file (sent before attachments were saved)</div>}
+                  {!m.media_url && m.media_deleted_at && <div className="tc-legacy-media">🗑 {m.media_type === "image" ? "Photo" : "File"} deleted after 10 days</div>}
+                  {!m.media_url && !m.media_deleted_at && m.message === "[media]" && <div className="tc-legacy-media">📎 Photo or file (sent before attachments were saved)</div>}
                   {body && <div className="tc-text">{body}</div>}
                   <div className="tc-meta">{timeLabel(date)}<Ticks message={m} /></div>
                   {m.status === "failed" && (
