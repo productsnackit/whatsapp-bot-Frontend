@@ -2547,7 +2547,6 @@ const monthTotal =
                     <th>UPI Screenshot</th>
                     <th>Refund Amount</th>
                     <th>Status</th>
-                    <th>State</th>
                     <th>Mode</th>
                     <th>Date</th>
                     <th>Actions</th>
@@ -2656,11 +2655,6 @@ const monthTotal =
                           </span>
                           <span className={`priority-badge priority-${t.priority || "normal"}`}>
                             {t.priority || "normal"}
-                          </span>
-                        </td>
-                        <td data-label="State">
-                          <span className={`state-pill ${t.state === "OPEN" ? "state-open" : "state-closed"}`}>
-                            {isAutoClosed ? "AUTO CLOSED" : t.state}
                           </span>
                         </td>
                         <td data-label="Mode">
