@@ -9,7 +9,7 @@ import MobileChat, { Avatar } from "./MobileChat.jsx";
 import { getPushState, enablePush, syncPush, disablePush, showLocalNotification, PUSH_STATE_LABELS } from "./pushNotifications.js";
 import NotificationSettings from "./NotificationSettings.jsx";
 import { TxnIdCell, UpiScanSummary, UpiScanDetails } from "./UpiScan.jsx";
-import { transactionIdOf } from "./transactionId.js";
+import { transactionIdOf, isClosedTicket } from "./transactionId.js";
 import TicketChat from "./TicketChat.jsx";
 import EmployeesAccess from "./EmployeesAccess.jsx";
 import ActivityLog from "./ActivityLog.jsx";
@@ -1258,12 +1258,19 @@ const monthTotal =
     }
   };
 
-  const reopenTicket = async () => {
-    if (!activeChat?.id) return;
+  // The open chat follows the ticket list, so it locks as soon as the ticket is closed.
+  const liveActiveTicket = activeChat ? tickets.find((ticket) => ticket.id === activeChat.id) || activeChat : null;
+  const chatClosed = isClosedTicket(liveActiveTicket);
+
+  const reopenTicket = async (ticketId = activeChat?.id) => {
+    if (!ticketId) return;
+    if (!window.confirm("Reopen this ticket? You can then message the customer and change its status again.")) return;
     try {
-      const res = await API.post(`/admin/tickets/${activeChat.id}/reopen`, {}, { headers: authHeaders() });
-      setActiveChat(res.data.ticket);
-      setMessages([]);
+      const res = await API.post(`/admin/tickets/${ticketId}/reopen`, {}, { headers: authHeaders() });
+      if (activeChat?.id === ticketId) {
+        setActiveChat(res.data.ticket);
+        setMessages([]);
+      }
       await fetchTickets();
     } catch (err) {
       alert("Failed to reopen ticket");
@@ -1414,7 +1421,7 @@ const monthTotal =
       alert(`Action "${action}" completed successfully`);
       await fetchTickets();
     } catch (err) {
-      alert("Action failed. Check backend.");
+      alert(err.response?.data?.error || "Action failed. Check backend.");
       console.log(err);
     } finally {
       setLoadingId(null);
@@ -1429,7 +1436,7 @@ const monthTotal =
       await fetchMessages(activeChat.id);
       fetchTickets();
     } catch (err) {
-      alert("Takeover failed");
+      alert(err.response?.data?.error || "Takeover failed");
       console.log(err);
     }
   };
@@ -2654,7 +2661,12 @@ const monthTotal =
                         </td>
                         <td className="cell-actions">
                           <div className="action-group">
-                            {["REFUNDED", "AUTO_REFUNDED", "RESOLVED", "CLOSED"].map((action) => (
+                            {isClosedTicket(t) ? (
+                              <>
+                                <span className="action-closed" title="Finished tickets can't be changed or messaged until reopened">🔒 Closed</span>
+                                <button type="button" className="action-pill" onClick={() => reopenTicket(t.id)}>Reopen</button>
+                              </>
+                            ) : ["REFUNDED", "AUTO_REFUNDED", "RESOLVED", "CLOSED"].map((action) => (
                               <button
                                 key={action}
                                 className="action-pill"
@@ -3093,7 +3105,11 @@ const monthTotal =
               <button type="button" className={`chat-tools-toggle ${showTicketTools ? "active" : ""}`} onClick={() => setShowTicketTools((value) => !value)}>
                 Details
               </button>
-              {!activeChat.takeover ? (
+              {chatClosed ? (
+                <button className="chat-takeover-btn" onClick={() => reopenTicket()}>
+                  Reopen
+                </button>
+              ) : !activeChat.takeover ? (
                 <button className="chat-takeover-btn" onClick={takeover}>
                   Take Over
                 </button>
@@ -3143,13 +3159,15 @@ const monthTotal =
             <div className="chat-tool-actions">
               <button type="button" className="chat-save-btn" onClick={updateTicketDetails}>Save details</button>
               {(activeChat.state === "CLOSED" || activeChat.status === "auto_closed") && (
-                <button type="button" className="chat-reopen-btn" onClick={reopenTicket}>Reopen ticket</button>
+                <button type="button" className="chat-reopen-btn" onClick={() => reopenTicket()}>Reopen ticket</button>
               )}
             </div>
           </div>
 
           <TicketChat
-            ticket={activeChat}
+            ticket={{ ...activeChat, takeover: chatClosed ? false : activeChat.takeover }}
+            closed={chatClosed}
+            onReopen={() => reopenTicket()}
             messages={messages}
             typing={typing}
             api={API}

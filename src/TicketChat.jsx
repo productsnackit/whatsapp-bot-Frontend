@@ -175,7 +175,7 @@ function ReplyWindow({ lastCustomerAt, now }) {
   return <div className={`tc-window ${left < 2 * 3600000 ? "is-soon" : ""}`} title="WhatsApp delivers replies for 24 hours after the customer's last message">🟢 Can reply · {hours ? `${hours}h ` : ""}{minutes}m left</div>;
 }
 
-export default function TicketChat({ ticket, messages, typing, api, headers, onChanged, onTakeover }) {
+export default function TicketChat({ ticket, messages, typing, api, headers, onChanged, onTakeover, closed = false, onReopen }) {
   const [text, setText] = useState("");
   const [files, setFiles] = useState([]);
   const [sending, setSending] = useState(false);
@@ -188,7 +188,7 @@ export default function TicketChat({ ticket, messages, typing, api, headers, onC
   const endRef = useRef(null);
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
-  const canReply = Boolean(ticket.takeover);
+  const canReply = Boolean(ticket.takeover) && !closed;
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 60000);
@@ -395,6 +395,11 @@ export default function TicketChat({ ticket, messages, typing, api, headers, onC
             </button>
           </div>
           <div className="tc-hint">Enter to send · Shift+Enter for a new line · paste or drop photos</div>
+        </div>
+      ) : closed ? (
+        <div className="tc-locked is-closed">
+          <span>🔒 This ticket is closed. Messages can't be sent until it's reopened.</span>
+          {onReopen && <button type="button" onClick={onReopen}>Reopen ticket</button>}
         </div>
       ) : (
         <div className="tc-locked">
