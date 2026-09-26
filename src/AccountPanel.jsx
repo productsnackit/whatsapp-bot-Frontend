@@ -4,7 +4,7 @@ import { useState } from "react";
 
 const PAGE_LABELS = {
   tickets: "Tickets & customer chat", feedback: "Feedback", products: "Product leads", operations: "Operations",
-  audit: "Refill Audit", findings: "Internal Audit", expiry: "Expiry Tracking", analytics: "Analytics",
+  audit: "Refill Audit", refills: "Refill Schedule", findings: "Internal Audit", expiry: "Expiry Tracking", analytics: "Analytics",
   activity: "Activity log", settings: "Bot settings",
 };
 

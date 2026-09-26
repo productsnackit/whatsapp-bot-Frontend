@@ -3,8 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 /* Who changed what and when: refunds, takeovers, audits, deletions,
    employee changes and logins, newest first. */
 
-const SECTIONS = ["Tickets", "Refill Audit", "Internal Audit", "Expiry Tracking", "Operations", "Employees", "Settings", "Account", "Internal Chat", "Other"];
-const SECTION_ICONS = { Tickets: "🎫", "Refill Audit": "🛡️", "Internal Audit": "📋", "Expiry Tracking": "📅", Operations: "📦", Employees: "👥", Settings: "⚙️", Account: "🔑", "Internal Chat": "💬", Other: "•" };
+const SECTIONS = ["Tickets", "Refill Audit", "Refills", "Internal Audit", "Expiry Tracking", "Operations", "Employees", "Settings", "Account", "Internal Chat", "Other"];
+const SECTION_ICONS = { Tickets: "🎫", "Refill Audit": "🛡️", Refills: "🗓", "Internal Audit": "📋", "Expiry Tracking": "📅", Operations: "📦", Employees: "👥", Settings: "⚙️", Account: "🔑", "Internal Chat": "💬", Other: "•" };
 const PAGE_SIZE = 100;
 
 function dayLabel(date) {

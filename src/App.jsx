@@ -13,6 +13,7 @@ import TicketChat from "./TicketChat.jsx";
 import EmployeesAccess from "./EmployeesAccess.jsx";
 import ActivityLog from "./ActivityLog.jsx";
 import AccountPanel from "./AccountPanel.jsx";
+import RefillWorkspace from "./RefillWorkspace.jsx";
 import MentionText, { MentionSuggestions, TaskLine } from "./MentionText.jsx";
 import { useMentionInput, mentionIds } from "./mentions.js";
 import {
@@ -29,18 +30,18 @@ const API = axios.create({
 // The installed app (see public/manifest.webmanifest) opens with ?view=internal-chat
 const LAUNCH_PARAMS = new URLSearchParams(window.location.search);
 // Notifications can also open straight into Internal Audit (?view=findings).
-const LAUNCH_VIEW = ["internal-chat", "findings"].includes(LAUNCH_PARAMS.get("view")) ? LAUNCH_PARAMS.get("view") : null;
+const LAUNCH_VIEW = ["internal-chat", "findings", "refills", "tickets"].includes(LAUNCH_PARAMS.get("view")) ? LAUNCH_PARAMS.get("view") : null;
 // Tapping a chat notification opens ?view=internal-chat&chat=<id>&department=<dept>
 const LAUNCH_CHAT = LAUNCH_PARAMS.get("chat") ? { chatId: LAUNCH_PARAMS.get("chat"), department: LAUNCH_PARAMS.get("department") } : null;
 // A "customer replied" notification opens ?view=tickets&ticket=<id>&phone=<phone>
 const LAUNCH_TICKET = LAUNCH_PARAMS.get("ticket") ? { ticketId: LAUNCH_PARAMS.get("ticket"), phone: LAUNCH_PARAMS.get("phone") || "" } : null;
 // Pages a person can be given (the server decides; this mirrors it for the menu).
-const ALL_PAGE_KEYS = ["tickets", "feedback", "products", "operations", "audit", "findings", "expiry", "analytics", "activity", "settings"];
+const ALL_PAGE_KEYS = ["tickets", "feedback", "products", "operations", "audit", "refills", "findings", "expiry", "analytics", "activity", "settings"];
 const OPERATIONS_VIEWS = ["inventory", "clients", "brands", "performance", "leads", "routes", "demand", "import"];
 // Until the server answers /me, people keep what they had before roles existed.
 function defaultAccess(role, department) {
   if (role === "admin") return { accessRole: "admin", roleLabel: "Owner", pages: ALL_PAGE_KEYS, readOnly: false, isAdmin: true };
-  const pages = department === "Operations" ? ["operations", "audit", "findings", "expiry"] : department === "Audit" ? ["audit", "findings", "expiry"] : ["findings", "expiry"];
+  const pages = department === "Operations" ? ["operations", "audit", "refills", "findings", "expiry"] : department === "Audit" ? ["audit", "refills", "findings", "expiry"] : ["findings", "expiry"];
   return { accessRole: "staff", roleLabel: "Staff", pages, readOnly: false, isAdmin: false };
 }
 function readStoredAccess() {
@@ -868,7 +869,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
     if (!("serviceWorker" in navigator)) return;
     const onMessage = (event) => {
       if (event.data?.type === "open-internal-chat") openChatFromNotification(event.data);
-      if (event.data?.type === "open-view" && event.data.view === "findings") setView("findings");
+      if (event.data?.type === "open-view" && event.data.view) setView(event.data.view);
       if (event.data?.type === "open-ticket") openTicketFromNotification(event.data);
     };
     navigator.serviceWorker.addEventListener("message", onMessage);
@@ -1698,7 +1699,7 @@ const monthTotal =
             ))}
           </>}
 
-          {(canAccessAudit || can("findings") || can("expiry")) && <>
+          {(canAccessAudit || can("refills") || can("findings") || can("expiry")) && <>
           <div className="sidebar-divider" />
           <div className="sidebar-section-label">Quality</div>
           </>}
@@ -1713,6 +1714,13 @@ const monthTotal =
               <span>Refill Audit</span>
             </button>
           )}
+          {can("refills") && <button
+            className={`nav-item ${view === "refills" ? "active" : ""}`}
+            onClick={() => setView("refills")}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M8 15l2.5 2.5L16 13" /></svg>
+            <span>Refill Schedule</span>
+          </button>}
           {can("findings") && <button
             className={`nav-item ${view === "findings" ? "active" : ""}`}
             onClick={() => setView("findings")}
@@ -1827,6 +1835,7 @@ const monthTotal =
               {view === "audit" && "Refill Audit"}
               {view === "findings" && "Internal Audit"}
               {view === "expiry" && "Expiry Tracking"}
+              {view === "refills" && "Refill Schedule"}
               {view === "analytics" && "Analytics"}
               {view === "internal-chat" && "Internal Chat"}
               {view === "employees" && "Employees & Access"}
@@ -1848,6 +1857,7 @@ const monthTotal =
               {view === "audit" && "Machine quality checks, refillers, sites and corrective actions"}
               {view === "findings" && "Audit findings, corrective actions, owners and follow-ups"}
               {view === "expiry" && "Batch expiry dates, expired stock and write-off value"}
+              {view === "refills" && "Refill days and times per site, WhatsApp reminders and photo proof"}
               {view === "analytics" && "Issue breakdown and trends"}
               {view === "internal-chat" && `${departmentChats.length} active ${selectedDepartment} conversations`}
               {view === "employees" && `${internalUsers.length} people with their own login`}
@@ -1953,6 +1963,8 @@ const monthTotal =
         )}
 
         {view === "expiry" && <ExpiryWorkspace token={token} isAdmin={isAdmin} />}
+
+        {view === "refills" && <RefillWorkspace token={token} />}
 
         {view === "findings" && (
           <FindingsWorkspace

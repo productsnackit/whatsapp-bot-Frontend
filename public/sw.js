@@ -50,15 +50,15 @@ self.addEventListener("notificationclick", (event) => {
     })());
     return;
   }
-  // Internal Audit notifications open that page; everything else opens the chat.
-  if (view === "findings") {
+  // Page notifications (Internal Audit, Refill Schedule…) open that page; everything else opens the chat.
+  if (view && view !== "internal-chat") {
     event.waitUntil((async () => {
       const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       if (windows[0]) {
         windows[0].postMessage({ type: "open-view", view });
         return windows[0].focus();
       }
-      return self.clients.openWindow("/?view=findings");
+      return self.clients.openWindow(`/?view=${encodeURIComponent(view)}`);
     })());
     return;
   }
