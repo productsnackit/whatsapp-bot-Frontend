@@ -27,7 +27,7 @@ export function UpiIdCell({ ticket }) {
     <div className="upi-id-cell">
       <b>{fromScreenshot}</b>
       <small>📷 From screenshot</small>
-      {differs && <small className="upi-id-typed">Typed: {typed}</small>}
+      {differs && <small className="upi-id-typed">{typed.includes("@") ? "Typed UPI" : "Txn ID"}: {typed}</small>}
     </div>
   );
 }
