@@ -1475,6 +1475,7 @@ const monthTotal =
       (t.upi_id || "").toLowerCase().includes(s) ||
       (t.screenshot_upi_id || "").toLowerCase().includes(s) ||
       (t.upi_utr || "").toLowerCase().includes(s) ||
+      String(t.id) === s.replace(/^#/, "") ||
       t.issue?.toLowerCase().includes(s) ||
       t.main_issue?.toLowerCase().includes(s) ||
       t.sub_issue?.toLowerCase().includes(s) ||
@@ -2537,7 +2538,7 @@ const monthTotal =
               <table>
                 <thead>
                   <tr>
-                    <th>#</th>
+                    <th>Ticket</th>
                     <th>Phone</th>
                     <th>Issue</th>
                     <th>Sub Issue</th>
@@ -2553,12 +2554,12 @@ const monthTotal =
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredTickets.map((t, i) => {
+                  {filteredTickets.map((t) => {
                     const isClosed = t.state === "CLOSED";
                     const isAutoClosed = t.status === "auto_closed";
                     return (
                       <tr key={t.id} className={`ticket-row ${isAutoClosed ? "row-auto-closed" : isClosed ? "row-closed" : ""}`}>
-                        <td className="cell-num"><span className="row-num">{i + 1}</span></td>
+                        <td className="cell-num" data-label="Ticket"><span className="row-num ticket-no" title={`Ticket #${t.id}`}>#{t.id}</span></td>
                         <td className="cell-phone"><span className="phone-tag">{t.phone}</span></td>
                         <td data-label="Issue">{t.main_issue || <span className="na">—</span>}</td>
                         <td data-label="Sub issue">{t.sub_issue || <span className="na">—</span>}</td>
