@@ -4409,3 +4409,28 @@ button:disabled.rf-ok, button:disabled.rf-danger { opacity: .55; cursor: default
 .upi-scan-image { padding: 0; border: 0; background: transparent; cursor: zoom-in; }
 .audit-photo { padding: 0; border: 0; cursor: zoom-in; }
 .image-gone { color: var(--text-muted); font-size: 11px; font-style: italic; }
+/* Admin Settings: photo storage */
+.pr-card { display: grid; gap: 14px; margin-top: 18px; text-align: left; }
+.pr-rows { display: grid; gap: 10px; }
+.pr-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.pr-label { display: grid; flex: 1 1 320px; gap: 3px; min-width: 0; }
+.pr-label small { color: var(--text-muted); font-size: 12px; }
+.pr-label .pr-stats { color: var(--text-secondary); font-weight: 600; }
+.pr-control { display: grid; justify-items: end; gap: 6px; }
+.pr-input { display: inline-flex; align-items: center; gap: 6px; }
+.pr-input input { width: 84px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 15px; font-weight: 700; text-align: center; }
+.pr-input span { color: var(--text-muted); font-size: 13px; }
+.pr-presets { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.pr-presets button { min-width: 38px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.pr-presets button.on { border-color: #0b0f1a; background: #0b0f1a; color: #fff; }
+.pr-warn { color: #b45309; font-size: 11.5px; font-weight: 600; }
+.pr-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.pr-run { padding: 10px 16px; border: 1px solid #fecaca; border-radius: 12px; background: #fff; color: #b91c1c; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.pr-save { margin: 0 !important; }
+.pr-save:disabled { opacity: .5; cursor: default; }
+.pr-note { margin: 0; color: var(--text-muted); font-size: 12px; }
+@media (max-width: 768px) {
+  .pr-control { justify-items: start; }
+  .pr-presets { justify-content: flex-start; }
+  .pr-input input { font-size: 16px; }
+}

@@ -12,6 +12,7 @@ import { TxnIdCell, UpiScanSummary, UpiScanDetails } from "./UpiScan.jsx";
 import { transactionIdOf, isClosedTicket } from "./transactionId.js";
 import TicketChat from "./TicketChat.jsx";
 import ImageViewer from "./ImageViewer.jsx";
+import PhotoRetentionCard from "./PhotoRetentionCard.jsx";
 import EmployeesAccess from "./EmployeesAccess.jsx";
 import ActivityLog from "./ActivityLog.jsx";
 import AccountPanel from "./AccountPanel.jsx";
@@ -2005,6 +2006,7 @@ const monthTotal =
               </div>
             </div>
             <button type="button" className="admin-settings-save" onClick={saveAdminProfile}>Save admin settings</button>
+            <PhotoRetentionCard api={API} headers={authHeaders()} />
           </section>
         )}
 
