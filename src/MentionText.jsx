@@ -43,9 +43,12 @@ export function TaskLine({ message, taggedNames, canUpdate, onSetStatus }) {
     : status === "in-progress"
       ? `🔄 In progress${who ? ` · ${who}` : ""}`
       : `⏳ Waiting for ${taggedNames.join(", ")}`;
+  const due = message.dueAt ? new Date(message.dueAt) : null;
+  const overdue = due && status !== "resolved" && due < new Date();
   return (
     <div className={`chat-task chat-task-${status}`}>
       <span className="chat-task-label">{label}</span>
+      {due && <span className={`chat-task-due ${overdue ? "is-overdue" : ""}`}>📅 {overdue ? "Overdue · was due " : "Due "}{due.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</span>}
       {canUpdate && (
         <span className="chat-task-actions">
           {status === "open" && <button type="button" onClick={(event) => { event.stopPropagation(); onSetStatus("in-progress"); }}>In progress</button>}

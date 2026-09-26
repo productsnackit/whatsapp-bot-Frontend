@@ -4336,3 +4336,60 @@ button:disabled.rf-ok, button:disabled.rf-danger { opacity: .55; cursor: default
 .rf-board { display: block; columns: 3 360px; column-gap: 12px; }
 .rf-board > .rf-refiller { break-inside: avoid; margin-bottom: 12px; }
 @media (max-width: 768px) { .rf-board { columns: 1; } }
+
+/* Tasks */
+.nav-badge.is-calm { background: rgba(255, 255, 255, .14); color: #fff; }
+.tk-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.tk-counts { color: var(--text-muted); font-size: 13px; }
+.tk-counts b { color: var(--text-primary); }
+.tk-counts .tk-red { color: #dc2626; }
+.tk-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: start; }
+.tk-column { display: grid; gap: 8px; min-height: 200px; padding: 10px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface-2); transition: box-shadow .15s, border-color .15s; }
+.tk-column.is-drop { border-color: #16a34a; box-shadow: 0 0 0 3px rgba(22, 163, 74, .18); }
+.tk-column header { display: flex; align-items: center; justify-content: space-between; padding: 2px 4px; font-size: 13px; font-weight: 800; }
+.tk-column header b { padding: 1px 9px; border-radius: 999px; background: var(--surface); font-size: 12px; }
+.tk-column-body { display: grid; gap: 8px; }
+.tk-empty { margin: 16px 0; color: var(--text-muted); font-size: 12.5px; text-align: center; }
+.tk-card { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border); border-left: 4px solid #94a3b8; border-radius: 12px; background: var(--surface); text-align: left; }
+.tk-card[draggable="true"] { cursor: grab; }
+.tk-card.tk-status-in-progress { border-left-color: #3b82f6; }
+.tk-card.tk-status-resolved { border-left-color: #22c55e; opacity: .85; }
+.tk-card.is-overdue { border-left-color: #dc2626; background: #fff7f7; }
+.tk-card-top { display: flex; align-items: center; gap: 6px; font-size: 11.5px; }
+.tk-dept { overflow: hidden; color: var(--text-muted); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.tk-ago { margin-left: auto; flex: none; color: var(--text-muted); }
+.tk-text { margin: 0; color: var(--text-primary); font-size: 14px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tk-people { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 12px; }
+.tk-from { color: var(--text-muted); }
+.tk-arrow { color: var(--text-muted); }
+.tk-assignee { padding: 1px 8px; border-radius: 999px; background: #e0e7ff; color: #3730a3; font-weight: 700; }
+.tk-assignee.is-me { background: #0b0f1a; color: #fff; }
+.tk-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 11.5px; }
+.tk-due { border: 0; font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; }
+.tk-due:disabled { cursor: default; }
+.tk-add-due { padding: 2px 8px; border: 1px dashed var(--border); border-radius: 999px; background: transparent; color: var(--text-muted); font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
+.tk-attach, .tk-by { color: var(--text-muted); }
+.tk-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; padding-top: 8px; border-top: 1px solid var(--border); }
+.tk-actions button { padding: 5px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.tk-actions .tk-link { margin-right: auto; padding: 0; border: 0; background: transparent; color: #2563eb; }
+.tk-due-editor { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.tk-due-quick { display: flex; flex-wrap: wrap; gap: 5px; }
+.tk-due-quick button { padding: 4px 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); font: inherit; font-size: 11.5px; cursor: pointer; }
+.tk-due-editor input { padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: 13px; }
+.tk-due-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.tk-due-actions button { padding: 5px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.tk-due-actions .primary { border-color: #0b0f1a; background: #0b0f1a; color: #fff; }
+.tk-due-actions .tk-link-danger { margin-right: auto; border: 0; background: transparent; color: #b91c1c; }
+.audit-workspace .tk-due-editor input { width: 100%; }
+.tk-team td small { display: block; color: var(--text-muted); font-size: 11px; }
+.wd-due { position: relative; display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 10px; border: 1px solid #d1d7db; border-radius: 999px; background: #fff; color: #3b4a54; font-size: 12px; font-weight: 600; cursor: pointer; }
+.wd-due input { width: 0; padding: 0; border: 0; opacity: 0; position: absolute; inset: 0; cursor: pointer; }
+.wd-due.is-set { width: auto; border-color: #00a884; background: #e7f8f1; color: #008069; }
+.wd-due.is-set input { position: static; width: auto; opacity: 1; border: 0; background: transparent; color: inherit; font: inherit; font-size: 12px; }
+.wd-due button { border: 0; background: transparent; color: #667781; cursor: pointer; }
+.chat-task-due { padding: 1px 8px; border-radius: 999px; background: #e0f2fe; color: #0369a1; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.chat-task-due.is-overdue { background: #fee2e2; color: #b91c1c; }
+@media (max-width: 900px) {
+  .tk-board { grid-template-columns: 1fr; }
+  .tk-column { min-height: 0; }
+}

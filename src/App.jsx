@@ -14,6 +14,7 @@ import EmployeesAccess from "./EmployeesAccess.jsx";
 import ActivityLog from "./ActivityLog.jsx";
 import AccountPanel from "./AccountPanel.jsx";
 import RefillWorkspace from "./RefillWorkspace.jsx";
+import TasksWorkspace from "./TasksWorkspace.jsx";
 import MentionText, { MentionSuggestions, TaskLine } from "./MentionText.jsx";
 import { useMentionInput, mentionIds } from "./mentions.js";
 import {
@@ -30,7 +31,7 @@ const API = axios.create({
 // The installed app (see public/manifest.webmanifest) opens with ?view=internal-chat
 const LAUNCH_PARAMS = new URLSearchParams(window.location.search);
 // Notifications can also open straight into Internal Audit (?view=findings).
-const LAUNCH_VIEW = ["internal-chat", "findings", "refills", "tickets"].includes(LAUNCH_PARAMS.get("view")) ? LAUNCH_PARAMS.get("view") : null;
+const LAUNCH_VIEW = ["internal-chat", "findings", "refills", "tickets", "tasks"].includes(LAUNCH_PARAMS.get("view")) ? LAUNCH_PARAMS.get("view") : null;
 // Tapping a chat notification opens ?view=internal-chat&chat=<id>&department=<dept>
 const LAUNCH_CHAT = LAUNCH_PARAMS.get("chat") ? { chatId: LAUNCH_PARAMS.get("chat"), department: LAUNCH_PARAMS.get("department") } : null;
 // The Operations pages (inventory, clients, brands, demand, imports…) are hidden: nothing feeds
@@ -222,7 +223,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const viewAllowed = (name) => {
     if (OPERATIONS_VIEWS.includes(name)) return canAccessOperations;
     if (["employees", "admin-settings"].includes(name)) return isAdmin;
-    if (name === "internal-chat") return true;
+    if (name === "internal-chat" || name === "tasks") return true;
     return ALL_PAGE_KEYS.includes(name) ? can(name) : false;
   };
   const view = viewAllowed(requestedView) ? requestedView : can("tickets") ? "tickets" : "internal-chat";
@@ -260,6 +261,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const [selectedInternalChatId, setSelectedInternalChatId] = useState(LAUNCH_CHAT ? toChatId(LAUNCH_CHAT.chatId) : null);
   const [internalMessage, setInternalMessage] = useState("");
   const [internalPriority, setInternalPriority] = useState("medium");
+  const [internalDueAt, setInternalDueAt] = useState("");
   const [selectedRecipients, setSelectedRecipients] = useState([]);
   const [attachedFiles, setAttachedFiles] = useState([]);
   const attachmentInputRef = useRef(null);
@@ -391,6 +393,16 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
   const departmentChats = internalChats.filter((chat) => chat.department === selectedDepartment);
   // Direct (one-to-one) chats live under the "Direct" tab; the server only sends your own.
   const myChatKey = isOwner ? "admin" : String(currentUserId);
+  // My open tasks: department-chat messages that tag me and aren't resolved yet.
+  const myTaskCounts = internalChats.reduce((counts, chat) => {
+    if (chat.type === "direct") return counts;
+    for (const message of chat.messages || []) {
+      if (!(message.mentions || []).map(String).includes(myChatKey) || message.status === "resolved") continue;
+      counts.open += 1;
+      if (message.dueAt && new Date(message.dueAt) < new Date()) counts.overdue += 1;
+    }
+    return counts;
+  }, { open: 0, overdue: 0 });
   const nameForChatKey = (key) => (key === "admin" ? "Admin" : internalUsers.find((user) => String(user.id) === String(key))?.name);
   const chatDisplayName = (chat) => {
     if (chat?.type !== "direct") return chat?.title || "";
@@ -536,6 +548,8 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
           recipientIds: [],
           replyTo: internalReplyTo?.id || null,
           mentions: mentionIds(messageText, taggablePeople),
+          // Tagged messages become tasks; the due date (if set) drives reminders.
+          dueAt: internalDueAt ? new Date(internalDueAt).toISOString() : null,
           notifyAll: true,
         },
         { headers: authHeaders() }
@@ -554,6 +568,7 @@ const [totalRefundMonth, setTotalRefundMonth] = useState(0);
       );
 
       setInternalMessage("");
+      setInternalDueAt("");
       setInternalReplyTo(null);
       setAttachedFiles([]);
       if (attachmentInputRef.current) attachmentInputRef.current.value = "";
@@ -1663,7 +1678,7 @@ const monthTotal =
         </div>
 
         <nav className="sidebar-nav">
-          <div className="sidebar-section-label">Main Menu</div>
+          {(can("tickets") || can("feedback") || can("products")) && <div className="sidebar-section-label">Main Menu</div>}
           {can("tickets") && <button
             className={`nav-item ${view === "tickets" ? "active" : ""}`}
             onClick={() => setView("tickets")}
@@ -1753,6 +1768,14 @@ const monthTotal =
             <span>Analytics</span>
           </button>}
           <button
+            className={`nav-item ${view === "tasks" ? "active" : ""}`}
+            onClick={() => setView("tasks")}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="18" rx="1.5" /><rect x="14" y="3" width="7" height="11" rx="1.5" /><path d="M5.5 8h2M5.5 12h2M16.5 8h2" /></svg>
+            <span>Tasks</span>
+            {myTaskCounts.open > 0 && <span className={`nav-badge ${myTaskCounts.overdue ? "" : "is-calm"}`} title={myTaskCounts.overdue ? `${myTaskCounts.overdue} overdue` : "Open tasks for you"}>{myTaskCounts.overdue || myTaskCounts.open}</span>}
+          </button>
+          <button
             className={`nav-item ${view === "internal-chat" ? "active" : ""}`}
             onClick={() => setView("internal-chat")}
           >
@@ -1839,6 +1862,7 @@ const monthTotal =
               {view === "findings" && "Internal Audit"}
               {view === "expiry" && "Expiry Tracking"}
               {view === "refills" && "Refill Schedule"}
+              {view === "tasks" && "Tasks"}
               {view === "analytics" && "Analytics"}
               {view === "internal-chat" && "Internal Chat"}
               {view === "employees" && "Employees & Access"}
@@ -1861,6 +1885,7 @@ const monthTotal =
               {view === "findings" && "Audit findings, corrective actions, owners and follow-ups"}
               {view === "expiry" && "Batch expiry dates, expired stock and write-off value"}
               {view === "refills" && "Refill days and times per site, WhatsApp reminders and photo proof"}
+              {view === "tasks" && `${myTaskCounts.open} open for you${myTaskCounts.overdue ? ` · ${myTaskCounts.overdue} overdue` : ""} · from @tags in Internal Chat`}
               {view === "analytics" && "Issue breakdown and trends"}
               {view === "internal-chat" && `${departmentChats.length} active ${selectedDepartment} conversations`}
               {view === "employees" && `${internalUsers.length} people with their own login`}
@@ -1968,6 +1993,8 @@ const monthTotal =
         {view === "expiry" && <ExpiryWorkspace token={token} isAdmin={isAdmin} />}
 
         {view === "refills" && <RefillWorkspace token={token} />}
+
+        {view === "tasks" && <TasksWorkspace token={token} isAdmin={isAdmin} onOpenChat={(task) => openChatFromNotification({ chatId: String(task.chatId), department: task.department })} />}
 
         {view === "findings" && (
           <FindingsWorkspace
@@ -2166,6 +2193,13 @@ const monthTotal =
                       {savedReplies.map((reply) => <option key={reply.id} value={reply.id}>{reply.title}</option>)}
                     </select>
                     <button type="button" className="wd-link" onClick={() => setShowSavedReplyForm((value) => !value)}>{showSavedReplyForm ? "Close" : "+ Save reply"}</button>
+                    {selectedDepartment !== "Direct" && (
+                      <label className={`wd-due ${internalDueAt ? "is-set" : ""}`} title="Due date for the people you @tag">
+                        📅 {internalDueAt ? "Due" : "Due date"}
+                        <input type="datetime-local" value={internalDueAt} onChange={(event) => setInternalDueAt(event.target.value)} />
+                        {internalDueAt && <button type="button" onClick={() => setInternalDueAt("")} aria-label="Clear due date">✕</button>}
+                      </label>
+                    )}
                   </div>
                   {showSavedReplyForm && <form className="wd-saved-form" onSubmit={saveInternalReply}>
                     <input placeholder="Reply title" value={savedReplyDraft.title} onChange={(event) => setSavedReplyDraft((draft) => ({ ...draft, title: event.target.value }))} />
