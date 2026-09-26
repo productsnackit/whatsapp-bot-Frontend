@@ -8,7 +8,8 @@ import ExpiryWorkspace from "./ExpiryWorkspace.jsx";
 import MobileChat, { Avatar } from "./MobileChat.jsx";
 import { getPushState, enablePush, syncPush, disablePush, showLocalNotification, PUSH_STATE_LABELS } from "./pushNotifications.js";
 import NotificationSettings from "./NotificationSettings.jsx";
-import { UpiIdCell, UpiScanSummary, UpiScanDetails } from "./UpiScan.jsx";
+import { TxnIdCell, UpiScanSummary, UpiScanDetails } from "./UpiScan.jsx";
+import { transactionIdOf } from "./transactionId.js";
 import TicketChat from "./TicketChat.jsx";
 import EmployeesAccess from "./EmployeesAccess.jsx";
 import ActivityLog from "./ActivityLog.jsx";
@@ -1271,11 +1272,14 @@ const monthTotal =
   };
 
   const exportTickets = () => {
-    const columns = ["id", "phone", "main_issue", "sub_issue", "location", "status", "state", "priority", "assigned_to", "created_at"];
+    const columns = ["id", "phone", "main_issue", "sub_issue", "location", "upi_transaction_id", "screenshot_amount", "refund_amount", "customer_upi_id", "status", "state", "priority", "assigned_to", "created_at"];
     const escapeCsv = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
     const csv = [
       columns.join(","),
-      ...filteredTickets.map((ticket) => columns.map((column) => escapeCsv(ticket[column])).join(",")),
+      ...filteredTickets.map((ticket) => {
+        const row = { ...ticket, upi_transaction_id: transactionIdOf(ticket), screenshot_amount: ticket.upi_scan?.amount ?? "", customer_upi_id: ticket.screenshot_upi_id || "" };
+        return columns.map((column) => escapeCsv(row[column])).join(",");
+      }),
     ].join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const link = document.createElement("a");
@@ -1452,6 +1456,7 @@ const monthTotal =
       t.phone?.toLowerCase().includes(s) ||
       (t.upi_id || "").toLowerCase().includes(s) ||
       (t.screenshot_upi_id || "").toLowerCase().includes(s) ||
+      (t.upi_utr || "").toLowerCase().includes(s) ||
       t.issue?.toLowerCase().includes(s) ||
       t.main_issue?.toLowerCase().includes(s) ||
       t.sub_issue?.toLowerCase().includes(s) ||
@@ -2518,7 +2523,7 @@ const monthTotal =
                     <th>Issue</th>
                     <th>Sub Issue</th>
                     <th>Location</th>
-                    <th>UPI ID</th>
+                    <th>UPI Transaction ID</th>
                     <th>Image</th>
                     <th>UPI Screenshot</th>
                     <th>Refund Amount</th>
@@ -2540,7 +2545,7 @@ const monthTotal =
                         <td data-label="Issue">{t.main_issue || <span className="na">—</span>}</td>
                         <td data-label="Sub issue">{t.sub_issue || <span className="na">—</span>}</td>
                         <td data-label="Location">{t.location || <span className="na">—</span>}</td>
-                        <td data-label="UPI ID"><UpiIdCell ticket={t} /></td>
+                        <td data-label="UPI transaction ID"><TxnIdCell ticket={t} /></td>
                         <td data-label="Image">
                           {t.image ? (
                             <img src={t.image} alt="img" className="thumb" onClick={() => window.open(t.image, "_blank")} />

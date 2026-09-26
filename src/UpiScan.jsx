@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { transactionIdOf } from "./transactionId.js";
 
 /* What was read from a customer's UPI screenshot (UTR, amount, UPI IDs),
    shown under the screenshot in the tickets table, with a details window. */
@@ -17,17 +18,27 @@ function flagsFor(ticket) {
   return flags;
 }
 
-// UPI ID column: the customer's UPI ID read from the screenshot, plus what they typed if it differs.
-export function UpiIdCell({ ticket }) {
-  const fromScreenshot = ticket.screenshot_upi_id || ticket.upi_scan?.payer_upi || "";
+export function TxnIdCell({ ticket }) {
+  const [copied, setCopied] = useState(false);
+  const txn = transactionIdOf(ticket);
   const typed = String(ticket.upi_id || "").trim();
-  if (!fromScreenshot) return typed ? <>{typed}</> : <span className="na">—</span>;
-  const differs = typed && typed.toLowerCase() !== fromScreenshot.toLowerCase();
+  if (!txn) return <span className="na">—</span>;
+  const fromScreenshot = Boolean(ticket.upi_utr);
+  const differs = fromScreenshot && typed && !typed.includes("@") && typed !== ticket.upi_utr;
+  const copyId = (event) => {
+    event.stopPropagation();
+    copy(txn);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
   return (
     <div className="upi-id-cell">
-      <b>{fromScreenshot}</b>
-      <small>📷 From screenshot</small>
-      {differs && <small className="upi-id-typed">{typed.includes("@") ? "Typed UPI" : "Txn ID"}: {typed}</small>}
+      <span className="txn-id-row">
+        <b className="txn-id">{txn}</b>
+        <button type="button" className="txn-copy" onClick={copyId} title="Copy transaction ID">{copied ? "Copied ✓" : "Copy"}</button>
+      </span>
+      <small>{fromScreenshot ? "📷 Read from screenshot" : "Typed by customer"}</small>
+      {differs && <small className="upi-id-typed">Customer typed: {typed}</small>}
     </div>
   );
 }
