@@ -427,23 +427,133 @@ function ScheduleEditor({ sites, refillers, onSave, onRemove, onClose }) {
   );
 }
 
+function shiftRange(shift) {
+  return shift.from_date === shift.to_date ? prettyDate(shift.from_date) : `${prettyDate(shift.from_date)} – ${prettyDate(shift.to_date)}`;
+}
+
+// Move sites to another refiller: for good, or only on some days (cover / leave).
+function MoveDialog({ sites, refillers, targetId, today, onSave, onClose }) {
+  const currentIds = [...new Set(sites.map((site) => site.refiller_id))];
+  const [draft, setDraft] = useState(() => ({
+    refiller_id: targetId || "",
+    mode: "dates",
+    from_date: today,
+    to_date: today,
+    note: "",
+  }));
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const target = refillers.find((refiller) => String(refiller.id) === String(draft.refiller_id));
+  const quick = [
+    ["Today", 0, 0],
+    ["Tomorrow", 1, 1],
+    ["Today + tomorrow", 0, 1],
+    ["Next 3 days", 0, 2],
+    ["Next 7 days", 0, 6],
+  ];
+  const fromNames = [...new Set(sites.map((site) => site.refiller_name || "no one"))].join(", ");
+
+  const submit = async (event) => {
+    event.preventDefault();
+    if (!draft.refiller_id) return setError("Choose who should do these sites");
+    setSaving(true);
+    setError("");
+    try {
+      await onSave({ ...draft, refiller_id: Number(draft.refiller_id), location_ids: sites.map((site) => site.id) });
+    } catch (err) {
+      setError(err.response?.data?.error || "Could not move");
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="upi-scan-backdrop" onClick={onClose}>
+      <form className="rf-modal" onClick={(event) => event.stopPropagation()} onSubmit={submit}>
+        <div className="upi-scan-head">
+          <div><h3>Move {sites.length === 1 ? sites[0].name : `${sites.length} sites`}</h3><p>Now with {fromNames}</p></div>
+          <button type="button" className="upi-scan-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="rf-modal-body">
+          <label>Move to<select value={draft.refiller_id} onChange={(event) => setDraft({ ...draft, refiller_id: event.target.value })} autoFocus>
+            <option value="">Choose a refiller…</option>
+            {refillers.map((refiller) => (
+              <option key={refiller.id} value={refiller.id} disabled={currentIds.length === 1 && currentIds[0] === refiller.id && draft.mode === "permanent"}>
+                {refiller.name} ({refiller.siteCount} site{refiller.siteCount === 1 ? "" : "s"}){currentIds.length === 1 && currentIds[0] === refiller.id ? " · current" : ""}
+              </option>
+            ))}
+          </select></label>
+          <div className="rf-segment">
+            <button type="button" className={draft.mode === "dates" ? "on" : ""} onClick={() => setDraft({ ...draft, mode: "dates" })}>Only on some days</button>
+            <button type="button" className={draft.mode === "permanent" ? "on" : ""} onClick={() => setDraft({ ...draft, mode: "permanent" })}>Permanently</button>
+          </div>
+          {draft.mode === "dates" ? (
+            <>
+              <div className="rf-quick">
+                {quick.map(([label, from, to]) => {
+                  const f = shiftDate(today, from);
+                  const t = shiftDate(today, to);
+                  return <button type="button" key={label} className={draft.from_date === f && draft.to_date === t ? "on" : ""} onClick={() => setDraft({ ...draft, from_date: f, to_date: t })}>{label}</button>;
+                })}
+              </div>
+              <div className="rf-two">
+                <label>From<input type="date" min={today} value={draft.from_date} onChange={(event) => setDraft({ ...draft, from_date: event.target.value, to_date: event.target.value > draft.to_date ? event.target.value : draft.to_date })} /></label>
+                <label>To<input type="date" min={draft.from_date} value={draft.to_date} onChange={(event) => setDraft({ ...draft, to_date: event.target.value })} /></label>
+              </div>
+              <label>Reason (optional)<input value={draft.note} onChange={(event) => setDraft({ ...draft, note: event.target.value })} placeholder="e.g. Promod on leave" /></label>
+              <p className="rf-hint">
+                On {draft.from_date === draft.to_date ? prettyDate(draft.from_date) : `${prettyDate(draft.from_date)} – ${prettyDate(draft.to_date)}`}, {target ? <b>{target.name}</b> : "the chosen refiller"} does these visits. After that they go back to {fromNames} automatically.
+              </p>
+            </>
+          ) : (
+            <p className="rf-hint">{target ? <b>{target.name}</b> : "The chosen refiller"} becomes the refiller of {sites.length === 1 ? "this site" : "these sites"} from now on, in Refill Audit too. Their schedules stay the same.</p>
+          )}
+          <p className="rf-hint">📲 Both refillers are updated on WhatsApp automatically: the new one gets the visits, and the old one is told not to go if they were already reminded.</p>
+          {error && <div className="ea-error">{error}</div>}
+        </div>
+        <div className="rf-modal-foot">
+          <button type="button" onClick={onClose}>Cancel</button>
+          <button type="submit" className="primary" disabled={saving}>{saving ? "Moving…" : draft.mode === "dates" ? "Shift for these days" : "Move permanently"}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function SchedulesTab({ data, headers, onChanged, notify }) {
-  const [refillerFilter, setRefillerFilter] = useState("all");
+  const [query, setQuery] = useState("");
   const [onlyUnscheduled, setOnlyUnscheduled] = useState(false);
   const [selected, setSelected] = useState([]);
   const [editing, setEditing] = useState(null);
+  const [moving, setMoving] = useState(null); // { sites, targetId }
+  const [dragOver, setDragOver] = useState(null);
   const config = { headers };
+  const today = data.today;
 
-  const sites = data.locations.filter((site) => (refillerFilter === "all" || (site.refiller_name || "none") === refillerFilter) && (!onlyUnscheduled || !site.schedule));
-  const groups = useMemo(() => {
+  const q = query.trim().toLowerCase();
+  const visible = (site) => (!onlyUnscheduled || !site.schedule) && (!q || `${site.name} ${site.machine_code || ""} ${site.refiller_name || ""}`.toLowerCase().includes(q));
+  const shiftsBySite = useMemo(() => {
     const map = new Map();
-    sites.forEach((site) => map.set(site.refiller_name || "No refiller", [...(map.get(site.refiller_name || "No refiller") || []), site]));
-    return [...map];
-  }, [sites]);
+    (data.shifts || []).forEach((shift) => map.set(shift.location_id, [...(map.get(shift.location_id) || []), shift]));
+    return map;
+  }, [data.shifts]);
+  const todayVisits = useMemo(() => {
+    const map = new Map();
+    data.tasks.forEach((task) => { if (data.date === today) map.set(task.refiller_id, (map.get(task.refiller_id) || 0) + 1); });
+    return map;
+  }, [data.tasks, data.date, today]);
+  const refillers = data.refillers.map((refiller) => ({
+    ...refiller,
+    sites: data.locations.filter((site) => site.refiller_id === refiller.id),
+    covering: (data.shifts || []).filter((shift) => shift.to_refiller_id === refiller.id),
+  })).map((refiller) => ({ ...refiller, siteCount: refiller.sites.length }));
+  const unassigned = data.locations.filter((site) => !site.refiller_id);
   const scheduledCount = data.locations.filter((site) => site.schedule?.active).length;
-  const toggle = (id) => setSelected((current) => (current.includes(id) ? current.filter((x) => x !== id) : [...current, id]));
+  const selectedSites = data.locations.filter((site) => selected.includes(site.id));
 
-  const save = async (draft) => {
+  const toggle = (id) => setSelected((current) => (current.includes(id) ? current.filter((x) => x !== id) : [...current, id]));
+  const openMove = (sites, targetId = "") => setMoving({ sites, targetId });
+
+  const saveSchedule = async (draft) => {
     const targets = editing;
     if (targets.length === 1) await API.put(`/refills/schedules/${targets[0].id}`, draft, config);
     else await API.post("/refills/schedules/bulk", { ...draft, location_ids: targets.map((site) => site.id) }, config);
@@ -453,7 +563,7 @@ function SchedulesTab({ data, headers, onChanged, notify }) {
     onChanged();
   };
 
-  const remove = async () => {
+  const removeSchedule = async () => {
     const site = editing[0];
     if (!window.confirm(`Remove the refill schedule of ${site.name}? Upcoming visits are cancelled.`)) return;
     await API.delete(`/refills/schedules/${site.id}`, config);
@@ -462,46 +572,137 @@ function SchedulesTab({ data, headers, onChanged, notify }) {
     onChanged();
   };
 
+  const move = async (payload) => {
+    await API.post("/refills/assign", payload, config);
+    const target = data.refillers.find((refiller) => refiller.id === payload.refiller_id);
+    notify(payload.mode === "dates"
+      ? `${payload.location_ids.length === 1 ? moving.sites[0].name : `${payload.location_ids.length} sites`} shifted to ${target?.name} (${payload.from_date === payload.to_date ? prettyDate(payload.from_date) : `${prettyDate(payload.from_date)} – ${prettyDate(payload.to_date)}`})`
+      : `${payload.location_ids.length === 1 ? moving.sites[0].name : `${payload.location_ids.length} sites`} moved to ${target?.name}`);
+    setMoving(null);
+    setSelected([]);
+    onChanged();
+  };
+
+  const endShift = async (shift) => {
+    if (!window.confirm(`End the shift? ${shift.location_name} goes back to ${shift.usual_refiller_name || "its refiller"}.`)) return;
+    await API.delete(`/refills/shifts/${shift.id}`, config);
+    notify(`${shift.location_name} is back with ${shift.usual_refiller_name || "its refiller"}`);
+    onChanged();
+  };
+
+  // Drag a site (or all selected sites) onto another refiller's card.
+  const onDragStart = (event, site) => {
+    const ids = selected.includes(site.id) ? selected : [site.id];
+    event.dataTransfer.setData("text/plain", JSON.stringify(ids));
+    event.dataTransfer.effectAllowed = "move";
+  };
+  const onDrop = (event, refillerId) => {
+    event.preventDefault();
+    setDragOver(null);
+    try {
+      const ids = JSON.parse(event.dataTransfer.getData("text/plain") || "[]");
+      const sites = data.locations.filter((site) => ids.includes(site.id));
+      if (sites.length && !sites.every((site) => site.refiller_id === refillerId)) openMove(sites, refillerId);
+    } catch {
+      // not a site
+    }
+  };
+
+  const renderSite = (site) => {
+    const shifts = shiftsBySite.get(site.id) || [];
+    return (
+      <div key={site.id} className={`rf-site ${selected.includes(site.id) ? "is-selected" : ""}`} draggable onDragStart={(event) => onDragStart(event, site)}>
+        <label className="rf-check"><input type="checkbox" checked={selected.includes(site.id)} onChange={() => toggle(site.id)} /></label>
+        <div className="rf-site-main">
+          <b>{site.name}{site.machine_code ? <small> · {site.machine_code}</small> : null}</b>
+          {site.schedule ? (
+            <span className={site.schedule.active ? "" : "is-paused"}>{site.schedule.active ? "🗓 " : "⏸ Paused · "}{scheduleSummary(site.schedule)}</span>
+          ) : <span className="is-none">No schedule yet</span>}
+          {shifts.map((shift) => <span key={shift.id} className="rf-shift-badge">↪ {shift.to_refiller_name} · {shiftRange(shift)}</span>)}
+        </div>
+        <div className="rf-site-actions">
+          <button type="button" onClick={() => openMove([site])} title="Move to another refiller">Move</button>
+          <button type="button" onClick={() => setEditing([site])}>{site.schedule ? "Schedule" : "Set schedule"}</button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="audit-stack">
       <div className="rf-toolbar">
-        <select value={refillerFilter} onChange={(event) => setRefillerFilter(event.target.value)} aria-label="Refiller">
-          <option value="all">All refillers ({data.locations.length} sites)</option>
-          {data.refillers.map((refiller) => <option key={refiller.id} value={refiller.name}>{refiller.name}</option>)}
-          <option value="none">No refiller</option>
-        </select>
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search site or refiller" />
         <label className="rf-switch"><input type="checkbox" checked={onlyUnscheduled} onChange={(event) => setOnlyUnscheduled(event.target.checked)} /> Only sites without a schedule</label>
-        <span className="rf-count">{scheduledCount} of {data.locations.length} sites scheduled</span>
-        {selected.length > 0 && <button type="button" className="rf-primary" onClick={() => setEditing(data.locations.filter((site) => selected.includes(site.id)))}>Set schedule for {selected.length} selected</button>}
+        <span className="rf-count">{scheduledCount} of {data.locations.length} sites scheduled · drag a site onto another refiller to move it</span>
       </div>
 
-      {groups.map(([refiller, list]) => {
-        const allSelected = list.every((site) => selected.includes(site.id));
-        return (
-          <section key={refiller} className="audit-card rf-group">
-            <div className="rf-group-head">
-              <label className="rf-check"><input type="checkbox" checked={allSelected} onChange={() => setSelected((current) => (allSelected ? current.filter((id) => !list.some((site) => site.id === id)) : [...new Set([...current, ...list.map((site) => site.id)])]))} /></label>
-              <div><h3>{refiller}</h3><p>{list.length} site{list.length === 1 ? "" : "s"} · {list.filter((site) => site.schedule?.active).length} scheduled</p></div>
-            </div>
-            <div className="rf-sites">
-              {list.map((site) => (
-                <div key={site.id} className={`rf-site ${selected.includes(site.id) ? "is-selected" : ""}`}>
-                  <label className="rf-check"><input type="checkbox" checked={selected.includes(site.id)} onChange={() => toggle(site.id)} /></label>
-                  <div className="rf-site-main">
-                    <b>{site.name}</b>
-                    {site.schedule ? (
-                      <span className={site.schedule.active ? "" : "is-paused"}>{site.schedule.active ? "🗓 " : "⏸ Paused · "}{scheduleSummary(site.schedule)}{site.schedule.refiller_id ? ` · covered by ${data.refillers.find((refiller) => refiller.id === site.schedule.refiller_id)?.name || "another refiller"}` : ""}</span>
-                    ) : <span className="is-none">No schedule yet</span>}
-                  </div>
-                  <button type="button" onClick={() => setEditing([site])}>{site.schedule ? "Edit" : "Set schedule"}</button>
-                </div>
-              ))}
-            </div>
-          </section>
-        );
-      })}
+      {selected.length > 0 && (
+        <div className="rf-selbar">
+          <b>{selected.length} site{selected.length === 1 ? "" : "s"} selected</b>
+          <button type="button" className="rf-primary" onClick={() => openMove(selectedSites)}>Move to…</button>
+          <button type="button" className="rf-ghost" onClick={() => setEditing(selectedSites)}>Set schedule</button>
+          <button type="button" className="rf-link" onClick={() => setSelected([])}>Clear</button>
+        </div>
+      )}
 
-      {editing && <ScheduleEditor sites={editing} refillers={data.refillers} onSave={save} onRemove={editing.length === 1 ? remove : null} onClose={() => setEditing(null)} />}
+      {(data.shifts || []).length > 0 && (
+        <section className="audit-card rf-shifts">
+          <h3>Temporary shifts</h3>
+          {data.shifts.map((shift) => (
+            <div key={shift.id} className="rf-shift-row">
+              <span className="rf-shift-dates">{shiftRange(shift)}</span>
+              <span><b>{shift.location_name}</b>: {shift.usual_refiller_name || "?"} → <b>{shift.to_refiller_name}</b>{shift.note ? <small> · {shift.note}</small> : null}</span>
+              <button type="button" onClick={() => endShift(shift)}>End shift</button>
+            </div>
+          ))}
+        </section>
+      )}
+
+      <div className="rf-board">
+        {refillers.map((refiller) => {
+          const sites = refiller.sites.filter(visible);
+          const hasPhone = String(refiller.phone || "").replace(/\D/g, "").length >= 10;
+          const allSelected = refiller.sites.length > 0 && refiller.sites.every((site) => selected.includes(site.id));
+          if (q && !sites.length && !refiller.name.toLowerCase().includes(q)) return null;
+          return (
+            <section
+              key={refiller.id}
+              className={`audit-card rf-refiller ${dragOver === refiller.id ? "is-drop" : ""}`}
+              onDragOver={(event) => { event.preventDefault(); setDragOver(refiller.id); }}
+              onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setDragOver(null); }}
+              onDrop={(event) => onDrop(event, refiller.id)}
+            >
+              <div className="rf-refiller-head">
+                <span className="ea-avatar">{refiller.name.slice(0, 1).toUpperCase()}</span>
+                <div>
+                  <h3>{refiller.name}</h3>
+                  <p>{refiller.siteCount} site{refiller.siteCount === 1 ? "" : "s"} · {refiller.sites.filter((site) => site.schedule?.active).length} scheduled{todayVisits.get(refiller.id) ? ` · ${todayVisits.get(refiller.id)} visit${todayVisits.get(refiller.id) === 1 ? "" : "s"} today` : ""}</p>
+                  {!hasPhone && <p className="rf-error-line">No WhatsApp number: no reminders</p>}
+                </div>
+                {refiller.sites.length > 0 && <label className="rf-check" title="Select all their sites"><input type="checkbox" checked={allSelected} onChange={() => setSelected((current) => (allSelected ? current.filter((id) => !refiller.sites.some((site) => site.id === id)) : [...new Set([...current, ...refiller.sites.map((site) => site.id)])]))} /></label>}
+              </div>
+              {refiller.covering.length > 0 && (
+                <div className="rf-covering">
+                  {refiller.covering.map((shift) => <span key={shift.id}>🤝 Covering <b>{shift.location_name}</b> for {shift.usual_refiller_name || "?"} · {shiftRange(shift)}</span>)}
+                </div>
+              )}
+              <div className="rf-site-list">
+                {sites.map(renderSite)}
+                {!refiller.sites.length && <div className="rf-drop-hint">No sites yet. Drag a site here, or select sites and use "Move to…".</div>}
+              </div>
+            </section>
+          );
+        })}
+        {unassigned.filter(visible).length > 0 && (
+          <section className="audit-card rf-refiller is-unassigned">
+            <div className="rf-refiller-head"><span className="ea-avatar">?</span><div><h3>No refiller</h3><p>{unassigned.length} site{unassigned.length === 1 ? "" : "s"}: drag them to a refiller</p></div></div>
+            <div className="rf-site-list">{unassigned.filter(visible).map(renderSite)}</div>
+          </section>
+        )}
+      </div>
+
+      {editing && <ScheduleEditor sites={editing} refillers={data.refillers} onSave={saveSchedule} onRemove={editing.length === 1 ? removeSchedule : null} onClose={() => setEditing(null)} />}
+      {moving && <MoveDialog sites={moving.sites} refillers={refillers} targetId={moving.targetId} today={today} onSave={move} onClose={() => setMoving(null)} />}
     </div>
   );
 }

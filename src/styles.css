@@ -4296,3 +4296,43 @@ button:disabled.rf-ok, button:disabled.rf-danger { opacity: .55; cursor: default
   .rf-verify-card { grid-template-columns: 1fr; }
   .rf-verify-photos button:only-child { max-height: 380px; }
 }
+/* Refill Schedule: refiller board and moving sites */
+.rf-board { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 12px; align-items: start; }
+.rf-refiller { display: grid; gap: 10px; transition: box-shadow .15s, border-color .15s; }
+.rf-refiller.is-drop { border-color: #16a34a; box-shadow: 0 0 0 3px rgba(22, 163, 74, .18); background: #f0fdf4; }
+.rf-refiller.is-unassigned { border-style: dashed; }
+.rf-refiller-head { display: flex; align-items: flex-start; gap: 10px; }
+.rf-refiller-head > div { flex: 1; min-width: 0; }
+.rf-refiller-head h3 { margin: 0; font-size: 15px; }
+.rf-refiller-head p { margin: 1px 0 0; color: var(--text-muted); font-size: 12px; }
+.rf-site-list { display: grid; gap: 6px; }
+.rf-site { cursor: grab; }
+.rf-site:active { cursor: grabbing; }
+.rf-site-main b small { color: var(--text-muted); font-weight: 500; }
+.rf-site-actions { display: flex; flex: none; gap: 4px; }
+.rf-site-actions button { padding: 5px 9px; font-size: 11.5px; }
+.rf-shift-badge { color: #7c3aed !important; font-weight: 700 !important; font-style: normal !important; }
+.rf-covering { display: grid; gap: 4px; padding: 8px 10px; border-radius: 10px; background: #f5f3ff; color: #5b21b6; font-size: 12px; }
+.rf-drop-hint { padding: 16px; border: 1.5px dashed var(--border); border-radius: 10px; color: var(--text-muted); font-size: 12.5px; text-align: center; }
+.rf-selbar { position: sticky; top: 8px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 14px; background: #0b0f1a; color: #fff; box-shadow: 0 10px 24px rgba(11, 15, 26, .25); }
+.rf-selbar .rf-primary { margin-left: auto; background: #16a34a; }
+.rf-selbar .rf-ghost { border-color: rgba(255, 255, 255, .3); background: transparent; color: #fff; }
+.rf-selbar .rf-link { color: #93c5fd; }
+.rf-shifts { display: grid; gap: 8px; border-left: 4px solid #7c3aed; }
+.rf-shifts h3 { margin: 0; font-size: 14px; }
+.rf-shift-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--surface-2); font-size: 13px; }
+.rf-shift-row > span:nth-child(2) { flex: 1; min-width: 200px; }
+.rf-shift-row small { color: var(--text-muted); }
+.rf-shift-row button { padding: 5px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.rf-shift-dates { padding: 2px 8px; border-radius: 999px; background: #ede9fe; color: #5b21b6; font-size: 11.5px; font-weight: 800; white-space: nowrap; }
+.rf-quick button.on { border-style: solid; border-color: #0b0f1a; background: #0b0f1a; color: #fff; }
+@media (max-width: 768px) {
+  .rf-board { grid-template-columns: 1fr; }
+  .rf-site { flex-wrap: wrap; cursor: default; }
+  .rf-site-actions { width: 100%; padding-left: 27px; }
+  .rf-selbar .rf-primary { margin-left: 0; }
+}
+/* Refiller cards pack into columns so short cards don't leave gaps */
+.rf-board { display: block; columns: 3 360px; column-gap: 12px; }
+.rf-board > .rf-refiller { break-inside: avoid; margin-bottom: 12px; }
+@media (max-width: 768px) { .rf-board { columns: 1; } }
