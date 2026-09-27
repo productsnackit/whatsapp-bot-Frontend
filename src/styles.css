@@ -437,7 +437,7 @@ body {
   width: 32px;
   height: 32px;
   object-fit: contain;
-  filter: brightness(0) invert(1);
+  border-radius: 6px;
 }
 
 .sidebar-brand span {
@@ -2770,7 +2770,7 @@ tbody tr:hover { background: var(--surface-2); }
     background: var(--obsidian);
     color: #fff;
   }
-  .mobile-topbar img { width: 26px; height: 26px; object-fit: contain; filter: brightness(0) invert(1); }
+  .mobile-topbar img { width: 26px; height: 26px; object-fit: contain; border-radius: 5px; }
   .mobile-topbar span { font-size: 16px; font-weight: 800; letter-spacing: -0.3px; }
   .mobile-menu-button {
     display: grid;

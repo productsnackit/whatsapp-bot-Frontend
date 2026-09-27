@@ -56,6 +56,13 @@ function readStoredAccess() {
 }
 const pickAccess = (data) => ({ accessRole: data.accessRole, roleLabel: data.roleLabel, pages: data.pages || [], readOnly: Boolean(data.readOnly), isAdmin: Boolean(data.isAdmin) });
 
+// Gold Snackit "S" on a transparent background, made for the dark sidebar.
+const DEFAULT_LOGO = "/brand-mark.png";
+// A logo that fails to load falls back to the gold mark instead of a blank box.
+const showDefaultLogo = (event) => {
+  if (!event.currentTarget.src.endsWith(DEFAULT_LOGO)) event.currentTarget.src = DEFAULT_LOGO;
+};
+
 // Older chats begin with an automatic "New <department> team chat started." message; don't show it.
 const isChatStartedNotice = (message) => message?.sender === "Admin" && /^New .+ team chat started\.$/.test(String(message.text || "").trim());
 
@@ -253,7 +260,7 @@ export default function App() {
   const [adminProfile, setAdminProfile] = useState(() => ({
     displayName: localStorage.getItem("adminDisplayName") || "Snackit Admin",
     email: localStorage.getItem("adminEmail") || "",
-    logo: localStorage.getItem("adminLogo") || "/logo.png",
+    logo: localStorage.getItem("adminLogo") || DEFAULT_LOGO,
     compactMode: localStorage.getItem("adminCompactMode") === "true",
   }));
   const socketRef = useRef(null);
@@ -852,6 +859,23 @@ export default function App() {
     navigator.serviceWorker.addEventListener("message", onMessage);
     return () => navigator.serviceWorker.removeEventListener("message", onMessage);
   }, [openChatFromNotification, openTicketFromNotification]);
+
+  // Everyone gets the logo uploaded in Admin Settings (not only people who can open bot settings).
+  useEffect(() => {
+    if (!token) return undefined;
+    let alive = true;
+    const timer = setTimeout(() => {
+      API.get("/internal/branding", { headers: { Authorization: `Bearer ${token}` } })
+        .then((response) => {
+          if (!alive) return;
+          const logo = response.data?.logo || DEFAULT_LOGO;
+          setAdminProfile((profile) => (profile.logo === logo ? profile : { ...profile, logo }));
+          try { localStorage.setItem("adminLogo", response.data?.logo || ""); } catch { /* per-browser cache only */ }
+        })
+        .catch(() => {});
+    }, 0);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [token]);
 
   // Access can change while someone is logged in (an admin edits their role), so check regularly.
   const refreshMe = useCallback(async () => {
@@ -1533,7 +1557,7 @@ export default function App() {
         <button type="button" className="mobile-menu-button" aria-label="Open menu" onClick={() => setMobileNavOpen(true)}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
         </button>
-        <img src={adminProfile.logo} alt="" />
+        <img src={adminProfile.logo} alt="" onError={showDefaultLogo} />
         <span>{adminProfile.displayName || "Snackit"}</span>
       </header>
       {mobileNavOpen && <div className="mobile-nav-backdrop" onClick={() => setMobileNavOpen(false)} />}
@@ -1541,7 +1565,7 @@ export default function App() {
       {/* ── SIDEBAR ─────────────────────────────────────────────────────────── */}
       <aside className={`sidebar ${mobileNavOpen ? "mobile-open" : ""}`}>
         <div className="sidebar-brand">
-          <img src={adminProfile.logo} alt="Snackit logo" />
+          <img src={adminProfile.logo} alt="Snackit logo" onError={showDefaultLogo} />
           <span>{adminProfile.displayName || "Snackit"}</span>
         </div>
 
