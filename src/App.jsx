@@ -13,6 +13,8 @@ import { transactionIdOf, isClosedTicket } from "./transactionId.js";
 import TicketChat from "./TicketChat.jsx";
 import ImageViewer from "./ImageViewer.jsx";
 import PhotoRetentionCard from "./PhotoRetentionCard.jsx";
+import { WaitBadge, RiskBadge, WatchStrip, CustomerHistory, TicketAlertsCard } from "./TicketWatch.jsx";
+import { DEFAULT_WATCH_HOURS, waitInfo, needsRefundCheck, refundWarnings } from "./ticketWatchData.js";
 import EmployeesAccess from "./EmployeesAccess.jsx";
 import ActivityLog from "./ActivityLog.jsx";
 import AccountPanel from "./AccountPanel.jsx";
@@ -208,6 +210,13 @@ export default function App() {
   }, []);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("");
+  // Reply timers: the colour limits come from Admin Settings; the clock ticks every minute.
+  const [watchHours, setWatchHours] = useState(DEFAULT_WATCH_HOURS);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(timer);
+  }, []);
   const [loadingId, setLoadingId] = useState(null);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [paytmVerificationEnabled, setPaytmVerificationEnabled] = useState(false);
@@ -912,8 +921,12 @@ export default function App() {
           }
         }
         ticketsLoadedRef.current = true;
-        const prevStr = JSON.stringify(prev.map((t) => ({ id: t.id, status: t.status, state: t.state, takeover: t.takeover, priority: t.priority, assigned_to: t.assigned_to, admin_notes: t.admin_notes })));
-        const nextStr = JSON.stringify(incoming.map((t) => ({ id: t.id, status: t.status, state: t.state, takeover: t.takeover, priority: t.priority, assigned_to: t.assigned_to, admin_notes: t.admin_notes })));
+        const signature = (list) => JSON.stringify(list.map((t) => ({
+          id: t.id, status: t.status, state: t.state, takeover: t.takeover, priority: t.priority, assigned_to: t.assigned_to, admin_notes: t.admin_notes,
+          refund_amount: t.refund_amount, upi_utr: t.upi_utr, waiting_since: t.waiting_since, first_response_at: t.first_response_at, checks: (t.refund_checks || []).map((check) => check.text),
+        })));
+        const prevStr = signature(prev);
+        const nextStr = signature(incoming);
         return prevStr === nextStr ? prev : incoming;
       });
       setSessionExpired(false);
@@ -925,6 +938,16 @@ export default function App() {
       }
     }
   }, [token, authHeaders, sessionExpired]);
+
+  // The reply-timer colour limits (Admin Settings), read again whenever Tickets is opened.
+  useEffect(() => {
+    if (!token || view !== "tickets") return undefined;
+    let alive = true;
+    API.get("/tickets/watch-settings", { headers: { Authorization: `Bearer ${token}` } })
+      .then((response) => { if (alive) setWatchHours({ ...DEFAULT_WATCH_HOURS, ...response.data }); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [token, view]);
 
   const fetchSettings = useCallback(async () => {
     if (!token) return;
@@ -1308,6 +1331,9 @@ export default function App() {
      ACTIONS
   ========================================================================= */
   const handleAction = async (id, action) => {
+    const ticket = tickets.find((item) => item.id === id);
+    const warnings = action === "REFUNDED" && ticket ? refundWarnings(ticket) : [];
+    if (warnings.length && !window.confirm(`Check before refunding ticket #${id}:\n\n${warnings.map((text) => `⚠ ${text}`).join("\n")}\n\nMark it as refunded anyway?`)) return;
     try {
       setLoadingId(id);
       await API.post("/ticket/action", { ticketId: id, action }, { headers: authHeaders() });
@@ -1369,6 +1395,11 @@ export default function App() {
       matchFilter = t.state?.toUpperCase() === filter;
     } else if (filter === "AUTO_CLOSED") {
       matchFilter = t.status === "auto_closed";
+    } else if (filter === "waiting" || filter === "overdue") {
+      const wait = waitInfo(t, watchHours, now);
+      matchFilter = Boolean(wait) && (filter === "waiting" || wait.level === "overdue");
+    } else if (filter === "checks") {
+      matchFilter = needsRefundCheck(t);
     } else if (["low", "normal", "high", "urgent"].includes(filter)) {
       matchFilter = (t.priority || "normal") === filter;
     } else if (filter) {
@@ -1876,6 +1907,7 @@ export default function App() {
             </div>
             <button type="button" className="admin-settings-save" onClick={saveAdminProfile}>Save admin settings</button>
             <PhotoRetentionCard api={API} headers={authHeaders()} />
+            <TicketAlertsCard api={API} headers={authHeaders()} />
           </section>
         )}
 
@@ -2289,6 +2321,7 @@ export default function App() {
         {/* ── TICKETS VIEW ────────────────────────────────────────────────── */}
         {view === "tickets" && (
           <>
+            <WatchStrip tickets={tickets} hours={watchHours} now={now} filter={filter} onFilter={setFilter} />
             <div className="toolbar">
               <div className="search-box">
                 {Icon.search}
@@ -2298,8 +2331,11 @@ export default function App() {
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-              <select className="filter-select" onChange={(e) => setFilter(e.target.value)}>
+              <select className="filter-select" value={filter} onChange={(e) => setFilter(e.target.value)}>
                 <option value="">All Status</option>
+                <option value="waiting">Waiting for reply</option>
+                <option value="overdue">Overdue</option>
+                <option value="checks">Refund checks</option>
                 <option value="OPEN">Open</option>
                 <option value="CLOSED">Closed</option>
                 <option value="AUTO_CLOSED">Auto Closed</option>
@@ -2427,7 +2463,11 @@ export default function App() {
                     const isAutoClosed = t.status === "auto_closed";
                     return (
                       <tr key={t.id} className={`ticket-row ${isAutoClosed ? "row-auto-closed" : isClosed ? "row-closed" : ""}`}>
-                        <td className="cell-num" data-label="Ticket"><span className="row-num ticket-no" title={`Ticket #${t.id}`}>#{t.id}</span></td>
+                        <td className="cell-num" data-label="Ticket">
+                          <span className="row-num ticket-no" title={`Ticket #${t.id}`}>#{t.id}</span>
+                          <WaitBadge ticket={t} hours={watchHours} now={now} />
+                          <RiskBadge ticket={t} onOpen={() => { setActiveChat(t); setMessages([]); }} />
+                        </td>
                         <td className="cell-phone"><span className="phone-tag">{t.phone}</span></td>
                         <td data-label="Issue">{t.main_issue || <span className="na">—</span>}</td>
                         <td data-label="Sub issue">{t.sub_issue || <span className="na">—</span>}</td>
@@ -2720,6 +2760,8 @@ export default function App() {
               )}
             </div>
           </div>
+
+          <CustomerHistory api={API} headers={authHeaders()} ticketId={activeChat.id} refreshKey={`${liveActiveTicket?.status}-${liveActiveTicket?.upi_utr}`} />
 
           <TicketChat
             ticket={{ ...activeChat, takeover: chatClosed ? false : activeChat.takeover }}

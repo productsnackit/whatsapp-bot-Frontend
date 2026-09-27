@@ -4622,3 +4622,79 @@ button:disabled.rf-ok, button:disabled.rf-danger { opacity: .55; cursor: default
 }
 .ax-insight > span { min-width: 0; }
 .ax-loc-table { min-width: 560px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TICKET WATCH (tw-): reply timers, refund checks, customer history
+═══════════════════════════════════════════════════════════════════════════ */
+.tickets-table td.cell-num { vertical-align: middle; }
+.tickets-table td.cell-num > * + * { margin-top: 5px; }
+.tw-wait, .tw-risk { display: flex; width: max-content; align-items: center; gap: 3px; padding: 2px 7px; border: 1px solid transparent; border-radius: 999px; font: inherit; font-size: 10.5px; font-weight: 700; line-height: 1.5; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tw-wait.is-ok { border-color: #d1d5db; background: #f7f8fc; color: var(--text-secondary); }
+.tw-wait.is-warn { border-color: #fcd34d; background: #fffbeb; color: #92400e; }
+.tw-wait.is-overdue { border-color: #fca5a5; background: #fef2f2; color: #b91c1c; animation: tw-pulse 2s ease-in-out infinite; }
+@keyframes tw-pulse { 50% { box-shadow: 0 0 0 3px rgba(239, 68, 68, .15); } }
+@media (prefers-reduced-motion: reduce) { .tw-wait.is-overdue { animation: none; } }
+.tw-risk { cursor: pointer; }
+.tw-risk.is-warn { border-color: #fcd34d; background: #fffbeb; color: #92400e; }
+.tw-risk.is-high { border-color: #b91c1c; background: #b91c1c; color: #fff; }
+.tw-risk:hover { filter: brightness(.96); }
+
+.tw-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+.tw-chip { display: grid; gap: 1px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text-primary); font: inherit; text-align: left; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.tw-chip b { font-size: 20px; font-weight: 800; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.tw-chip span { color: var(--text-muted); font-size: 11.5px; font-weight: 600; }
+.tw-chip:hover:not(.is-static) { border-color: #9ca3af; }
+.tw-chip.is-on { border-color: #0b0f1a; box-shadow: inset 0 0 0 1px #0b0f1a; }
+.tw-chip.is-overdue b { color: #b91c1c; }
+.tw-chip.is-overdue { border-color: #fca5a5; background: #fef2f2; }
+.tw-chip.is-flagged b { color: #b45309; }
+.tw-chip.is-flagged { border-color: #fcd34d; background: #fffbeb; }
+.tw-chip.is-static { cursor: default; }
+@media (max-width: 768px) {
+  .tw-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .tw-chip { padding: 8px 11px; }
+  .tw-chip b { font-size: 17px; }
+  /* Phone cards: ticket number, timer and checks form the card's top line. */
+  .tickets-table tr.ticket-row td.cell-num { display: flex; grid-column: 1 / -1; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .tickets-table td.cell-num > * + * { margin-top: 0; }
+}
+
+.tw-customer { flex-shrink: 0; margin: 10px 14px 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); font-size: 12px; text-align: left; }
+.tw-customer.is-warn { border-color: #fcd34d; background: #fffdf5; }
+.tw-customer.is-high { border-color: #fca5a5; background: #fff7f7; }
+.tw-customer-loading, .tw-customer-error { margin: 0; color: var(--text-muted); }
+.tw-customer-error { color: #b91c1c; }
+.tw-customer-head { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; padding: 0; border: 0; background: transparent; color: var(--text-primary); font: inherit; text-align: left; cursor: pointer; }
+.tw-customer-title { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-weight: 700; }
+.tw-customer-title em { padding: 1px 7px; border-radius: 999px; background: #b91c1c; color: #fff; font-size: 10.5px; font-style: normal; }
+.tw-customer.is-warn .tw-customer-title em { background: #fde68a; color: #78350f; }
+.tw-customer-toggle { color: var(--text-muted); font-size: 11px; font-weight: 700; white-space: nowrap; }
+.tw-customer-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 8px; }
+.tw-customer-stats > div { display: grid; min-width: 0; padding: 6px 7px; border-radius: 8px; background: var(--surface); }
+.tw-customer-stats b { overflow: hidden; font-size: 13.5px; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
+.tw-customer-stats span { color: var(--text-muted); font-size: 10.5px; }
+.tw-customer-stats .is-warn b { color: #b45309; }
+.tw-customer-checks { display: grid; gap: 3px; margin: 8px 0 0; padding: 0; list-style: none; }
+.tw-customer-checks li { color: #92400e; font-weight: 600; line-height: 1.35; }
+.tw-customer-checks li.is-high { color: #b91c1c; }
+.tw-customer-body { display: grid; gap: 6px; max-height: 30vh; margin-top: 8px; overflow-y: auto; }
+.tw-customer-place { margin: 0; color: var(--text-secondary); }
+.tw-customer-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.tw-customer-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--surface); }
+.tw-customer-id { color: var(--text-muted); font-weight: 700; font-variant-numeric: tabular-nums; }
+.tw-customer-what { display: grid; min-width: 0; }
+.tw-customer-what b, .tw-customer-what small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tw-customer-what small { color: var(--text-muted); font-size: 10.5px; }
+.tw-customer-status { padding: 1px 7px; border-radius: 999px; background: #eef2ff; color: #3730a3; font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+.tw-customer-status.s-refunded, .tw-customer-status.s-auto_refunded { background: #ecfdf5; color: #047857; }
+.tw-customer-status.s-resolved, .tw-customer-status.s-closed { background: #f3f4f6; color: #4b5563; }
+.tw-customer-status.s-auto_closed { background: #fff7ed; color: #9a3412; }
+.tw-customer-more { justify-content: center; color: var(--text-muted); }
+.tw-phones { width: min(320px, 100%); padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 14px; }
+.tw-check-row { cursor: pointer; }
+.tw-check-row input { width: 20px; height: 20px; accent-color: var(--red); }
+@media (max-width: 768px) {
+  .tw-customer { margin: 8px 10px 0; }
+  .tw-customer-body { max-height: 26dvh; }
+  .tw-phones { font-size: 16px; }
+}
