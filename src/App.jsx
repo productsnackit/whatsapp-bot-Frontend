@@ -14,6 +14,7 @@ import TicketChat from "./TicketChat.jsx";
 import ImageViewer from "./ImageViewer.jsx";
 import PhotoRetentionCard from "./PhotoRetentionCard.jsx";
 import CapaEscalationCard from "./CapaEscalationCard.jsx";
+import NumberTicketsCard from "./NumberTicketsCard.jsx";
 import { WaitBadge, RiskBadge, WatchStrip, CustomerHistory, TicketAlertsCard } from "./TicketWatch.jsx";
 import { DEFAULT_WATCH_HOURS, waitInfo, needsRefundCheck, refundWarnings } from "./ticketWatchData.js";
 import EmployeesAccess from "./EmployeesAccess.jsx";
@@ -1986,6 +1987,7 @@ export default function App() {
             <PhotoRetentionCard api={API} headers={authHeaders()} />
             <TicketAlertsCard api={API} headers={authHeaders()} />
             <CapaEscalationCard api={API} headers={authHeaders()} />
+            <NumberTicketsCard api={API} headers={authHeaders()} />
           </section>
         )}
 

@@ -4769,3 +4769,22 @@ button:disabled.rf-ok, button:disabled.rf-danger { opacity: .55; cursor: default
 .toolbar .filter-select { max-width: 240px; padding-right: 38px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .toolbar .settings-trigger { white-space: nowrap; }
 @media (max-width: 768px) { .toolbar .filter-select { max-width: 100%; } }
+
+/* Admin Settings → delete a number's tickets (nt-) */
+.nt-search { display: flex; flex-wrap: wrap; gap: 8px; }
+.nt-search input { flex: 1 1 220px; min-width: 0; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 15px; }
+.nt-find { padding: 10px 16px; border: 0; border-radius: 10px; background: #0b0f1a; color: #fff; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.nt-find:disabled { opacity: .45; cursor: default; }
+.nt-found { display: grid; gap: 10px; padding: 12px; border: 1px solid #fecaca; border-radius: 12px; background: #fff7f7; }
+.nt-summary { margin: 0; font-size: 13px; }
+.nt-list { display: grid; gap: 4px; max-height: 260px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.nt-list li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; background: var(--surface); font-size: 13px; }
+.nt-list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nt-list small { color: var(--text-muted); white-space: nowrap; }
+.nt-delete { justify-self: start; padding: 10px 16px; border: 0; border-radius: 10px; background: #b91c1c; color: #fff; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.nt-delete:disabled { opacity: .6; }
+@media (max-width: 768px) {
+  .nt-search input { font-size: 16px; }
+  .nt-list li { grid-template-columns: auto minmax(0, 1fr); }
+  .nt-list small { grid-column: 2; }
+}
