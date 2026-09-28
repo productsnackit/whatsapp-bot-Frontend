@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { downloadFile } from "./download.js";
+import RefillTimetableImport from "./RefillTimetableImport.jsx";
 
 /* Refill Schedule: sites get refill days/times, refillers get WhatsApp reminders,
    and prove each refill with a photo; supervisors verify them here. */
@@ -528,6 +529,7 @@ function SchedulesTab({ data, headers, onChanged, notify }) {
   const [editing, setEditing] = useState(null);
   const [moving, setMoving] = useState(null); // { sites, targetId }
   const [dragOver, setDragOver] = useState(null);
+  const [importing, setImporting] = useState(false);
   const config = { headers };
   const today = data.today;
 
@@ -636,6 +638,7 @@ function SchedulesTab({ data, headers, onChanged, notify }) {
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search site or refiller" />
         <label className="rf-switch"><input type="checkbox" checked={onlyUnscheduled} onChange={(event) => setOnlyUnscheduled(event.target.checked)} /> Only sites without a schedule</label>
         <span className="rf-count">{scheduledCount} of {data.locations.length} sites scheduled · drag a site onto another refiller to move it</span>
+        <button type="button" className="rf-primary rf-tt-open" onClick={() => setImporting(true)}>📋 Paste weekly timetable</button>
       </div>
 
       {selected.length > 0 && (
@@ -704,6 +707,16 @@ function SchedulesTab({ data, headers, onChanged, notify }) {
       </div>
 
       {editing && <ScheduleEditor sites={editing} refillers={data.refillers} onSave={saveSchedule} onRemove={editing.length === 1 ? removeSchedule : null} onClose={() => setEditing(null)} />}
+      {importing && (
+        <RefillTimetableImport
+          api={API}
+          headers={headers}
+          locations={data.locations}
+          refillers={data.refillers}
+          onDone={(message) => { notify(message); setImporting(false); onChanged(); }}
+          onClose={() => setImporting(false)}
+        />
+      )}
       {moving && <MoveDialog sites={moving.sites} refillers={refillers} targetId={moving.targetId} today={today} onSave={move} onClose={() => setMoving(null)} />}
     </div>
   );
