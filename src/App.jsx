@@ -61,6 +61,9 @@ const pickAccess = (data) => ({ accessRole: data.accessRole, roleLabel: data.rol
 
 // Gold Snackit "S" on a transparent background, made for the dark sidebar.
 const DEFAULT_LOGO = "/brand-mark.png";
+// Ticket filters: issue text as shown (trimmed), and the choice for tickets without one.
+const NO_VALUE = "__none__";
+const cleanText = (value) => String(value || "").trim().replace(/\s+/g, " ");
 // A logo that fails to load falls back to the gold mark instead of a blank box.
 const showDefaultLogo = (event) => {
   if (!event.currentTarget.src.endsWith(DEFAULT_LOGO)) event.currentTarget.src = DEFAULT_LOGO;
@@ -211,6 +214,9 @@ export default function App() {
   }, []);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("");
+  // "" = all; NO_VALUE = tickets where the customer never chose one.
+  const [issueFilter, setIssueFilter] = useState("");
+  const [subIssueFilter, setSubIssueFilter] = useState("");
   // Reply timers: the colour limits come from Admin Settings; the clock ticks every minute.
   const [watchHours, setWatchHours] = useState(DEFAULT_WATCH_HOURS);
   const [now, setNow] = useState(() => Date.now());
@@ -1407,8 +1413,33 @@ export default function App() {
       matchFilter = t.status === filter;
     }
 
-    return matchSearch && matchFilter;
+    const matchIssue = !issueFilter || (issueFilter === NO_VALUE ? !cleanText(t.main_issue) : cleanText(t.main_issue) === issueFilter);
+    const matchSubIssue = !subIssueFilter || (subIssueFilter === NO_VALUE ? !cleanText(t.sub_issue) : cleanText(t.sub_issue) === subIssueFilter);
+
+    return matchSearch && matchFilter && matchIssue && matchSubIssue;
   });
+
+  // Issue and sub issue choices come from the tickets themselves, with how many each has.
+  const countBy = (list, key) => {
+    const counts = new Map();
+    list.forEach((ticket) => {
+      const value = cleanText(ticket[key]) || NO_VALUE;
+      counts.set(value, (counts.get(value) || 0) + 1);
+    });
+    return [...counts.entries()].sort((a, b) => (a[0] === NO_VALUE) - (b[0] === NO_VALUE) || b[1] - a[1]);
+  };
+  const issueOptions = countBy(tickets, "main_issue");
+  const subIssueOptions = countBy(
+    issueFilter ? tickets.filter((t) => (issueFilter === NO_VALUE ? !cleanText(t.main_issue) : cleanText(t.main_issue) === issueFilter)) : tickets,
+    "sub_issue"
+  );
+  const chooseIssue = (value) => {
+    setIssueFilter(value);
+    // Keep the sub issue only if it exists under the new issue.
+    const stillThere = !value || tickets.some((t) => (value === NO_VALUE ? !cleanText(t.main_issue) : cleanText(t.main_issue) === value)
+      && (subIssueFilter === NO_VALUE ? !cleanText(t.sub_issue) : cleanText(t.sub_issue) === subIssueFilter));
+    if (!stillThere) setSubIssueFilter("");
+  };
 
   /* =========================================================================
      STATS
@@ -2349,6 +2380,19 @@ export default function App() {
                 <option value="normal">Normal priority</option>
                 <option value="low">Low priority</option>
               </select>
+              <select className={`filter-select ${issueFilter ? "is-active" : ""}`} value={issueFilter} onChange={(e) => chooseIssue(e.target.value)} aria-label="Filter by issue">
+                <option value="">All issues</option>
+                {issueOptions.map(([value, count]) => <option key={value} value={value}>{value === NO_VALUE ? "No issue chosen" : value} ({count})</option>)}
+              </select>
+              <select className={`filter-select ${subIssueFilter ? "is-active" : ""}`} value={subIssueFilter} onChange={(e) => setSubIssueFilter(e.target.value)} aria-label="Filter by sub issue">
+                <option value="">All sub issues</option>
+                {subIssueOptions.map(([value, count]) => <option key={value} value={value}>{value === NO_VALUE ? "No sub issue chosen" : value} ({count})</option>)}
+              </select>
+              {(filter || issueFilter || subIssueFilter) && (
+                <button type="button" className="filter-clear" onClick={() => { setFilter(""); setIssueFilter(""); setSubIssueFilter(""); }}>
+                  Clear filters · {filteredTickets.length} shown
+                </button>
+              )}
               {can("settings") && <button
                 type="button"
                 className="settings-trigger"
