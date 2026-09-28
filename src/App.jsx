@@ -13,6 +13,7 @@ import { transactionIdOf, isClosedTicket } from "./transactionId.js";
 import TicketChat from "./TicketChat.jsx";
 import ImageViewer from "./ImageViewer.jsx";
 import PhotoRetentionCard from "./PhotoRetentionCard.jsx";
+import CapaEscalationCard from "./CapaEscalationCard.jsx";
 import { WaitBadge, RiskBadge, WatchStrip, CustomerHistory, TicketAlertsCard } from "./TicketWatch.jsx";
 import { DEFAULT_WATCH_HOURS, waitInfo, needsRefundCheck, refundWarnings } from "./ticketWatchData.js";
 import EmployeesAccess from "./EmployeesAccess.jsx";
@@ -1908,6 +1909,7 @@ export default function App() {
             <button type="button" className="admin-settings-save" onClick={saveAdminProfile}>Save admin settings</button>
             <PhotoRetentionCard api={API} headers={authHeaders()} />
             <TicketAlertsCard api={API} headers={authHeaders()} />
+            <CapaEscalationCard api={API} headers={authHeaders()} />
           </section>
         )}
 
