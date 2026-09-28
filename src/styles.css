@@ -4827,7 +4827,9 @@ body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; 
 * { -webkit-tap-highlight-color: transparent; }
 button, a, select, label, summary, [role="button"], .nav-item, .tw-chip, .thumb { touch-action: manipulation; }
 button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active { opacity: .62; transition: opacity 0s; }
-.chat-panel, .rf-modal-body, .upi-scan-modal, .tw-customer-body, .nt-list, .sidebar, .table-wrapper, .rf-tt-rows { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.chat-panel, .rf-modal-body, .upi-scan-modal, .tw-customer-body, .nt-list, .sidebar, .rf-tt-rows { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+/* Tables only scroll sideways themselves: up/down must pass through to the page. */
+.table-wrapper { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; overscroll-behavior-y: auto; }
 .main-content > * { animation: view-in .16s ease-out both; }
 @keyframes view-in { from { opacity: 0; } to { opacity: 1; } }
 .page-loading { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 40vh; color: var(--text-muted); font-size: 13px; font-weight: 600; }
