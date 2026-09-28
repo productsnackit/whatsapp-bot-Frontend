@@ -1,10 +1,6 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, lazy, Suspense, useDeferredValue } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
-import OperationsWorkspace from "./OperationsWorkspace.jsx";
-import AuditWorkspace from "./AuditWorkspace.jsx";
-import FindingsWorkspace from "./FindingsWorkspace.jsx";
-import ExpiryWorkspace from "./ExpiryWorkspace.jsx";
 import MobileChat, { Avatar } from "./MobileChat.jsx";
 import { getPushState, enablePush, syncPush, disablePush, showLocalNotification, PUSH_STATE_LABELS } from "./pushNotifications.js";
 import NotificationSettings from "./NotificationSettings.jsx";
@@ -19,15 +15,34 @@ import SiteCell from "./SiteCell.jsx";
 import { siteOf, NOT_MATCHED } from "./analyticsData.js";
 import { WaitBadge, RiskBadge, WatchStrip, CustomerHistory, TicketAlertsCard } from "./TicketWatch.jsx";
 import { DEFAULT_WATCH_HOURS, waitInfo, needsRefundCheck, refundWarnings } from "./ticketWatchData.js";
-import EmployeesAccess from "./EmployeesAccess.jsx";
-import ActivityLog from "./ActivityLog.jsx";
 import AccountPanel from "./AccountPanel.jsx";
-import RefillWorkspace from "./RefillWorkspace.jsx";
-import TasksWorkspace from "./TasksWorkspace.jsx";
-import AnalyticsWorkspace from "./AnalyticsWorkspace.jsx";
 import MentionText, { MentionSuggestions, TaskLine } from "./MentionText.jsx";
 import { useMentionInput, mentionIds } from "./mentions.js";
 import "./styles.css";
+
+// Pages other than Tickets and chat are separate downloads: the dashboard opens fast, and
+// they're fetched quietly in the background after login so switching to them is still instant.
+const PAGE_LOADERS = {
+  OperationsWorkspace: () => import("./OperationsWorkspace.jsx"),
+  AuditWorkspace: () => import("./AuditWorkspace.jsx"),
+  FindingsWorkspace: () => import("./FindingsWorkspace.jsx"),
+  ExpiryWorkspace: () => import("./ExpiryWorkspace.jsx"),
+  EmployeesAccess: () => import("./EmployeesAccess.jsx"),
+  ActivityLog: () => import("./ActivityLog.jsx"),
+  RefillWorkspace: () => import("./RefillWorkspace.jsx"),
+  TasksWorkspace: () => import("./TasksWorkspace.jsx"),
+  AnalyticsWorkspace: () => import("./AnalyticsWorkspace.jsx"),
+};
+const OperationsWorkspace = lazy(PAGE_LOADERS.OperationsWorkspace);
+const AuditWorkspace = lazy(PAGE_LOADERS.AuditWorkspace);
+const FindingsWorkspace = lazy(PAGE_LOADERS.FindingsWorkspace);
+const ExpiryWorkspace = lazy(PAGE_LOADERS.ExpiryWorkspace);
+const EmployeesAccess = lazy(PAGE_LOADERS.EmployeesAccess);
+const ActivityLog = lazy(PAGE_LOADERS.ActivityLog);
+const RefillWorkspace = lazy(PAGE_LOADERS.RefillWorkspace);
+const TasksWorkspace = lazy(PAGE_LOADERS.TasksWorkspace);
+const AnalyticsWorkspace = lazy(PAGE_LOADERS.AnalyticsWorkspace);
+
 
 const API = axios.create({
   baseURL: "https://whatsapp-bot-backend-b3nb.onrender.com",
@@ -67,6 +82,7 @@ const DEFAULT_LOGO = "/brand-mark.png";
 // Ticket filters: issue text as shown (trimmed), and the choice for tickets without one.
 const NO_VALUE = "__none__";
 const TICKETS_CACHE = "ticketsCache";
+const KEEP_ALIVE_PAGES = ["expiry", "refills", "tasks", "findings", "audit", "analytics"];
 // Table thumbnails: a small Cloudinary copy (a few KB) instead of the full photo; the viewer opens the full one.
 const thumbUrl = (url) => (typeof url === "string" && url.includes("res.cloudinary.com/") && url.includes("/image/upload/")
   ? url.replace("/image/upload/", "/image/upload/c_fill,w_120,h_120,q_auto,f_auto/")
@@ -214,6 +230,12 @@ export default function App() {
     return ALL_PAGE_KEYS.includes(name) ? can(name) : false;
   };
   const view = viewAllowed(requestedView) ? requestedView : can("tickets") ? "tickets" : "internal-chat";
+  // Like app tabs: once opened, these pages stay loaded (hidden) so going back is instant;
+  // they keep refreshing themselves. Forgotten when a different login is used.
+  const [keptPages, setKeptPages] = useState({ token, pages: [] });
+  if (keptPages.token !== token) setKeptPages({ token, pages: [] });
+  else if (KEEP_ALIVE_PAGES.includes(view) && !keptPages.pages.includes(view)) setKeptPages({ token, pages: [...keptPages.pages, view] });
+  const keepPage = (name) => view === name || (keptPages.token === token && keptPages.pages.includes(name));
   // Mobile-only UI state (ignored by the desktop layout)
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobileChatPane, setMobileChatPane] = useState(LAUNCH_CHAT ? "conversation" : "list");
@@ -228,6 +250,8 @@ export default function App() {
     return () => query.removeEventListener("change", onChange);
   }, []);
   const [search, setSearch] = useState("");
+  // Typing stays instant; the long ticket list catches up a moment later.
+  const deferredSearch = useDeferredValue(search);
   const [filter, setFilter] = useState("");
   // "" = all; NO_VALUE = tickets where the customer never chose one.
   const [issueFilter, setIssueFilter] = useState("");
@@ -994,6 +1018,18 @@ export default function App() {
     };
   }, [token, refreshTicketsSoon]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // After login, the other pages download quietly while the browser is idle.
+  useEffect(() => {
+    if (!token) return undefined;
+    const load = () => Object.values(PAGE_LOADERS).forEach((loader) => loader().catch(() => {}));
+    if ("requestIdleCallback" in window) {
+      const id = window.requestIdleCallback(load, { timeout: 1500 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const timer = setTimeout(load, 1200);
+    return () => clearTimeout(timer);
+  }, [token]);
+
   // Our sites, to set a ticket's site by hand.
   useEffect(() => {
     if (!token || view !== "tickets") return undefined;
@@ -1444,7 +1480,7 @@ export default function App() {
      FILTERING
   ========================================================================= */
   const filteredTickets = tickets.filter((t) => {
-    const s = search.toLowerCase();
+    const s = deferredSearch.toLowerCase();
     const matchSearch =
       t.phone?.toLowerCase().includes(s) ||
       (t.upi_id || "").toLowerCase().includes(s) ||
@@ -1547,6 +1583,7 @@ export default function App() {
     muted 
     loop 
     playsInline
+    poster="/login-poster.jpg"
     className="login-bg-video"
   >
     <source src="/login.mp4" type="video/mp4" />
@@ -1879,6 +1916,7 @@ export default function App() {
 
       {/* ── MAIN CONTENT ────────────────────────────────────────────────────── */}
       <main className={`main-content ${activeChat ? "chat-open" : ""} ${view === "internal-chat" && !isMobile ? "is-chat-view" : ""}`}>
+        <Suspense fallback={<div className="page-loading" role="status"><span />Loading…</div>}>
 
         {myAccess.readOnly && <div className="readonly-banner">👀 View-only access: you can look around, but changes are turned off for your account.</div>}
 
@@ -2033,13 +2071,14 @@ export default function App() {
           <OperationsWorkspace token={token} internalUsers={internalUsers} workspace={view} />
         )}
 
-        {view === "expiry" && <ExpiryWorkspace token={token} isAdmin={isAdmin} />}
+        {keepPage("expiry") && <div className="kept-page" hidden={view !== "expiry"}><ExpiryWorkspace token={token} isAdmin={isAdmin} /></div>}
 
-        {view === "refills" && <RefillWorkspace token={token} />}
+        {keepPage("refills") && <div className="kept-page" hidden={view !== "refills"}><RefillWorkspace token={token} /></div>}
 
-        {view === "tasks" && <TasksWorkspace token={token} isAdmin={isAdmin} onOpenChat={(task) => openChatFromNotification({ chatId: String(task.chatId), department: task.department })} />}
+        {keepPage("tasks") && <div className="kept-page" hidden={view !== "tasks"}><TasksWorkspace token={token} isAdmin={isAdmin} onOpenChat={(task) => openChatFromNotification({ chatId: String(task.chatId), department: task.department })} /></div>}
 
-        {view === "findings" && (
+        {keepPage("findings") && (
+          <div className="kept-page" hidden={view !== "findings"}>
           <FindingsWorkspace
             token={token}
             isAdmin={isAdmin}
@@ -2048,10 +2087,11 @@ export default function App() {
             internalUsers={internalUsers}
             departments={departments}
           />
+          </div>
         )}
 
-        {view === "audit" && canAccessAudit && (
-          <AuditWorkspace token={token} currentUserName={currentUserName} isAdmin={isAdmin} />
+        {keepPage("audit") && canAccessAudit && (
+          <div className="kept-page" hidden={view !== "audit"}><AuditWorkspace token={token} currentUserName={currentUserName} isAdmin={isAdmin} /></div>
         )}
 
         {view === "internal-chat" && isMobile && (
@@ -2807,7 +2847,8 @@ export default function App() {
         )}
 
         {/* ── ANALYTICS VIEW ──────────────────────────────────────────────── */}
-        {view === "analytics" && <AnalyticsWorkspace token={token} />}
+        {keepPage("analytics") && <div className="kept-page" hidden={view !== "analytics"}><AnalyticsWorkspace token={token} /></div>}
+        </Suspense>
       </main>
 
       {/* ── CHAT PANEL ──────────────────────────────────────────────────────── */}
