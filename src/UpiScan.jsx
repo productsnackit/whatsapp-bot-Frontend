@@ -53,7 +53,7 @@ export function UpiScanSummary({ ticket, onOpen }) {
   const flags = flagsFor(ticket);
   return (
     <button type="button" className={`upi-scan-chip ${flags.length ? "is-warn" : "is-ok"}`} onClick={onOpen} title="See what was read from the screenshot">
-      <span>{scan.amount != null ? `₹${scan.amount}` : "₹ ?"}{scan.utr ? ` · UTR …${scan.utr.slice(-4)}` : ""}</span>
+      <span>{scan.amount != null ? `₹${scan.amount}${scan.amount_uncertain ? "?" : ""}` : "₹ ?"}{scan.utr ? ` · UTR …${scan.utr.slice(-4)}` : ""}</span>
       <b>{flags.length ? `⚠ ${flags.length} to check` : "✓ Looks fine"}</b>
     </button>
   );
@@ -80,7 +80,8 @@ export function UpiScanDetails({ ticket, onClose, onRescan }) {
 
   const rows = scan ? [
     ["UTR / UPI ref", scan.utr],
-    ["Amount", scan.amount != null ? `₹${scan.amount}` : null],
+    // An unclear amount is shown with the other possible readings and never filled in automatically.
+    ["Amount", scan.amount != null ? `₹${scan.amount}${scan.amount_uncertain ? " (not sure, check the screenshot)" : ""}` : null],
     ["Customer UPI ID (screenshot)", scan.payer_upi],
     ["Status", scan.status && { SUCCESS: "✅ Successful", FAILED: "❌ Failed", PENDING: "⏳ Pending" }[scan.status]],
     ["Date & time", scan.paid_at],
