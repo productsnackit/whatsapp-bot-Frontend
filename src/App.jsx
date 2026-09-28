@@ -1918,7 +1918,7 @@ export default function App() {
               {view === "audit" && "Machine quality checks, refillers, sites and corrective actions"}
               {view === "findings" && "Audit findings, corrective actions, owners and follow-ups"}
               {view === "expiry" && "Batch expiry dates, expired stock and write-off value"}
-              {view === "refills" && "Refill days and times per site, WhatsApp reminders and photo proof"}
+              {view === "refills" && "Refill days per site (refillers go in their own order), WhatsApp reminders and photo proof"}
               {view === "tasks" && `${myTaskCounts.open} open for you${myTaskCounts.overdue ? ` · ${myTaskCounts.overdue} overdue` : ""} · from @tags in Internal Chat`}
               {view === "analytics" && "Complaints, refunds and resolution · India time"}
               {view === "internal-chat" && `${departmentChats.length} active ${selectedDepartment} conversations`}

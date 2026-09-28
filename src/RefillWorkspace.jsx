@@ -23,6 +23,19 @@ function prettyTime(time) {
   const [hh, mm] = time.split(":").map(Number);
   return `${((hh + 11) % 12) + 1}:${String(mm).padStart(2, "0")} ${hh < 12 ? "AM" : "PM"}`;
 }
+// Visits are "anytime that day" or a part of the day (sites visited 2-3 times a day);
+// a site that needs a clock time can still have one.
+const SLOTS = { MORNING: "Morning", AFTERNOON: "Afternoon", EVENING: "Evening", ANY: "Anytime" };
+const SLOT_KEYS = ["MORNING", "AFTERNOON", "EVENING", "ANY"];
+const isSlot = (time) => SLOT_KEYS.includes(time);
+// "Anytime", "Morning" or "10:30 AM".
+function whenLabel(time) {
+  return isSlot(time) ? SLOTS[time] : prettyTime(time);
+}
+function isOnTime(task, grace) {
+  const late = Number(task.minutes_late);
+  return isSlot(task.due_time) ? late <= 0 : late <= grace;
+}
 function prettyDate(dateStr, withYear = false) {
   const date = new Date(`${dateStr}T00:00:00`);
   return date.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", ...(withYear ? { year: "numeric" } : {}) });
@@ -39,6 +52,10 @@ function lateLabel(task, grace) {
   if (task.unscheduled) return { text: "Extra visit", tone: "grey" };
   const late = Number(task.minutes_late);
   if (!Number.isFinite(late)) return null;
+  if (isSlot(task.due_time)) {
+    if (late <= 0) return { text: "Done in time", tone: "green" };
+    return { text: `${late >= 120 ? `${Math.floor(late / 60)} h ${late % 60} min` : `${late} min`} after the deadline`, tone: "red" };
+  }
   if (late <= 0) return { text: late < -60 ? `${Math.round(-late / 60)} h early` : "On time", tone: "green" };
   if (late <= grace) return { text: `${late} min after · in window`, tone: "green" };
   return { text: late >= 120 ? `${Math.floor(late / 60)} h ${late % 60} min late` : `${late} min late`, tone: "red" };
@@ -53,7 +70,7 @@ function scheduleSummary(schedule, names) {
     const id = schedule.time_refillers?.[time];
     return id && names?.get(Number(id)) ? ` by ${names.get(Number(id))}` : "";
   };
-  return `${when} · ${schedule.times.map((time) => `${prettyTime(time)}${byWhom(time)}`).join(", ")}`;
+  return `${when} · ${schedule.times.map((time) => `${whenLabel(time)}${byWhom(time)}`).join(", ")}`;
 }
 
 function Chip({ tone, children }) {
@@ -94,12 +111,16 @@ function TaskRow({ task, grace, onAction, onPhotos, busy }) {
   const photos = task.photos || [];
   return (
     <div className={`rf-task rf-task-${task.status}`}>
-      <div className="rf-task-time"><b>{prettyTime(task.due_time)}</b>{task.unscheduled && <small>extra</small>}</div>
+      <div className="rf-task-time"><b>{whenLabel(task.due_time)}</b>{task.unscheduled ? <small>extra</small> : isSlot(task.due_time) ? <small>by {clock(task.due_at)}</small> : null}</div>
       <div className="rf-task-main">
         <b>{task.location_name}</b>
         <span>
           {task.machine_code ? `${task.machine_code} · ` : ""}
-          {task.completed_at ? `Photo at ${clock(task.completed_at)}` : task.hour_before_sent_at ? `Reminded ${clock(task.hour_before_sent_at)}` : task.day_before_sent_at ? "Reminded the day before" : "Not reminded yet"}
+          {task.completed_at ? `Photo at ${clock(task.completed_at)}`
+            : task.hour_before_sent_at ? `Reminded ${clock(task.hour_before_sent_at)}`
+              : task.afternoon_sent_at ? "In the afternoon reminder"
+                : task.morning_sent_at ? "In this morning's list"
+                  : task.day_before_sent_at ? "In the evening-before list" : "Not reminded yet"}
           {task.notes ? ` · ${task.notes}` : ""}
         </span>
         {task.reminder_error && <span className="rf-error-line">Reminder failed: {task.reminder_error}</span>}
@@ -126,7 +147,7 @@ function TaskRow({ task, grace, onAction, onPhotos, busy }) {
 }
 
 function OneOffForm({ locations, date, onSave, onClose }) {
-  const [draft, setDraft] = useState({ location_id: "", due_date: date, due_time: "10:00", notes: "" });
+  const [draft, setDraft] = useState({ location_id: "", due_date: date, due_time: "ANY", notes: "" });
   const [error, setError] = useState("");
   const submit = async (event) => {
     event.preventDefault();
@@ -153,8 +174,12 @@ function OneOffForm({ locations, date, onSave, onClose }) {
           </select></label>
           <div className="rf-two">
             <label>Date<input type="date" value={draft.due_date} onChange={(event) => setDraft({ ...draft, due_date: event.target.value })} /></label>
-            <label>Time<input type="time" value={draft.due_time} onChange={(event) => setDraft({ ...draft, due_time: event.target.value })} /></label>
+            <label>When<select value={isSlot(draft.due_time) ? draft.due_time : "EXACT"} onChange={(event) => setDraft({ ...draft, due_time: event.target.value === "EXACT" ? "10:00" : event.target.value })}>
+              {SLOT_KEYS.slice().reverse().map((slot) => <option key={slot} value={slot}>{SLOTS[slot]}</option>)}
+              <option value="EXACT">A specific time…</option>
+            </select></label>
           </div>
+          {!isSlot(draft.due_time) && <label>Time<input type="time" value={draft.due_time} onChange={(event) => setDraft({ ...draft, due_time: event.target.value || "10:00" })} /></label>}
           <label>Note for the refiller (optional)<input value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} placeholder="e.g. Restock chips and cold drinks" /></label>
           <p className="rf-hint">The site's refiller gets reminders like any scheduled visit.</p>
           {error && <div className="ea-error">{error}</div>}
@@ -171,7 +196,7 @@ function TodayBoard({ data, date, setDate, onAction, onPhotos, busy, onAddVisit 
   const count = (status) => tasks.filter((task) => task.status === status).length;
   const due = tasks.filter((task) => !task.unscheduled && (new Date(task.due_at) <= new Date() || ["done", "verified"].includes(task.status)));
   const completedDue = due.filter((task) => ["done", "verified"].includes(task.status));
-  const onTime = completedDue.filter((task) => Number(task.minutes_late) <= grace).length;
+  const onTime = completedDue.filter((task) => isOnTime(task, grace)).length;
   const groups = useMemo(() => {
     const map = new Map();
     tasks.forEach((task) => map.set(task.refiller_name || "No refiller assigned", [...(map.get(task.refiller_name || "No refiller assigned") || []), task]));
@@ -215,7 +240,7 @@ function TodayBoard({ data, date, setDate, onAction, onPhotos, busy, onAddVisit 
       }) : (
         <section className="audit-card rf-empty">
           <b>No refill visits on this day.</b>
-          <span>{data.locations.some((site) => site.schedule) ? "No site is scheduled for this day." : "Set refill days and times for each site in the Schedules tab to get started."}</span>
+          <span>{data.locations.some((site) => site.schedule) ? "No site is scheduled for this day." : "Set refill days for each site in the Schedules tab to get started."}</span>
         </section>
       )}
     </div>
@@ -253,7 +278,7 @@ function VerifyCard({ task, grace, onDecide, onPhotos }) {
         </div>
         <dl>
           <div><dt>Refiller</dt><dd>{task.refiller_name || "—"}</dd></div>
-          <div><dt>Scheduled</dt><dd>{task.unscheduled ? "Not scheduled (extra visit)" : `${prettyDate(task.due_date)} · ${prettyTime(task.due_time)}`}</dd></div>
+          <div><dt>Scheduled</dt><dd>{task.unscheduled ? "Not scheduled (extra visit)" : `${prettyDate(task.due_date)} · ${whenLabel(task.due_time)}`}</dd></div>
           <div><dt>Photo received</dt><dd>{task.completed_at ? new Date(task.completed_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—"}</dd></div>
           <div><dt>Timing</dt><dd>{late ? <Chip tone={late.tone}>{late.text}</Chip> : "—"}</dd></div>
           {task.rejected_count > 0 && <div><dt>Earlier</dt><dd>Rejected {task.rejected_count}× before</dd></div>}
@@ -350,9 +375,9 @@ function ScheduleEditor({ sites, refillers, onSave, onRemove, onClose }) {
     days: existing?.days || [1, 2, 3, 4, 5, 6],
     interval_days: existing?.interval_days || 2,
     start_date: existing?.start_date || new Date().toISOString().slice(0, 10),
-    times: existing?.times?.length ? existing.times : ["10:00"],
+    times: existing?.times?.length ? existing.times : ["ANY"],
     // Who does each visit time ("" = the site's refiller), in the same order as times.
-    timeRefillers: (existing?.times?.length ? existing.times : ["10:00"]).map((time) => String(existing?.time_refillers?.[time] || "")),
+    timeRefillers: (existing?.times?.length ? existing.times : ["ANY"]).map((time) => String(existing?.time_refillers?.[time] || "")),
     refiller_id: existing?.refiller_id || "",
     notes: existing?.notes || "",
     active: existing ? existing.active : true,
@@ -362,6 +387,12 @@ function ScheduleEditor({ sites, refillers, onSave, onRemove, onClose }) {
   const toggleDay = (day) => setDraft((current) => ({ ...current, days: current.days.includes(day) ? current.days.filter((d) => d !== day) : [...current.days, day] }));
   const setTime = (index, value) => setDraft((current) => ({ ...current, times: current.times.map((time, i) => (i === index ? value : time)) }));
   const setTimeRefiller = (index, value) => setDraft((current) => ({ ...current, timeRefillers: current.timeRefillers.map((id, i) => (i === index ? value : id)) }));
+  // A second visit turns "anytime" into morning + evening; a third adds the afternoon.
+  const addVisit = () => setDraft((current) => {
+    const times = current.times.length === 1 && current.times[0] === "ANY" ? ["MORNING"] : current.times;
+    const next = ["MORNING", "EVENING", "AFTERNOON"].find((slot) => !times.includes(slot)) || "12:00";
+    return { ...current, times: [...times, next], timeRefillers: [...current.timeRefillers, ""] };
+  });
   const removeTime = (index) => setDraft((current) => ({ ...current, times: current.times.filter((_, i) => i !== index), timeRefillers: current.timeRefillers.filter((_, i) => i !== index) }));
   const siteRefillerName = refillers.find((refiller) => String(refiller.id) === String(draft.refiller_id))?.name || first.refiller_name;
 
@@ -413,13 +444,17 @@ function ScheduleEditor({ sites, refillers, onSave, onRemove, onClose }) {
             </div>
           )}
           <div>
-            <div className="rf-label">Refill time{draft.times.length > 1 ? "s" : ""} <small>(India time)</small></div>
-            <div className={`rf-times ${sites.length === 1 ? "has-refillers" : ""}`}>
+            <div className="rf-label">Visit{draft.times.length > 1 ? "s" : ""} each day</div>
+            <div className={`rf-times rf-visits ${sites.length === 1 ? "has-refillers" : ""}`}>
               {draft.times.map((time, index) => (
                 <span key={index}>
-                  <input type="time" value={time} onChange={(event) => setTime(index, event.target.value)} />
+                  <select value={isSlot(time) ? time : "EXACT"} onChange={(event) => setTime(index, event.target.value === "EXACT" ? "10:00" : event.target.value)} aria-label="When">
+                    {(draft.times.length > 1 ? SLOT_KEYS : ["ANY", "MORNING", "AFTERNOON", "EVENING"]).map((slot) => <option key={slot} value={slot}>{SLOTS[slot]}</option>)}
+                    <option value="EXACT">A specific time…</option>
+                  </select>
+                  {!isSlot(time) && <input type="time" value={time} onChange={(event) => setTime(index, event.target.value || "10:00")} aria-label="Time" />}
                   {sites.length === 1 && (
-                    <select value={draft.timeRefillers[index] || ""} onChange={(event) => setTimeRefiller(index, event.target.value)} aria-label={`Refiller for the ${time} visit`}>
+                    <select value={draft.timeRefillers[index] || ""} onChange={(event) => setTimeRefiller(index, event.target.value)} aria-label={`Refiller for the ${whenLabel(time).toLowerCase()} visit`}>
                       <option value="">{siteRefillerName ? `${siteRefillerName} (site's refiller)` : "Site's refiller"}</option>
                       {refillers.map((refiller) => <option key={refiller.id} value={refiller.id}>{refiller.name}</option>)}
                     </select>
@@ -427,9 +462,14 @@ function ScheduleEditor({ sites, refillers, onSave, onRemove, onClose }) {
                   {draft.times.length > 1 && <button type="button" onClick={() => removeTime(index)} aria-label="Remove time">✕</button>}
                 </span>
               ))}
-              {draft.times.length < 4 && <button type="button" className="rf-add-time" onClick={() => setDraft({ ...draft, times: [...draft.times, "17:00"], timeRefillers: [...draft.timeRefillers, ""] })}>+ Another time</button>}
+              {draft.times.length < 4 && <button type="button" className="rf-add-time" onClick={addVisit}>+ Another visit</button>}
             </div>
-            {sites.length === 1 && draft.times.length > 1 && <p className="rf-hint">Each visit time can go to a different refiller: they get the reminders for that time and can send its photo.</p>}
+            <p className="rf-hint">
+              {draft.times.every((time) => time === "ANY")
+                ? "Anytime: the refiller does it whenever it fits their route that day, by the day's close."
+                : "Morning, Afternoon and Evening each have their own deadline (see Settings)."}
+              {sites.length === 1 && draft.times.length > 1 ? " Each visit can go to a different refiller: they get its reminders and send its photo." : ""}
+            </p>
           </div>
           {sites.length === 1 && (
             <label>Refiller for this site<select value={draft.refiller_id} onChange={(event) => setDraft({ ...draft, refiller_id: event.target.value })}>
@@ -714,7 +754,7 @@ function SchedulesTab({ data, headers, onChanged, notify }) {
               </div>
               {sharedVisits(refiller.id).length > 0 && (
                 <div className="rf-covering rf-shared">
-                  {sharedVisits(refiller.id).map(({ site, time }) => <span key={`${site.id}-${time}`}>🔁 Also visits <b>{site.name}</b> at {prettyTime(time)} ({site.refiller_name || "no refiller"}'s site)</span>)}
+                  {sharedVisits(refiller.id).map(({ site, time }) => <span key={`${site.id}-${time}`}>🔁 Also visits <b>{site.name}</b> ({whenLabel(time)}) · {site.refiller_name || "no refiller"}'s site</span>)}
                 </div>
               )}
               {refiller.covering.length > 0 && (
@@ -779,7 +819,7 @@ function PerformanceTab({ headers, today }) {
     <div className="audit-stack">
       <div className="rf-toolbar">
         <input type="month" value={month} onChange={(event) => event.target.value && setMonth(event.target.value)} aria-label="Month" />
-        <span className="rf-count">Completion = refills with a photo ÷ visits due. On time = photo within {stats?.grace ?? 120} min of the scheduled time.</span>
+        <span className="rf-count">Completion = refills with a photo ÷ visits due. On time = photo before the visit's deadline (the day's close, or the end of its part of the day; {stats?.grace ?? 120} min after a clock time).</span>
       </div>
       {!stats ? <div className="ea-loading">Loading…</div> : rows.length ? (
         <section className="audit-card">
@@ -842,9 +882,20 @@ function SettingsTab({ data, headers, onChanged, notify }) {
         <h3>WhatsApp reminders</h3>
         <label className="rf-switch"><input type="checkbox" checked={draft.reminders_enabled} onChange={(event) => setDraft({ ...draft, reminders_enabled: event.target.checked })} /> Send reminders to refillers</label>
         <div className="rf-settings-grid">
-          <label>Evening-before list at<input type="time" value={draft.day_before_time} onChange={(event) => setDraft({ ...draft, day_before_time: event.target.value })} /><small>Each refiller gets all of tomorrow's visits in one message.</small></label>
-          <label>Nudge before each visit<select value={draft.hour_before_minutes} onChange={(event) => setDraft({ ...draft, hour_before_minutes: event.target.value })}>{[30, 45, 60, 90, 120].map((n) => <option key={n} value={n}>{n >= 60 ? `${n / 60} hour${n === 60 ? "" : "s"}` : `${n} min`} before</option>)}</select></label>
-          <label>Missed after<select value={draft.grace_minutes} onChange={(event) => setDraft({ ...draft, grace_minutes: event.target.value })}>{[30, 60, 90, 120, 180, 240, 360].map((n) => <option key={n} value={n}>{n >= 60 ? `${n / 60} h` : `${n} min`} past the time</option>)}</select><small>No photo by then → marked missed and admins are alerted. A late photo still counts (shown as late).</small></label>
+          <label>Evening-before list at<input type="time" value={draft.day_before_time} onChange={(event) => setDraft({ ...draft, day_before_time: event.target.value })} /><small>Each refiller gets all of tomorrow's sites in one message.</small></label>
+          <label>Morning list at<input type="time" value={draft.morning_list_time} onChange={(event) => setDraft({ ...draft, morning_list_time: event.target.value })} /><small>Today's sites, to refill in any order.</small></label>
+          <label>Afternoon reminder at<input type="time" value={draft.afternoon_reminder_time} onChange={(event) => setDraft({ ...draft, afternoon_reminder_time: event.target.value })} /><small>Only the sites still pending, and only if there are any.</small></label>
+          <label>Day closes at<input type="time" value={draft.day_close_time} onChange={(event) => setDraft({ ...draft, day_close_time: event.target.value })} /><small>"Anytime" visits with no photo by then are marked missed and admins are alerted.</small></label>
+        </div>
+        <h4 className="rf-subhead">Sites visited 2–3 times a day</h4>
+        <div className="rf-settings-grid">
+          <label>Morning visits by<input type="time" value={draft.morning_ends} onChange={(event) => setDraft({ ...draft, morning_ends: event.target.value })} /></label>
+          <label>Afternoon visits by<input type="time" value={draft.afternoon_ends} onChange={(event) => setDraft({ ...draft, afternoon_ends: event.target.value })} /><small>Evening visits: by the day's close.</small></label>
+        </div>
+        <h4 className="rf-subhead">Sites with a specific time</h4>
+        <div className="rf-settings-grid">
+          <label>Nudge before the visit<select value={draft.hour_before_minutes} onChange={(event) => setDraft({ ...draft, hour_before_minutes: event.target.value })}>{[30, 45, 60, 90, 120].map((n) => <option key={n} value={n}>{n >= 60 ? `${n / 60} hour${n === 60 ? "" : "s"}` : `${n} min`} before</option>)}</select></label>
+          <label>Missed after<select value={draft.grace_minutes} onChange={(event) => setDraft({ ...draft, grace_minutes: event.target.value })}>{[30, 60, 90, 120, 180, 240, 360].map((n) => <option key={n} value={n}>{n >= 60 ? `${n / 60} h` : `${n} min`} past the time</option>)}</select><small>A late photo still counts (shown as late).</small></label>
         </div>
         <div className="rf-modal-foot"><button type="button" className="primary" onClick={save}>Save settings</button></div>
       </section>
@@ -870,7 +921,7 @@ function SettingsTab({ data, headers, onChanged, notify }) {
             <li>Open <b>business.facebook.com</b> → WhatsApp Manager → <b>Message templates</b> → <b>Create template</b>.</li>
             <li>Category <b>Utility</b>, name <code>{data.template}</code>, language <b>English</b>.</li>
             <li>Body: <code>Hi {"{{1}}"}, you have {"{{2}}"} Snackit refill visit(s) {"{{3}}"}: {"{{4}}"}. After refilling, send a photo of the machine here and choose the site.</code></li>
-            <li>Sample values: <code>Promod</code>, <code>2</code>, <code>tomorrow (Sat 27 Sep)</code>, <code>10:00 AM Amagi; 2:00 PM Fortis</code>. Submit; approval usually takes minutes.</li>
+            <li>Sample values: <code>Promod</code>, <code>2</code>, <code>tomorrow (Sat 27 Sep)</code>, <code>Amagi; Stonex · Evening</code>. Submit; approval usually takes minutes.</li>
           </ol>
         )}
       </section>
@@ -913,7 +964,7 @@ export default function RefillWorkspace({ token }) {
   }, [load]);
 
   const act = async (task, action) => {
-    if (action === "cancel" && !window.confirm(`Cancel the ${task.due_time} visit at ${task.location_name}?`)) return;
+    if (action === "cancel" && !window.confirm(`Cancel the ${whenLabel(task.due_time).toLowerCase()} visit at ${task.location_name}?`)) return;
     setBusy(true);
     try {
       if (action === "remind") {

@@ -4807,3 +4807,11 @@ button:disabled.rf-ok, button:disabled.rf-danger { opacity: .55; cursor: default
 .site-actions button.primary { border-color: #0b0f1a; background: #0b0f1a; color: #fff; }
 @media (max-width: 768px) { .site-cell { max-width: none; } .site-editor select { font-size: 16px; } }
 .toolbar .paytm-toggle { white-space: nowrap; }
+
+/* Refill Schedule: anytime / part-of-day visits */
+.rf-visits span { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.rf-visits select { padding: 8px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); font: inherit; font-size: 14px; }
+.rf-times.has-refillers.rf-visits select:first-child { flex: 0 0 170px; }
+.rf-task-time small { display: block; color: var(--text-muted); font-size: 10.5px; font-weight: 600; }
+.rf-subhead { margin: 14px 0 6px; color: var(--text-secondary); font-size: 13px; }
+@media (max-width: 768px) { .rf-visits select { font-size: 16px; } .rf-times.has-refillers.rf-visits select:first-child { flex: 1 1 100%; } }

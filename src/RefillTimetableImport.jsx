@@ -92,7 +92,7 @@ export default function RefillTimetableImport({ api, headers, locations, refille
               </label>
               <div>
                 <div className="rf-label">3. Check each site ({chosen.length} site{chosen.length === 1 ? "" : "s"}{toCheck ? `, ${toCheck} to check` : ""})</div>
-                <p className="rf-tt-help">"Saturday: All locations" adds Saturday to every site. Sites with "2 times daily" get two refill times. Pick a different site in the list if a match is wrong.</p>
+                <p className="rf-tt-help">"Saturday: All locations" adds Saturday to every site. Sites with "2 times daily" get a Morning and an Evening visit; everything else is "anytime that day". Pick a different site in the list if a match is wrong.</p>
                 <div className="rf-tt-rows">
                   {rows.map((row) => {
                     const site = byId.get(row.choice);
