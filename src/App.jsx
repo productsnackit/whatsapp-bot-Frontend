@@ -1459,8 +1459,10 @@ export default function App() {
       String(t.id).includes(s);
 
     let matchFilter = true;
-    if (filter === "OPEN" || filter === "CLOSED") {
-      matchFilter = t.state?.toUpperCase() === filter;
+    if (filter === "OPEN") {
+      matchFilter = !isClosedTicket(t);
+    } else if (filter === "CLOSED") {
+      matchFilter = isClosedTicket(t) && t.status !== "auto_closed";
     } else if (filter === "AUTO_CLOSED") {
       matchFilter = t.status === "auto_closed";
     } else if (filter === "waiting" || filter === "overdue") {
@@ -1523,8 +1525,11 @@ export default function App() {
   /* =========================================================================
      STATS
   ========================================================================= */
-  const openCount = tickets.filter((t) => t.state === "OPEN").length;
-  const closedCount = tickets.filter((t) => t.state === "CLOSED").length;
+  // Open = not finished yet (with the customer in the bot, or waiting for the team); the bot's
+  // step names (MENU, DONE, STEP1…) aren't "OPEN", so the finished check is what counts.
+  // Open + Closed + Auto Closed always add up to all tickets.
+  const openCount = tickets.filter((t) => !isClosedTicket(t)).length;
+  const closedCount = tickets.filter((t) => isClosedTicket(t) && t.status !== "auto_closed").length;
   const autoClosedCount = tickets.filter((t) => t.status === "auto_closed").length;
   const adminCount = tickets.filter((t) => t.takeover).length;
   const refundedCount = tickets.filter((t) => t.status === "refunded" || t.status === "auto_refunded").length;
