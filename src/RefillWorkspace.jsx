@@ -43,12 +43,17 @@ function lateLabel(task, grace) {
   if (late <= grace) return { text: `${late} min after · in window`, tone: "green" };
   return { text: late >= 120 ? `${Math.floor(late / 60)} h ${late % 60} min late` : `${late} min late`, tone: "red" };
 }
-function scheduleSummary(schedule) {
+// names: refiller id → name, to show visit times done by another refiller ("4:00 PM by Nitish").
+function scheduleSummary(schedule, names) {
   if (!schedule) return null;
   const when = schedule.mode === "interval"
     ? `Every ${schedule.interval_days} day${schedule.interval_days === 1 ? "" : "s"}`
     : schedule.days.length === 7 ? "Every day" : WEEK_ORDER.filter((day) => schedule.days.includes(day)).map((day) => DAY_NAMES[day]).join(", ");
-  return `${when} · ${schedule.times.map(prettyTime).join(", ")}`;
+  const byWhom = (time) => {
+    const id = schedule.time_refillers?.[time];
+    return id && names?.get(Number(id)) ? ` by ${names.get(Number(id))}` : "";
+  };
+  return `${when} · ${schedule.times.map((time) => `${prettyTime(time)}${byWhom(time)}`).join(", ")}`;
 }
 
 function Chip({ tone, children }) {
@@ -346,6 +351,8 @@ function ScheduleEditor({ sites, refillers, onSave, onRemove, onClose }) {
     interval_days: existing?.interval_days || 2,
     start_date: existing?.start_date || new Date().toISOString().slice(0, 10),
     times: existing?.times?.length ? existing.times : ["10:00"],
+    // Who does each visit time ("" = the site's refiller), in the same order as times.
+    timeRefillers: (existing?.times?.length ? existing.times : ["10:00"]).map((time) => String(existing?.time_refillers?.[time] || "")),
     refiller_id: existing?.refiller_id || "",
     notes: existing?.notes || "",
     active: existing ? existing.active : true,
@@ -354,13 +361,20 @@ function ScheduleEditor({ sites, refillers, onSave, onRemove, onClose }) {
   const [saving, setSaving] = useState(false);
   const toggleDay = (day) => setDraft((current) => ({ ...current, days: current.days.includes(day) ? current.days.filter((d) => d !== day) : [...current.days, day] }));
   const setTime = (index, value) => setDraft((current) => ({ ...current, times: current.times.map((time, i) => (i === index ? value : time)) }));
+  const setTimeRefiller = (index, value) => setDraft((current) => ({ ...current, timeRefillers: current.timeRefillers.map((id, i) => (i === index ? value : id)) }));
+  const removeTime = (index) => setDraft((current) => ({ ...current, times: current.times.filter((_, i) => i !== index), timeRefillers: current.timeRefillers.filter((_, i) => i !== index) }));
+  const siteRefillerName = refillers.find((refiller) => String(refiller.id) === String(draft.refiller_id))?.name || first.refiller_name;
 
   const submit = async (event) => {
     event.preventDefault();
     setSaving(true);
     setError("");
     try {
-      await onSave({ ...draft, refiller_id: draft.refiller_id || null, times: draft.times.filter(Boolean) });
+      const { timeRefillers, ...rest } = draft;
+      const time_refillers = sites.length === 1
+        ? Object.fromEntries(draft.times.map((time, index) => [time, Number(timeRefillers[index])]).filter(([time, id]) => time && id))
+        : {};
+      await onSave({ ...rest, refiller_id: draft.refiller_id || null, times: draft.times.filter(Boolean), time_refillers });
     } catch (err) {
       setError(err.response?.data?.error || "Could not save");
       setSaving(false);
@@ -400,15 +414,22 @@ function ScheduleEditor({ sites, refillers, onSave, onRemove, onClose }) {
           )}
           <div>
             <div className="rf-label">Refill time{draft.times.length > 1 ? "s" : ""} <small>(India time)</small></div>
-            <div className="rf-times">
+            <div className={`rf-times ${sites.length === 1 ? "has-refillers" : ""}`}>
               {draft.times.map((time, index) => (
                 <span key={index}>
                   <input type="time" value={time} onChange={(event) => setTime(index, event.target.value)} />
-                  {draft.times.length > 1 && <button type="button" onClick={() => setDraft({ ...draft, times: draft.times.filter((_, i) => i !== index) })} aria-label="Remove time">✕</button>}
+                  {sites.length === 1 && (
+                    <select value={draft.timeRefillers[index] || ""} onChange={(event) => setTimeRefiller(index, event.target.value)} aria-label={`Refiller for the ${time} visit`}>
+                      <option value="">{siteRefillerName ? `${siteRefillerName} (site's refiller)` : "Site's refiller"}</option>
+                      {refillers.map((refiller) => <option key={refiller.id} value={refiller.id}>{refiller.name}</option>)}
+                    </select>
+                  )}
+                  {draft.times.length > 1 && <button type="button" onClick={() => removeTime(index)} aria-label="Remove time">✕</button>}
                 </span>
               ))}
-              {draft.times.length < 4 && <button type="button" className="rf-add-time" onClick={() => setDraft({ ...draft, times: [...draft.times, "17:00"] })}>+ Another time</button>}
+              {draft.times.length < 4 && <button type="button" className="rf-add-time" onClick={() => setDraft({ ...draft, times: [...draft.times, "17:00"], timeRefillers: [...draft.timeRefillers, ""] })}>+ Another time</button>}
             </div>
+            {sites.length === 1 && draft.times.length > 1 && <p className="rf-hint">Each visit time can go to a different refiller: they get the reminders for that time and can send its photo.</p>}
           </div>
           {sites.length === 1 && (
             <label>Refiller for this site<select value={draft.refiller_id} onChange={(event) => setDraft({ ...draft, refiller_id: event.target.value })}>
@@ -551,6 +572,11 @@ function SchedulesTab({ data, headers, onChanged, notify }) {
     covering: (data.shifts || []).filter((shift) => shift.to_refiller_id === refiller.id),
   })).map((refiller) => ({ ...refiller, siteCount: refiller.sites.length }));
   const unassigned = data.locations.filter((site) => !site.refiller_id);
+  const refillerNames = useMemo(() => new Map(data.refillers.map((refiller) => [refiller.id, refiller.name])), [data.refillers]);
+  // Visit times at other refillers' sites that are theirs.
+  const sharedVisits = (refillerId) => data.locations.flatMap((site) => (site.refiller_id === refillerId || !site.schedule?.active ? [] : Object.entries(site.schedule.time_refillers || {})
+    .filter(([, id]) => Number(id) === refillerId)
+    .map(([time]) => ({ site, time }))));
   const scheduledCount = data.locations.filter((site) => site.schedule?.active).length;
   const selectedSites = data.locations.filter((site) => selected.includes(site.id));
 
@@ -620,7 +646,7 @@ function SchedulesTab({ data, headers, onChanged, notify }) {
         <div className="rf-site-main">
           <b>{site.name}{site.machine_code ? <small> · {site.machine_code}</small> : null}</b>
           {site.schedule ? (
-            <span className={site.schedule.active ? "" : "is-paused"}>{site.schedule.active ? "🗓 " : "⏸ Paused · "}{scheduleSummary(site.schedule)}</span>
+            <span className={site.schedule.active ? "" : "is-paused"}>{site.schedule.active ? "🗓 " : "⏸ Paused · "}{scheduleSummary(site.schedule, refillerNames)}</span>
           ) : <span className="is-none">No schedule yet</span>}
           {shifts.map((shift) => <span key={shift.id} className="rf-shift-badge">↪ {shift.to_refiller_name} · {shiftRange(shift)}</span>)}
         </div>
@@ -686,6 +712,11 @@ function SchedulesTab({ data, headers, onChanged, notify }) {
                 </div>
                 {refiller.sites.length > 0 && <label className="rf-check" title="Select all their sites"><input type="checkbox" checked={allSelected} onChange={() => setSelected((current) => (allSelected ? current.filter((id) => !refiller.sites.some((site) => site.id === id)) : [...new Set([...current, ...refiller.sites.map((site) => site.id)])]))} /></label>}
               </div>
+              {sharedVisits(refiller.id).length > 0 && (
+                <div className="rf-covering rf-shared">
+                  {sharedVisits(refiller.id).map(({ site, time }) => <span key={`${site.id}-${time}`}>🔁 Also visits <b>{site.name}</b> at {prettyTime(time)} ({site.refiller_name || "no refiller"}'s site)</span>)}
+                </div>
+              )}
               {refiller.covering.length > 0 && (
                 <div className="rf-covering">
                   {refiller.covering.map((shift) => <span key={shift.id}>🤝 Covering <b>{shift.location_name}</b> for {shift.usual_refiller_name || "?"} · {shiftRange(shift)}</span>)}
