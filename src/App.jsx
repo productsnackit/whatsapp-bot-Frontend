@@ -15,6 +15,8 @@ import ImageViewer from "./ImageViewer.jsx";
 import PhotoRetentionCard from "./PhotoRetentionCard.jsx";
 import CapaEscalationCard from "./CapaEscalationCard.jsx";
 import NumberTicketsCard from "./NumberTicketsCard.jsx";
+import SiteCell from "./SiteCell.jsx";
+import { siteOf, NOT_MATCHED } from "./analyticsData.js";
 import { WaitBadge, RiskBadge, WatchStrip, CustomerHistory, TicketAlertsCard } from "./TicketWatch.jsx";
 import { DEFAULT_WATCH_HOURS, waitInfo, needsRefundCheck, refundWarnings } from "./ticketWatchData.js";
 import EmployeesAccess from "./EmployeesAccess.jsx";
@@ -230,6 +232,8 @@ export default function App() {
   // "" = all; NO_VALUE = tickets where the customer never chose one.
   const [issueFilter, setIssueFilter] = useState("");
   const [subIssueFilter, setSubIssueFilter] = useState("");
+  const [siteFilter, setSiteFilter] = useState("");
+  const [sites, setSites] = useState([]);
   // Reply timers: the colour limits come from Admin Settings; the clock ticks every minute.
   const [watchHours, setWatchHours] = useState(DEFAULT_WATCH_HOURS);
   const [now, setNow] = useState(() => Date.now());
@@ -944,7 +948,7 @@ export default function App() {
         ticketsLoadedRef.current = true;
         // Only what the table shows: an unchanged list isn't redrawn on every refresh.
         const signature = (list) => JSON.stringify(list.map((t) => [
-          t.id, t.updated_at, t.status, t.state, t.takeover, t.priority, t.assigned_to, t.admin_notes, t.main_issue, t.sub_issue, t.location,
+          t.id, t.updated_at, t.status, t.state, t.takeover, t.priority, t.assigned_to, t.admin_notes, t.main_issue, t.sub_issue, t.location, t.site_name, t.site_match,
           t.image, t.upi_image, t.images_deleted_at, t.refund_amount, t.upi_utr, t.upi_scan?.amount, t.upi_scan?.amount_uncertain, (t.upi_scan?.flags || []).length,
           t.waiting_since, t.first_response_at, (t.refund_checks || []).map((check) => check.text).join("|"),
         ]));
@@ -989,6 +993,16 @@ export default function App() {
       window.removeEventListener("focus", onVisible);
     };
   }, [token, refreshTicketsSoon]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Our sites, to set a ticket's site by hand.
+  useEffect(() => {
+    if (!token || view !== "tickets") return undefined;
+    let alive = true;
+    API.get("/tickets/sites", { headers: { Authorization: `Bearer ${token}` } })
+      .then((response) => { if (alive) setSites(Array.isArray(response.data) ? response.data : []); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [token, view]);
 
   // The reply-timer colour limits (Admin Settings), read again whenever Tickets is opened.
   useEffect(() => {
@@ -1248,7 +1262,7 @@ export default function App() {
   };
 
   const exportTickets = () => {
-    const columns = ["id", "phone", "main_issue", "sub_issue", "location", "upi_transaction_id", "screenshot_amount", "refund_amount", "customer_upi_id", "status", "state", "priority", "assigned_to", "created_at"];
+    const columns = ["id", "phone", "main_issue", "sub_issue", "site_name", "location", "upi_transaction_id", "screenshot_amount", "refund_amount", "customer_upi_id", "status", "state", "priority", "assigned_to", "created_at"];
     const escapeCsv = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
     const csv = [
       columns.join(","),
@@ -1441,6 +1455,7 @@ export default function App() {
       t.main_issue?.toLowerCase().includes(s) ||
       t.sub_issue?.toLowerCase().includes(s) ||
       t.location?.toLowerCase().includes(s) ||
+      (t.site_name || "").toLowerCase().includes(s) ||
       String(t.id).includes(s);
 
     let matchFilter = true;
@@ -1462,7 +1477,9 @@ export default function App() {
     const matchIssue = !issueFilter || (issueFilter === NO_VALUE ? !cleanText(t.main_issue) : cleanText(t.main_issue) === issueFilter);
     const matchSubIssue = !subIssueFilter || (subIssueFilter === NO_VALUE ? !cleanText(t.sub_issue) : cleanText(t.sub_issue) === subIssueFilter);
 
-    return matchSearch && matchFilter && matchIssue && matchSubIssue;
+    const matchSite = !siteFilter || (siteFilter === NO_VALUE ? !siteOf(t) : siteOf(t) === siteFilter);
+
+    return matchSearch && matchFilter && matchIssue && matchSubIssue && matchSite;
   });
 
   // Issue and sub issue choices come from the tickets themselves, with how many each has.
@@ -1479,6 +1496,22 @@ export default function App() {
     issueFilter ? tickets.filter((t) => (issueFilter === NO_VALUE ? !cleanText(t.main_issue) : cleanText(t.main_issue) === issueFilter)) : tickets,
     "sub_issue"
   );
+  // Sites: matched ones by count, then "Not matched", then tickets without a location.
+  const siteOptions = (() => {
+    const counts = new Map();
+    tickets.forEach((ticket) => {
+      const value = siteOf(ticket) || NO_VALUE;
+      counts.set(value, (counts.get(value) || 0) + 1);
+    });
+    const rank = (value) => (value === NO_VALUE ? 2 : value === NOT_MATCHED ? 1 : 0);
+    return [...counts.entries()].sort((a, b) => rank(a[0]) - rank(b[0]) || b[1] - a[1] || a[0].localeCompare(b[0]));
+  })();
+
+  const setTicketSite = async (ticketId, siteId, remember) => {
+    await API.post(`/tickets/${ticketId}/site`, { site_id: siteId, remember }, { headers: authHeaders() });
+    await fetchTickets();
+  };
+
   const chooseIssue = (value) => {
     setIssueFilter(value);
     // Keep the sub issue only if it exists under the new issue.
@@ -2435,8 +2468,12 @@ export default function App() {
                 <option value="">All sub issues</option>
                 {subIssueOptions.map(([value, count]) => <option key={value} value={value}>{value === NO_VALUE ? "No sub issue chosen" : value} ({count})</option>)}
               </select>
-              {(filter || issueFilter || subIssueFilter) && (
-                <button type="button" className="filter-clear" onClick={() => { setFilter(""); setIssueFilter(""); setSubIssueFilter(""); }}>
+              <select className={`filter-select ${siteFilter ? "is-active" : ""}`} value={siteFilter} onChange={(e) => setSiteFilter(e.target.value)} aria-label="Filter by site">
+                <option value="">All sites</option>
+                {siteOptions.map(([value, count]) => <option key={value} value={value}>{value === NO_VALUE ? "No location given" : value === NOT_MATCHED ? "⚠ Not matched" : value} ({count})</option>)}
+              </select>
+              {(filter || issueFilter || subIssueFilter || siteFilter) && (
+                <button type="button" className="filter-clear" onClick={() => { setFilter(""); setIssueFilter(""); setSubIssueFilter(""); setSiteFilter(""); }}>
                   Clear filters · {filteredTickets.length} shown
                 </button>
               )}
@@ -2564,7 +2601,7 @@ export default function App() {
                         <td className="cell-phone"><span className="phone-tag">{t.phone}</span></td>
                         <td data-label="Issue">{t.main_issue || <span className="na">—</span>}</td>
                         <td data-label="Sub issue">{t.sub_issue || <span className="na">—</span>}</td>
-                        <td data-label="Location">{t.location || <span className="na">—</span>}</td>
+                        <td data-label="Location"><SiteCell ticket={t} sites={sites} onSet={setTicketSite} /></td>
                         <td data-label="UPI transaction ID"><TxnIdCell ticket={t} /></td>
                         <td data-label="Image">
                           {t.image ? (

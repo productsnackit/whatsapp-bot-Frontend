@@ -4,7 +4,7 @@ import { Area, AreaChart, Bar, BarChart, CartesianGrid, ComposedChart, Line, Ref
 import {
   CHROME, DELTA_INK, ISSUES, ISSUE_COLOR, NEUTRAL, ORDINAL, OTHER_ISSUE, SEQUENTIAL, SLOT, STATUS_GROUPS, WEEKDAYS,
   addDays, bucketKey, bucketKeys, bucketLabel, change, daysBetween, formatHour, formatHours, formatInr, formatInt, formatPct,
-  granularityFor, hoursToResolve, isComplaint, issueOf, istDay, istHour, istWeekday, locationKey, statusGroup,
+  granularityFor, hoursToResolve, isComplaint, issueOf, istDay, istHour, istWeekday, locationKey, siteOf, statusGroup,
   summarize, summarizeByBucket,
 } from "./analyticsData.js";
 
@@ -500,7 +500,7 @@ export default function AnalyticsWorkspace({ token }) {
     const keys = bucketKeys(range.from, range.to, granularity);
     const previousKeys = previous ? bucketKeys(previous.from, previous.to, granularity) : [];
     const filtered = Boolean(location) || issue !== "ALL";
-    const keep = (ticket) => !filtered || (isComplaint(ticket) && (issue === "ALL" || issueOf(ticket) === issue) && (!location || locationKey(ticket.location) === location));
+    const keep = (ticket) => !filtered || (isComplaint(ticket) && (issue === "ALL" || issueOf(ticket) === issue) && (!location || locationKey(siteOf(ticket)) === location));
     const tickets = data.tickets.filter(keep);
     const previousTickets = (data.previousTickets || []).filter(keep);
     const ids = new Set(tickets.map((ticket) => ticket.id));
@@ -536,9 +536,9 @@ export default function AnalyticsWorkspace({ token }) {
       return counts;
     };
     // Issues are ranked on the unfiltered complaints so clicking one keeps the others visible (grayed).
-    const allComplaints = data.tickets.filter(isComplaint).filter((ticket) => !location || locationKey(ticket.location) === location);
+    const allComplaints = data.tickets.filter(isComplaint).filter((ticket) => !location || locationKey(siteOf(ticket)) === location);
     const currentIssues = issueCounts(allComplaints);
-    const previousIssues = issueCounts((data.previousTickets || []).filter(isComplaint).filter((ticket) => !location || locationKey(ticket.location) === location));
+    const previousIssues = issueCounts((data.previousTickets || []).filter(isComplaint).filter((ticket) => !location || locationKey(siteOf(ticket)) === location));
     const issueRows = [...ISSUES, OTHER_ISSUE]
       .map((name) => ({ issue: name, count: currentIssues[name], previous: previous ? previousIssues[name] : null }))
       .filter((row) => row.count || ISSUES.includes(row.issue))
@@ -564,9 +564,9 @@ export default function AnalyticsWorkspace({ token }) {
 
     const byLocation = new Map();
     for (const ticket of data.tickets.filter(isComplaint).filter((row) => issue === "ALL" || issueOf(row) === issue)) {
-      const key = locationKey(ticket.location) || "__none";
+      const key = locationKey(siteOf(ticket)) || "__none";
       const entry = byLocation.get(key) || { key, names: new Map(), count: 0, refundPaid: 0, finished: 0, abandoned: 0, last: ticket.created_at };
-      const name = String(ticket.location || "").trim().replace(/\s+/g, " ") || "Not given";
+      const name = siteOf(ticket) || "Not given";
       entry.names.set(name, (entry.names.get(name) || 0) + 1);
       entry.count += 1;
       if (ticket.status === "refunded") entry.refundPaid += Number(ticket.refund_amount) || 0;
@@ -605,11 +605,12 @@ export default function AnalyticsWorkspace({ token }) {
   const exportCsv = () => {
     if (!view) return;
     const cell = (value) => { const text = String(value ?? ""); return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text; };
-    const lines = [["Ticket", "Created (IST)", "Issue", "Location", "Status", "Refund paid (₹)", "Hours to resolve"]]
+    const lines = [["Ticket", "Created (IST)", "Issue", "Site", "Location typed by customer", "Status", "Refund paid (₹)", "Hours to resolve"]]
       .concat(view.complaints.map((ticket) => [
         ticket.id,
         new Date(ticket.created_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
         ticket.sub_issue || ticket.main_issue || "",
+        siteOf(ticket),
         ticket.location || "",
         STATUS_GROUPS.find((group) => group.key === statusGroup(ticket))?.label,
         ticket.status === "refunded" ? Number(ticket.refund_amount) || 0 : "",

@@ -67,6 +67,14 @@ export function hoursToResolve(ticket) {
   return hours >= 0 ? hours : null;
 }
 
+// The site the backend matched from what the customer typed (siteMatcher.js); text that
+// matched none of our sites is counted together as "Not matched".
+export const NOT_MATCHED = "Not matched";
+export function siteOf(ticket) {
+  if (ticket.site_name) return ticket.site_name;
+  return String(ticket.location || "").trim() ? NOT_MATCHED : "";
+}
+
 // Customers type locations freely; "amagi ", "Amagi" and "AMAGI" are one place.
 export function locationKey(location) {
   return String(location || "").trim().replace(/\s+/g, " ").toLowerCase();
