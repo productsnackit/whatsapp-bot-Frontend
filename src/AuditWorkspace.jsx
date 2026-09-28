@@ -1146,7 +1146,10 @@ function Locations({ headers, locations, refillers, isAdmin, onChanged, onAudit,
 function CapaWhatsApp({ ticket: c }) {
   if (c.refiller_reply === "RESOLVED") return <span className="audit-wa audit-wa-good">✅ {c.refiller || "Refiller"} replied Yes, resolved · {formatDate(c.refiller_replied_at, true)}</span>;
   if (c.refiller_reply === "NOT_RESOLVED" && c.status === "OPEN") return <span className="audit-wa audit-wa-bad">⏳ {c.refiller || "Refiller"} replied Not yet · {formatDate(c.refiller_replied_at, true)}</span>;
-  if (c.whatsapp_status === "SENT" && c.status === "OPEN") return <span className="audit-wa">📤 Sent on WhatsApp · {formatDate(c.whatsapp_sent_at, true)} · waiting for reply</span>;
+  if (c.whatsapp_status === "SENT" && c.status === "OPEN") {
+    const delivery = c.whatsapp_delivery === "read" ? "✓✓ Read" : c.whatsapp_delivery === "delivered" ? "✓✓ Delivered" : "not delivered yet";
+    return <span className="audit-wa">📤 Sent on WhatsApp · {formatDate(c.whatsapp_sent_at, true)} · {delivery} · waiting for reply</span>;
+  }
   if (c.whatsapp_status === "FAILED" && c.status === "OPEN") return <span className="audit-wa audit-wa-bad">⚠️ Not sent on WhatsApp: {c.whatsapp_error}</span>;
   return null;
 }
@@ -1276,11 +1279,13 @@ export default function AuditWorkspace({ token, currentUserName, isAdmin }) {
   const onSaved = (audit) => {
     const { sent = 0, failed = 0, error: sendError } = audit.whatsapp || {};
     if (failed) notify(`${audit.ref} saved · ${failed} CAPA task${failed === 1 ? "" : "s"} not sent on WhatsApp: ${sendError}`, true);
-    else if (sent) notify(`${audit.ref} saved · ${sent} CAPA task${sent === 1 ? "" : "s"} sent to ${audit.refiller} on WhatsApp`);
+    else if (sent) notify(`${audit.ref} saved · ${sent} CAPA task${sent === 1 ? "" : "s"} sent to ${audit.refiller} on WhatsApp. Delivery shows in CAPA in a few seconds.`);
     else notify(`${audit.ref} saved · ${audit.percentage}%`);
     setTab(failed || sent ? "capa" : "records");
     window.scrollTo({ top: 0, behavior: "smooth" });
     load();
+    // WhatsApp confirms delivery (or reports a failure) a few seconds after sending.
+    if (sent) [6000, 15000].forEach((delay) => setTimeout(load, delay));
   };
 
   const deleteAudit = async (audit) => {
