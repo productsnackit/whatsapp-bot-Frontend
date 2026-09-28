@@ -59,10 +59,19 @@ export function UpiScanSummary({ ticket, onOpen }) {
   );
 }
 
-export function UpiScanDetails({ ticket, onClose, onRescan }) {
+export function UpiScanDetails({ ticket, onClose, onRescan, loadText }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [showText, setShowText] = useState(false);
+  // The full text read isn't in the tickets list (it's large); it's fetched when asked for.
+  const [fullText, setFullText] = useState(null);
+  const toggleText = () => {
+    setShowText((value) => !value);
+    if (fullText === null && !ticket.upi_scan?.text && loadText) {
+      setFullText("Loading…");
+      loadText(ticket.id).then(setFullText).catch(() => setFullText("Could not load the text."));
+    }
+  };
   const [viewing, setViewing] = useState(false);
   const scan = ticket.upi_scan;
 
@@ -116,8 +125,8 @@ export function UpiScanDetails({ ticket, onClose, onRescan }) {
                 <div><dt>Customer typed UPI ID</dt><dd>{ticket.upi_id || <span className="na">—</span>}</dd></div>
               </dl>
               <p className="upi-scan-note">Read automatically from the image ({scan.confidence}% confidence). Always compare with the screenshot before refunding.</p>
-              <button type="button" className="upi-scan-link" onClick={() => setShowText((value) => !value)}>{showText ? "Hide" : "Show"} all text read</button>
-              {showText && <pre className="upi-scan-text">{scan.text}</pre>}
+              <button type="button" className="upi-scan-link" onClick={toggleText}>{showText ? "Hide" : "Show"} all text read</button>
+              {showText && <pre className="upi-scan-text">{scan.text || fullText}</pre>}
             </> : <p className="upi-scan-note">This screenshot hasn't been read yet.</p>}
             {error && <div className="upi-scan-error">{error}</div>}
             <button type="button" className="upi-scan-btn" onClick={rescan} disabled={busy}>{busy ? "Reading… (a few seconds)" : scan ? "Read again" : "Read screenshot"}</button>

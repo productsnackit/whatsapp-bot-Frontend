@@ -63,6 +63,11 @@ const pickAccess = (data) => ({ accessRole: data.accessRole, roleLabel: data.rol
 const DEFAULT_LOGO = "/brand-mark.png";
 // Ticket filters: issue text as shown (trimmed), and the choice for tickets without one.
 const NO_VALUE = "__none__";
+const TICKETS_CACHE = "ticketsCache";
+// Table thumbnails: a small Cloudinary copy (a few KB) instead of the full photo; the viewer opens the full one.
+const thumbUrl = (url) => (typeof url === "string" && url.includes("res.cloudinary.com/") && url.includes("/image/upload/")
+  ? url.replace("/image/upload/", "/image/upload/c_fill,w_120,h_120,q_auto,f_auto/")
+  : url);
 const cleanText = (value) => String(value || "").trim().replace(/\s+/g, " ");
 // A logo that fails to load falls back to the gold mark instead of a blank box.
 const showDefaultLogo = (event) => {
@@ -160,7 +165,14 @@ export default function App() {
   const [loginInProgress, setLoginInProgress] = useState(false);
   const chatEndRef = useRef(null);
 
-  const [tickets, setTickets] = useState([]);
+  // The last list is kept for this browser tab, so a reload shows tickets instantly while fresh ones load.
+  const [tickets, setTickets] = useState(() => {
+    try {
+      return localStorage.getItem("token") ? JSON.parse(sessionStorage.getItem(TICKETS_CACHE) || "[]") : [];
+    } catch {
+      return [];
+    }
+  });
   const [upiScanTicketId, setUpiScanTicketId] = useState(null);
   const [imageViewer, setImageViewer] = useState(null); // { images, index }
   // A ticket's photos (product photo + payment screenshot) open together in the viewer.
@@ -741,6 +753,7 @@ export default function App() {
     API.post("/logout", {}, { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
     setPushState("off");
     localStorage.removeItem("token");
+    try { sessionStorage.removeItem(TICKETS_CACHE); } catch { /* blocked storage */ }
     localStorage.removeItem("userRole");
     localStorage.removeItem("userName");
     localStorage.removeItem("userDepartment");
@@ -928,13 +941,19 @@ export default function App() {
           }
         }
         ticketsLoadedRef.current = true;
-        const signature = (list) => JSON.stringify(list.map((t) => ({
-          id: t.id, status: t.status, state: t.state, takeover: t.takeover, priority: t.priority, assigned_to: t.assigned_to, admin_notes: t.admin_notes,
-          refund_amount: t.refund_amount, upi_utr: t.upi_utr, waiting_since: t.waiting_since, first_response_at: t.first_response_at, checks: (t.refund_checks || []).map((check) => check.text),
-        })));
-        const prevStr = signature(prev);
-        const nextStr = signature(incoming);
-        return prevStr === nextStr ? prev : incoming;
+        // Only what the table shows: an unchanged list isn't redrawn on every refresh.
+        const signature = (list) => JSON.stringify(list.map((t) => [
+          t.id, t.updated_at, t.status, t.state, t.takeover, t.priority, t.assigned_to, t.admin_notes, t.main_issue, t.sub_issue, t.location,
+          t.image, t.upi_image, t.images_deleted_at, t.refund_amount, t.upi_utr, t.upi_scan?.amount, t.upi_scan?.amount_uncertain, (t.upi_scan?.flags || []).length,
+          t.waiting_since, t.first_response_at, (t.refund_checks || []).map((check) => check.text).join("|"),
+        ]));
+        if (signature(prev) === signature(incoming)) return prev;
+        try {
+          sessionStorage.setItem(TICKETS_CACHE, JSON.stringify(incoming));
+        } catch {
+          // storage full or blocked: the list still works, just without the instant reload
+        }
+        return incoming;
       });
       setSessionExpired(false);
     } catch (err) {
@@ -945,6 +964,30 @@ export default function App() {
       }
     }
   }, [token, authHeaders, sessionExpired]);
+
+  // Live tickets: the server signals every change (new message, new ticket, screenshot read,
+  // status change) and the list refreshes itself. As a backup it also refreshes every 30
+  // seconds while the page is open, and straight away when you come back to the tab.
+  const fetchTicketsRef = useRef(fetchTickets);
+  useEffect(() => { fetchTicketsRef.current = fetchTickets; }, [fetchTickets]);
+  const ticketsRefreshTimer = useRef(null);
+  const refreshTicketsSoon = useCallback(() => {
+    clearTimeout(ticketsRefreshTimer.current);
+    ticketsRefreshTimer.current = setTimeout(() => fetchTicketsRef.current(), 250);
+  }, []);
+  useEffect(() => {
+    if (!token || !can("tickets")) return undefined;
+    const timer = setInterval(() => { if (document.visibilityState === "visible") refreshTicketsSoon(); }, 30000);
+    const onVisible = () => { if (document.visibilityState === "visible") refreshTicketsSoon(); };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    return () => {
+      clearInterval(timer);
+      clearTimeout(ticketsRefreshTimer.current);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+    };
+  }, [token, refreshTicketsSoon]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The reply-timer colour limits (Admin Settings), read again whenever Tickets is opened.
   useEffect(() => {
@@ -1296,6 +1339,8 @@ export default function App() {
       setInternalChats((prev) => prev.filter((chat) => String(chat.id) !== String(chatId)));
       setSelectedInternalChatId((prev) => (String(prev) === String(chatId) ? null : prev));
     });
+
+    socket.on("tickets-changed", () => refreshTicketsSoon());
 
     socket.on("internal-user-updated", ({ removedUserId }) => {
       if (removedUserId) {
@@ -2521,13 +2566,13 @@ export default function App() {
                         <td data-label="UPI transaction ID"><TxnIdCell ticket={t} /></td>
                         <td data-label="Image">
                           {t.image ? (
-                            <img src={t.image} alt="img" className="thumb" onClick={() => openTicketImages(t, t.image)} />
+                            <img src={thumbUrl(t.image)} alt="img" className="thumb" loading="lazy" decoding="async" onClick={() => openTicketImages(t, t.image)} />
                           ) : t.images_deleted_at ? <span className="image-gone" title={`Deleted ${new Date(t.images_deleted_at).toLocaleDateString("en-IN")}`}>🗑 Deleted after 10 days</span> : <span className="na">—</span>}
                         </td>
                         <td data-label="UPI screenshot">
                           {t.upi_image ? (
                             <div className="upi-scan-cell">
-                              <img src={t.upi_image} alt="upi" className="thumb" onClick={() => openTicketImages(t, t.upi_image)} />
+                              <img src={thumbUrl(t.upi_image)} alt="upi" className="thumb" loading="lazy" decoding="async" onClick={() => openTicketImages(t, t.upi_image)} />
                               <UpiScanSummary ticket={t} onOpen={() => setUpiScanTicketId(t.id)} />
                             </div>
                           ) : t.images_deleted_at ? <span className="image-gone">🗑 Deleted after 10 days</span> : <span className="na">—</span>}
@@ -2727,7 +2772,12 @@ export default function App() {
       )}
 
       {upiScanTicketId && tickets.some((ticket) => ticket.id === upiScanTicketId) && (
-        <UpiScanDetails ticket={tickets.find((ticket) => ticket.id === upiScanTicketId)} onClose={() => setUpiScanTicketId(null)} onRescan={rescanUpi} />
+        <UpiScanDetails
+          ticket={tickets.find((ticket) => ticket.id === upiScanTicketId)}
+          onClose={() => setUpiScanTicketId(null)}
+          onRescan={rescanUpi}
+          loadText={(ticketId) => API.get(`/tickets/${ticketId}/scan-text`, { headers: authHeaders() }).then((response) => response.data.text || "")}
+        />
       )}
 
       {activeChat && (
