@@ -30,36 +30,22 @@ function CopyId({ value, label }) {
   return <button type="button" className="txn-copy" onClick={copyId} title={`Copy ${label}`}>{copied ? "Copied ✓" : "Copy"}</button>;
 }
 
-// The UPI reference (UTR, what banks use) and, below it, the app's own ID
-// (PhonePe "T…", Google transaction ID, Paytm order ID) exactly as the customer sees it.
+// The transaction ID (see transactionIdOf): one ID, with a Copy button.
 export function TxnIdCell({ ticket }) {
   const txn = transactionIdOf(ticket);
   const typed = String(ticket.upi_id || "").trim();
-  const appId = ticket.upi_scan?.app_txn_id;
-  const appLabel = ticket.upi_scan?.app_txn_label || "App transaction ID";
-  if (!txn && !appId) return <span className="na">—</span>;
-  const fromScreenshot = Boolean(ticket.upi_utr);
-  const differs = fromScreenshot && typed && !typed.includes("@") && typed !== ticket.upi_utr && typed !== appId;
+  if (!txn) return <span className="na">—</span>;
+  const scan = ticket.upi_scan || {};
+  const fromScreenshot = txn !== typed || Boolean(ticket.upi_utr);
+  // The customer typed something that is none of this payment's IDs.
+  const differs = fromScreenshot && typed && !typed.includes("@") && ![txn, ticket.upi_utr, scan.app_txn_id].includes(typed);
   return (
     <div className="upi-id-cell">
-      {txn && (
-        <>
-          <span className="txn-id-row">
-            <b className="txn-id">{txn}</b>
-            <CopyId value={txn} label="UPI reference" />
-          </span>
-          <small>{fromScreenshot ? "📷 UPI ref / UTR · from screenshot" : "Typed by customer"}</small>
-        </>
-      )}
-      {appId && (
-        <>
-          <span className="txn-id-row txn-app-row">
-            <b className="txn-id">{appId}</b>
-            <CopyId value={appId} label={appLabel} />
-          </span>
-          <small>{appLabel}</small>
-        </>
-      )}
+      <span className="txn-id-row">
+        <b className="txn-id">{txn}</b>
+        <CopyId value={txn} label="transaction ID" />
+      </span>
+      <small>{fromScreenshot ? "📷 Read from screenshot" : "Typed by customer"}</small>
       {differs && <small className="upi-id-typed">Customer typed: {typed}</small>}
     </div>
   );
@@ -74,7 +60,7 @@ export function UpiScanSummary({ ticket, onOpen }) {
   const flags = flagsFor(ticket);
   return (
     <button type="button" className={`upi-scan-chip ${flags.length ? "is-warn" : "is-ok"}`} onClick={onOpen} title="See what was read from the screenshot">
-      <span>{scan.amount != null ? `₹${scan.amount}${scan.amount_uncertain ? "?" : ""}` : "₹ ?"}{scan.utr ? ` · UTR …${scan.utr.slice(-4)}` : ""}</span>
+      <span>{scan.amount != null ? `₹${scan.amount}${scan.amount_uncertain ? "?" : ""}` : "₹ ?"}</span>
       <b>{flags.length ? `⚠ ${flags.length} to check` : "✓ Looks fine"}</b>
     </button>
   );
@@ -109,8 +95,7 @@ export function UpiScanDetails({ ticket, onClose, onRescan, loadText }) {
   };
 
   const rows = scan ? [
-    ["UTR / UPI ref", scan.utr],
-    ...(scan.app_txn_id ? [[scan.app_txn_label || "App transaction ID", scan.app_txn_id]] : []),
+    ["Transaction ID", transactionIdOf(ticket) || null],
     // An unclear amount is shown with the other possible readings and never filled in automatically.
     ["Amount", scan.amount != null ? `₹${scan.amount}${scan.amount_uncertain ? " (not sure, check the screenshot)" : ""}` : null],
     ["Customer UPI ID (screenshot)", scan.payer_upi],
@@ -141,7 +126,7 @@ export function UpiScanDetails({ ticket, onClose, onRescan, loadText }) {
                 {rows.map(([label, value]) => (
                   <div key={label}>
                     <dt>{label}</dt>
-                    <dd>{value ? <>{value}{(["UTR / UPI ref", "Customer UPI ID (screenshot)"].includes(label) || value === scan.app_txn_id) && <button type="button" onClick={() => copy(String(value))}>Copy</button>}</> : <span className="na">Not found</span>}</dd>
+                    <dd>{value ? <>{value}{["Transaction ID", "Customer UPI ID (screenshot)"].includes(label) && <button type="button" onClick={() => copy(String(value))}>Copy</button>}</> : <span className="na">Not found</span>}</dd>
                   </div>
                 ))}
                 <div><dt>Customer typed UPI ID</dt><dd>{ticket.upi_id || <span className="na">—</span>}</dd></div>

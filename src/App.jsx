@@ -1298,12 +1298,12 @@ export default function App() {
   };
 
   const exportTickets = () => {
-    const columns = ["id", "phone", "main_issue", "sub_issue", "site_name", "location", "upi_transaction_id", "app_transaction_id", "screenshot_amount", "refund_amount", "customer_upi_id", "status", "state", "priority", "assigned_to", "created_at"];
+    const columns = ["id", "phone", "main_issue", "sub_issue", "site_name", "location", "upi_transaction_id", "screenshot_amount", "refund_amount", "customer_upi_id", "status", "state", "priority", "assigned_to", "created_at"];
     const escapeCsv = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
     const csv = [
       columns.join(","),
       ...filteredTickets.map((ticket) => {
-        const row = { ...ticket, upi_transaction_id: transactionIdOf(ticket), app_transaction_id: ticket.upi_scan?.app_txn_id || "", screenshot_amount: ticket.upi_scan?.amount ?? "", customer_upi_id: ticket.screenshot_upi_id || "" };
+        const row = { ...ticket, upi_transaction_id: transactionIdOf(ticket), screenshot_amount: ticket.upi_scan?.amount ?? "", customer_upi_id: ticket.screenshot_upi_id || "" };
         return columns.map((column) => escapeCsv(row[column])).join(",");
       }),
     ].join("\n");
@@ -2485,7 +2485,7 @@ export default function App() {
               <div className="search-box">
                 {Icon.search}
                 <input
-                  placeholder="Search phone, issue, location, UTR or app transaction ID…"
+                  placeholder="Search phone, issue, location or transaction ID…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -2623,7 +2623,7 @@ export default function App() {
                     <th>Issue</th>
                     <th>Sub Issue</th>
                     <th>Location</th>
-                    <th>UPI Transaction ID</th>
+                    <th>Transaction ID</th>
                     <th>Image</th>
                     <th>UPI Screenshot</th>
                     <th>Refund Amount</th>
@@ -2648,7 +2648,7 @@ export default function App() {
                         <td data-label="Issue">{t.main_issue || <span className="na">—</span>}</td>
                         <td data-label="Sub issue">{t.sub_issue || <span className="na">—</span>}</td>
                         <td data-label="Location"><SiteCell ticket={t} sites={sites} onSet={setTicketSite} /></td>
-                        <td data-label="UPI transaction ID"><TxnIdCell ticket={t} /></td>
+                        <td data-label="Transaction ID"><TxnIdCell ticket={t} /></td>
                         <td data-label="Image">
                           {t.image ? (
                             <img src={thumbUrl(t.image)} alt="img" className="thumb" loading="lazy" decoding="async" onClick={() => openTicketImages(t, t.image)} />

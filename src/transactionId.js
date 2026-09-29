@@ -1,5 +1,12 @@
-// The payment's UPI transaction ID (UTR): read from the screenshot, or the one the customer typed.
+// The one transaction ID shown for a payment: the ID the customer's app calls its transaction ID.
+//   PhonePe:    "PhonePe Transaction ID" (T + 22 digits)
+//   Google Pay: "UPI transaction ID" (12 digits)
+//   Paytm:      "UPI Ref No" (12 digits, the only ID Paytm shows)
+// Read from the screenshot, else what the customer typed. (The bank UTR and Google's own ID are
+// still kept behind the scenes for duplicate checks and search.)
 export function transactionIdOf(ticket) {
+  const scan = ticket.upi_scan || {};
+  if (scan.app === "PhonePe" && /^T\d{22}$/.test(scan.app_txn_id || "")) return scan.app_txn_id;
   const typed = String(ticket.upi_id || "").trim();
   return ticket.upi_utr || (typed && !typed.includes("@") ? typed : "");
 }
