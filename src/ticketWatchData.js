@@ -1,5 +1,5 @@
 /* Reply timers and refund checks for the Tickets page (see TicketWatch.jsx). */
-import { isClosedTicket } from "./transactionId.js";
+import { isClosedTicket, paymentsOf, totalPaid } from "./transactionId.js";
 
 export const DEFAULT_WATCH_HOURS = { sla_warn_hours: 2, sla_overdue_hours: 6 };
 export const HOUR = 3600000;
@@ -26,8 +26,10 @@ export const needsRefundCheck = (ticket) => (ticket.refund_checks || []).length 
 // Problems to confirm before sending "Refunded".
 export function refundWarnings(ticket) {
   const warnings = (ticket.refund_checks || []).map((check) => check.text);
-  const paid = ticket.upi_scan?.amount;
-  if (paid != null && Number(ticket.refund_amount) > Number(paid)) warnings.push(`Refund ₹${Number(ticket.refund_amount)} is more than the ₹${paid} paid on the screenshot`);
+  // "Charged more than once": compared with everything paid, not one screenshot.
+  const several = paymentsOf(ticket).length > 1;
+  const paid = several ? totalPaid(ticket) : ticket.upi_scan?.amount;
+  if (paid != null && Number(ticket.refund_amount) > Number(paid)) warnings.push(`Refund ₹${Number(ticket.refund_amount)} is more than the ₹${paid} paid${several ? " in all payments" : " on the screenshot"}`);
   if (ticket.upi_scan?.status === "FAILED") warnings.push("The screenshot shows a FAILED payment");
   return warnings;
 }

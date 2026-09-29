@@ -4,8 +4,8 @@ import { io } from "socket.io-client";
 import MobileChat, { Avatar } from "./MobileChat.jsx";
 import { getPushState, enablePush, syncPush, disablePush, showLocalNotification, PUSH_STATE_LABELS } from "./pushNotifications.js";
 import NotificationSettings from "./NotificationSettings.jsx";
-import { TxnIdCell, UpiScanSummary, UpiScanDetails } from "./UpiScan.jsx";
-import { transactionIdOf, isClosedTicket } from "./transactionId.js";
+import { TxnIdCell, UpiScanSummary, UpiScanDetails, MorePaymentShots } from "./UpiScan.jsx";
+import { transactionIdOf, isClosedTicket, paymentsOf, paymentIdOf, totalPaid } from "./transactionId.js";
 import TicketChat from "./TicketChat.jsx";
 import ImageViewer from "./ImageViewer.jsx";
 import PhotoRetentionCard from "./PhotoRetentionCard.jsx";
@@ -199,6 +199,8 @@ export default function App() {
     const images = [
       ticket.image && { url: ticket.image, caption: `Ticket #${ticket.id} · product / machine photo` },
       ticket.upi_image && { url: ticket.upi_image, caption: `Ticket #${ticket.id} · payment screenshot` },
+      // "Charged more than once": a screenshot for each payment.
+      ...paymentsOf(ticket).map((payment, index) => payment.image && payment.image !== ticket.upi_image && { url: payment.image, caption: `Ticket #${ticket.id} · payment ${index + 1} screenshot` }),
     ].filter(Boolean);
     setImageViewer({ images, index: Math.max(0, images.findIndex((image) => image.url === which)) });
   };
@@ -974,7 +976,7 @@ export default function App() {
         const signature = (list) => JSON.stringify(list.map((t) => [
           t.id, t.updated_at, t.status, t.state, t.takeover, t.priority, t.assigned_to, t.admin_notes, t.main_issue, t.sub_issue, t.location, t.site_name, t.site_match,
           t.image, t.upi_image, t.images_deleted_at, t.refund_amount, t.upi_utr, t.upi_scan?.amount, t.upi_scan?.amount_uncertain, (t.upi_scan?.flags || []).length,
-          t.waiting_since, t.first_response_at, (t.refund_checks || []).map((check) => check.text).join("|"),
+          t.waiting_since, t.first_response_at, (t.refund_checks || []).map((check) => check.text).join("|"), JSON.stringify(t.payments || null), t.product_received,
         ]));
         if (signature(prev) === signature(incoming)) return prev;
         try {
@@ -1303,7 +1305,14 @@ export default function App() {
     const csv = [
       columns.join(","),
       ...filteredTickets.map((ticket) => {
-        const row = { ...ticket, upi_transaction_id: transactionIdOf(ticket), screenshot_amount: ticket.upi_scan?.amount ?? "", customer_upi_id: ticket.screenshot_upi_id || "" };
+        const payments = paymentsOf(ticket);
+        const row = {
+          ...ticket,
+          // Several payments ("Charged more than once"): every ID, and the total paid.
+          upi_transaction_id: payments.length ? payments.map(paymentIdOf).filter(Boolean).join(" | ") : transactionIdOf(ticket),
+          screenshot_amount: payments.length ? totalPaid(ticket) ?? "" : ticket.upi_scan?.amount ?? "",
+          customer_upi_id: ticket.screenshot_upi_id || "",
+        };
         return columns.map((column) => escapeCsv(row[column])).join(",");
       }),
     ].join("\n");
@@ -1487,6 +1496,7 @@ export default function App() {
       (t.screenshot_upi_id || "").toLowerCase().includes(s) ||
       (t.upi_utr || "").toLowerCase().includes(s) ||
       (t.upi_scan?.app_txn_id || "").toLowerCase().includes(s) ||
+      paymentsOf(t).some((payment) => [payment.utr, payment.app_id].some((id) => (id || "").toLowerCase().includes(s))) ||
       String(t.id) === s.replace(/^#/, "") ||
       t.issue?.toLowerCase().includes(s) ||
       t.main_issue?.toLowerCase().includes(s) ||
@@ -2659,6 +2669,7 @@ export default function App() {
                             <div className="upi-scan-cell">
                               <img src={thumbUrl(t.upi_image)} alt="upi" className="thumb" loading="lazy" decoding="async" onClick={() => openTicketImages(t, t.upi_image)} />
                               <UpiScanSummary ticket={t} onOpen={() => setUpiScanTicketId(t.id)} />
+                              <MorePaymentShots ticket={t} onOpen={openTicketImages} />
                             </div>
                           ) : t.images_deleted_at ? <span className="image-gone">🗑 Deleted after 10 days</span> : <span className="na">—</span>}
                         </td>

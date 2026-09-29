@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { transactionIdOf } from "./transactionId.js";
+import { transactionIdOf, paymentsOf, paymentIdOf, totalPaid, suggestedRefund } from "./transactionId.js";
 import ImageViewer from "./ImageViewer.jsx";
 
 /* What was read from a customer's UPI screenshot (UTR, amount, UPI IDs),
@@ -13,7 +13,8 @@ function copy(text) {
 function flagsFor(ticket) {
   const scan = ticket.upi_scan || {};
   const flags = (scan.flags || []).filter((flag) => !flag.startsWith("Amount on screenshot"));
-  if (Number(ticket.refund_amount) > 0 && scan.amount != null && Number(ticket.refund_amount) !== Number(scan.amount)) {
+  // Several payments: the refund covers more than this one screenshot.
+  if (paymentsOf(ticket).length < 2 && Number(ticket.refund_amount) > 0 && scan.amount != null && Number(ticket.refund_amount) !== Number(scan.amount)) {
     flags.push(`Amount on screenshot ₹${scan.amount} differs from refund amount ₹${Number(ticket.refund_amount)}.`);
   }
   return flags;
@@ -30,8 +31,34 @@ function CopyId({ value, label }) {
   return <button type="button" className="txn-copy" onClick={copyId} title={`Copy ${label}`}>{copied ? "Copied ✓" : "Copy"}</button>;
 }
 
+// "Charged more than once": every payment with its ID and amount, and the refund it adds up to.
+function PaymentsCell({ ticket, payments }) {
+  const total = totalPaid(ticket);
+  const refund = suggestedRefund(ticket);
+  const product = ticket.product_received === true ? "Got 1 product" : ticket.product_received === false ? "Got no product" : "";
+  const missing = Number(ticket.charged_times) > payments.length ? `says charged ${ticket.charged_times}×` : "";
+  return (
+    <div className="upi-id-cell pay-list">
+      <span className="pay-list-head">💳 {payments.length} payments{total != null ? ` · ₹${total} paid` : ""}</span>
+      {payments.map((payment, index) => {
+        const id = paymentIdOf(payment);
+        return (
+          <span key={id || payment.image || index} className="txn-id-row">
+            <small className="pay-no">{index + 1}.</small>
+            {id ? <><b className="txn-id">{id}</b><CopyId value={id} label="transaction ID" /></> : <span className="na">ID not read</span>}
+            {payment.amount != null && <small className="pay-amount">₹{payment.amount}{payment.amount_uncertain ? "?" : ""}</small>}
+          </span>
+        );
+      })}
+      {(product || refund != null || missing) && <small className="upi-id-typed">{[product, refund != null && `refund ₹${refund}`, missing].filter(Boolean).join(" · ")}</small>}
+    </div>
+  );
+}
+
 // The transaction ID (see transactionIdOf): one ID, with a Copy button.
 export function TxnIdCell({ ticket }) {
+  const payments = paymentsOf(ticket);
+  if (payments.length) return <PaymentsCell ticket={ticket} payments={payments} />;
   const txn = transactionIdOf(ticket);
   const typed = String(ticket.upi_id || "").trim();
   if (!txn) return <span className="na">—</span>;
@@ -48,6 +75,17 @@ export function TxnIdCell({ ticket }) {
       <small>{fromScreenshot ? "📷 Read from screenshot" : "Typed by customer"}</small>
       {differs && <small className="upi-id-typed">Customer typed: {typed}</small>}
     </div>
+  );
+}
+
+// "Charged more than once": the other payments' screenshots, opened in the same viewer.
+export function MorePaymentShots({ ticket, onOpen }) {
+  const more = paymentsOf(ticket).filter((payment) => payment.image && payment.image !== ticket.upi_image);
+  if (!more.length) return null;
+  return (
+    <button type="button" className="pay-more-shots" onClick={() => onOpen(ticket, more[0].image)}>
+      +{more.length} more screenshot{more.length === 1 ? "" : "s"}
+    </button>
   );
 }
 
