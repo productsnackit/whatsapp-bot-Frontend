@@ -4839,3 +4839,4 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
   .main-content > *, .page-loading span { animation: none; }
 }
 .kept-page[hidden] { display: none !important; }
+.txn-app-row { margin-top: 6px; } .txn-app-row .txn-id { font-size: 12px; font-weight: 700; color: var(--text-secondary); word-break: break-all; }

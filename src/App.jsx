@@ -1298,12 +1298,12 @@ export default function App() {
   };
 
   const exportTickets = () => {
-    const columns = ["id", "phone", "main_issue", "sub_issue", "site_name", "location", "upi_transaction_id", "screenshot_amount", "refund_amount", "customer_upi_id", "status", "state", "priority", "assigned_to", "created_at"];
+    const columns = ["id", "phone", "main_issue", "sub_issue", "site_name", "location", "upi_transaction_id", "app_transaction_id", "screenshot_amount", "refund_amount", "customer_upi_id", "status", "state", "priority", "assigned_to", "created_at"];
     const escapeCsv = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
     const csv = [
       columns.join(","),
       ...filteredTickets.map((ticket) => {
-        const row = { ...ticket, upi_transaction_id: transactionIdOf(ticket), screenshot_amount: ticket.upi_scan?.amount ?? "", customer_upi_id: ticket.screenshot_upi_id || "" };
+        const row = { ...ticket, upi_transaction_id: transactionIdOf(ticket), app_transaction_id: ticket.upi_scan?.app_txn_id || "", screenshot_amount: ticket.upi_scan?.amount ?? "", customer_upi_id: ticket.screenshot_upi_id || "" };
         return columns.map((column) => escapeCsv(row[column])).join(",");
       }),
     ].join("\n");
@@ -1486,6 +1486,7 @@ export default function App() {
       (t.upi_id || "").toLowerCase().includes(s) ||
       (t.screenshot_upi_id || "").toLowerCase().includes(s) ||
       (t.upi_utr || "").toLowerCase().includes(s) ||
+      (t.upi_scan?.app_txn_id || "").toLowerCase().includes(s) ||
       String(t.id) === s.replace(/^#/, "") ||
       t.issue?.toLowerCase().includes(s) ||
       t.main_issue?.toLowerCase().includes(s) ||
@@ -2484,7 +2485,7 @@ export default function App() {
               <div className="search-box">
                 {Icon.search}
                 <input
-                  placeholder="Search by phone, issue, location..."
+                  placeholder="Search phone, issue, location, UTR or app transaction ID…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
