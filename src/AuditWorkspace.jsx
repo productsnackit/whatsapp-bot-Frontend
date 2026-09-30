@@ -1182,7 +1182,7 @@ function Capa({ headers, capa, onChanged, notify }) {
                   </div>
                   <span className="audit-capa-defect">{c.defect}</span>
                   <span>{c.location} · {c.refiller || "—"} · {c.audit_ref || "—"} · {formatDate(c.created_at)}</span>
-                  {c.status === "RESOLVED" && <span>Resolved by {c.resolved_by} on {formatDate(c.resolved_at, true)}</span>}
+                  {c.status === "RESOLVED" && <span>Resolved by {c.resolved_by} on {formatDate(c.resolved_at, true)}{c.resolution_note ? <> · <b>{c.resolution_note}</b></> : null}</span>}
                   <CapaWhatsApp ticket={c} />
                 </div>
                 <div className="audit-record-side">

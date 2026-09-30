@@ -51,7 +51,7 @@ export default function CapaOverdueCard({ api, headers }) {
       <div className="admin-settings-card-heading">
         <div>
           <h3>CAPA overdue alerts</h3>
-          <p>When a CAPA task isn't resolved within 24 hours, these people get a WhatsApp message with the task, location, refiller and how long it's been open. Every day at 10 am they get a reminder of the tasks still open. Overdue tasks also show in red on Refill Audit → CAPA.</p>
+          <p>When a CAPA task isn't resolved within 24 hours, these people get a WhatsApp message with the task, location, refiller and how long it's been open. Every day at 10 am they get a reminder of the tasks still open. Tapping "Mark resolved" on WhatsApp resolves the task here too, and they can say who fixed it. Overdue tasks show in red on Refill Audit → CAPA.</p>
         </div>
       </div>
       {!people ? <p className="pr-note">{message?.error || "Loading…"}</p> : (
