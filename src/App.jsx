@@ -31,6 +31,7 @@ const PAGE_LOADERS = {
   ActivityLog: () => import("./ActivityLog.jsx"),
   RefillWorkspace: () => import("./RefillWorkspace.jsx"),
   TasksWorkspace: () => import("./TasksWorkspace.jsx"),
+  CallLogWorkspace: () => import("./CallLogWorkspace.jsx"),
   AnalyticsWorkspace: () => import("./AnalyticsWorkspace.jsx"),
 };
 const OperationsWorkspace = lazy(PAGE_LOADERS.OperationsWorkspace);
@@ -41,6 +42,7 @@ const EmployeesAccess = lazy(PAGE_LOADERS.EmployeesAccess);
 const ActivityLog = lazy(PAGE_LOADERS.ActivityLog);
 const RefillWorkspace = lazy(PAGE_LOADERS.RefillWorkspace);
 const TasksWorkspace = lazy(PAGE_LOADERS.TasksWorkspace);
+const CallLogWorkspace = lazy(PAGE_LOADERS.CallLogWorkspace);
 const AnalyticsWorkspace = lazy(PAGE_LOADERS.AnalyticsWorkspace);
 
 
@@ -51,7 +53,7 @@ const API = axios.create({
 // The installed app (see public/manifest.webmanifest) opens with ?view=internal-chat
 const LAUNCH_PARAMS = new URLSearchParams(window.location.search);
 // Notifications can also open straight into Internal Audit (?view=findings).
-const LAUNCH_VIEW = ["internal-chat", "findings", "refills", "tickets", "tasks"].includes(LAUNCH_PARAMS.get("view")) ? LAUNCH_PARAMS.get("view") : null;
+const LAUNCH_VIEW = ["internal-chat", "findings", "refills", "tickets", "tasks", "call-log"].includes(LAUNCH_PARAMS.get("view")) ? LAUNCH_PARAMS.get("view") : null;
 // Tapping a chat notification opens ?view=internal-chat&chat=<id>&department=<dept>
 const LAUNCH_CHAT = LAUNCH_PARAMS.get("chat") ? { chatId: LAUNCH_PARAMS.get("chat"), department: LAUNCH_PARAMS.get("department") } : null;
 // The Operations pages (inventory, clients, brands, demand, imports…) are hidden: nothing feeds
@@ -82,7 +84,7 @@ const DEFAULT_LOGO = "/brand-mark.png";
 // Ticket filters: issue text as shown (trimmed), and the choice for tickets without one.
 const NO_VALUE = "__none__";
 const TICKETS_CACHE = "ticketsCache";
-const KEEP_ALIVE_PAGES = ["expiry", "refills", "tasks", "findings", "audit", "analytics"];
+const KEEP_ALIVE_PAGES = ["expiry", "refills", "tasks", "call-log", "findings", "audit", "analytics"];
 // Table thumbnails: a small Cloudinary copy (a few KB) instead of the full photo; the viewer opens the full one.
 const thumbUrl = (url) => (typeof url === "string" && url.includes("res.cloudinary.com/") && url.includes("/image/upload/")
   ? url.replace("/image/upload/", "/image/upload/c_fill,w_120,h_120,q_auto,f_auto/")
@@ -228,13 +230,15 @@ export default function App() {
   const viewAllowed = (name) => {
     if (OPERATIONS_VIEWS.includes(name)) return canAccessOperations;
     if (["employees", "admin-settings"].includes(name)) return isAdmin;
-    if (name === "internal-chat" || name === "tasks") return true;
+    if (["internal-chat", "tasks", "call-log"].includes(name)) return true;
     return ALL_PAGE_KEYS.includes(name) ? can(name) : false;
   };
   const view = viewAllowed(requestedView) ? requestedView : can("tickets") ? "tickets" : "internal-chat";
   // Like app tabs: once opened, these pages stay loaded (hidden) so going back is instant;
   // they keep refreshing themselves. Forgotten when a different login is used.
   const [keptPages, setKeptPages] = useState({ token, pages: [] });
+  // Bumped when a Call Log task changes (e.g. a button tapped on WhatsApp), so the page reloads.
+  const [callLogVersion, setCallLogVersion] = useState(0);
   if (keptPages.token !== token) setKeptPages({ token, pages: [] });
   else if (KEEP_ALIVE_PAGES.includes(view) && !keptPages.pages.includes(view)) setKeptPages({ token, pages: [...keptPages.pages, view] });
   const keepPage = (name) => view === name || (keptPages.token === token && keptPages.pages.includes(name));
@@ -1401,6 +1405,7 @@ export default function App() {
     });
 
     socket.on("tickets-changed", () => refreshTicketsSoon());
+    socket.on("call-log-changed", () => setCallLogVersion((value) => value + 1));
 
     socket.on("internal-user-updated", ({ removedUserId }) => {
       if (removedUserId) {
@@ -1864,6 +1869,13 @@ export default function App() {
             {myTaskCounts.open > 0 && <span className={`nav-badge ${myTaskCounts.overdue ? "" : "is-calm"}`} title={myTaskCounts.overdue ? `${myTaskCounts.overdue} overdue` : "Open tasks for you"}>{myTaskCounts.overdue || myTaskCounts.open}</span>}
           </button>
           <button
+            className={`nav-item ${view === "call-log" ? "active" : ""}`}
+            onClick={() => setView("call-log")}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" /></svg>
+            <span>Call Log</span>
+          </button>
+          <button
             className={`nav-item ${view === "internal-chat" ? "active" : ""}`}
             onClick={() => setView("internal-chat")}
           >
@@ -1952,6 +1964,7 @@ export default function App() {
               {view === "expiry" && "Expiry Tracking"}
               {view === "refills" && "Refill Schedule"}
               {view === "tasks" && "Tasks"}
+              {view === "call-log" && "Call Log"}
               {view === "analytics" && "Analytics"}
               {view === "internal-chat" && "Internal Chat"}
               {view === "employees" && "Employees & Access"}
@@ -1975,6 +1988,7 @@ export default function App() {
               {view === "expiry" && "Batch expiry dates, expired stock and write-off value"}
               {view === "refills" && "Refill days per site (refillers go in their own order), WhatsApp reminders and photo proof"}
               {view === "tasks" && `${myTaskCounts.open} open for you${myTaskCounts.overdue ? ` · ${myTaskCounts.overdue} overdue` : ""} · from @tags in Internal Chat`}
+              {view === "call-log" && "Tasks and concerns sent to employees on WhatsApp · who has it and how long it takes"}
               {view === "analytics" && "Complaints, refunds and resolution · India time"}
               {view === "internal-chat" && `${departmentChats.length} active ${selectedDepartment} conversations`}
               {view === "employees" && `${internalUsers.length} people with their own login`}
@@ -2088,6 +2102,20 @@ export default function App() {
         {keepPage("refills") && <div className="kept-page" hidden={view !== "refills"}><RefillWorkspace token={token} /></div>}
 
         {keepPage("tasks") && <div className="kept-page" hidden={view !== "tasks"}><TasksWorkspace token={token} isAdmin={isAdmin} onOpenChat={(task) => openChatFromNotification({ chatId: String(task.chatId), department: task.department })} /></div>}
+
+        {keepPage("call-log") && (
+          <div className="kept-page" hidden={view !== "call-log"}>
+            <CallLogWorkspace
+              token={token}
+              isAdmin={isAdmin}
+              currentUserId={currentUserId}
+              currentUserName={currentUserName}
+              internalUsers={internalUsers}
+              departments={departments}
+              version={callLogVersion}
+            />
+          </div>
+        )}
 
         {keepPage("findings") && (
           <div className="kept-page" hidden={view !== "findings"}>

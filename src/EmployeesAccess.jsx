@@ -42,6 +42,7 @@ function AccessEditor({ person, options, departments, onSave, onCancel }) {
     department: person?.department || departments[0],
     role: person?.role || "",
     tags: (person?.tags || []).join(", "),
+    phone: person?.phone ? String(person.phone).replace(/^91(?=\d{10}$)/, "") : "",
     username: person?.username || "",
     accessRole: person?.accessRole || "staff",
     pages: person?.pages || options.roles.staff.pages,
@@ -66,7 +67,7 @@ function AccessEditor({ person, options, departments, onSave, onCancel }) {
     setSaving(true);
     setError("");
     try {
-      const payload = { name: draft.name, department: draft.department, role: draft.role, tags: draft.tags, accessRole: draft.accessRole, pages: draft.pages };
+      const payload = { name: draft.name, department: draft.department, role: draft.role, tags: draft.tags, phone: draft.phone, accessRole: draft.accessRole, pages: draft.pages };
       if (!isNew) payload.username = draft.username;
       await onSave(payload);
     } catch (err) {
@@ -82,6 +83,7 @@ function AccessEditor({ person, options, departments, onSave, onCancel }) {
         <label>Department<select value={draft.department} onChange={(event) => setDraft({ ...draft, department: event.target.value })}>{departments.map((department) => <option key={department}>{department}</option>)}</select></label>
         <label>Job title<input value={draft.role} onChange={(event) => setDraft({ ...draft, role: event.target.value })} placeholder="e.g. Support executive" /></label>
         <label>Tags<input value={draft.tags} onChange={(event) => setDraft({ ...draft, tags: event.target.value })} placeholder="comma separated" /></label>
+        <label>WhatsApp number<input value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} placeholder="10-digit mobile, for Call Log tasks" inputMode="tel" /></label>
         {!isNew && <label>Username<input value={draft.username} onChange={(event) => setDraft({ ...draft, username: event.target.value })} /></label>}
       </div>
 
@@ -214,7 +216,7 @@ export default function EmployeesAccess({ api, headers, departments, currentUser
                   <span className="ea-avatar">{person.name.slice(0, 1).toUpperCase()}</span>
                   <div>
                     <h3>{person.name}{String(person.id) === String(currentUserId) ? " (you)" : ""}</h3>
-                    <p>{person.role} · {person.department} · <code>{person.username}</code></p>
+                    <p>{person.role} · {person.department} · <code>{person.username}</code>{person.phone ? ` · 📱 ${String(person.phone).replace(/^91(?=\d{10}$)/, "")}` : " · no WhatsApp number"}</p>
                     <small>{timeAgo(person.lastLoginAt)}</small>
                   </div>
                   <span className={`ea-badge ea-tone-${ROLE_TONES[person.accessRole]}`}>{person.roleLabel}</span>

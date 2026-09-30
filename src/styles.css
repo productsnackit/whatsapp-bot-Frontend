@@ -3599,6 +3599,8 @@ button.wa-notify-banner { cursor: pointer; }
   .fnd-item-side { flex-direction: row; flex-wrap: wrap; }
   .fnd-grid-3, .fnd-snapshot { grid-template-columns: 1fr; }
   .fnd-controls .audit-toolbar > * { width: 100%; }
+  /* Stacked toolbar: the search box keeps its normal height. */
+  .fnd-controls .audit-toolbar input { flex: 0 0 auto; }
 }
 @media print {
   .sidebar, .mobile-topbar, .page-header, .fnd-controls, .fnd-item-side, .fnd-kpi-bad small, .audit-toast, .fnd-backdrop { display: none !important; }
@@ -4836,7 +4838,8 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 .chat-panel, .rf-modal-body, .upi-scan-modal, .tw-customer-body, .nt-list, .sidebar, .rf-tt-rows { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 /* Tables only scroll sideways themselves: up/down must pass through to the page. */
 .table-wrapper { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; overscroll-behavior-y: auto; }
-.main-content > * { animation: view-in .16s ease-out both; }
+/* "backwards", not "both": a finished fade must leave nothing behind, or pop-ups end up under the phone's top bar. */
+.main-content > * { animation: view-in .16s ease-out backwards; }
 @keyframes view-in { from { opacity: 0; } to { opacity: 1; } }
 .page-loading { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 40vh; color: var(--text-muted); font-size: 13px; font-weight: 600; }
 .page-loading span { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--red); border-radius: 50%; animation: page-spin .7s linear infinite; }
@@ -4846,3 +4849,33 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 }
 .kept-page[hidden] { display: none !important; }
 .txn-app-row { margin-top: 6px; } .txn-app-row .txn-id { font-size: 12px; font-weight: 700; color: var(--text-secondary); word-break: break-all; }
+
+/* Call Log */
+.fnd-tone-muted { background: #f1f5f9; color: #475569; }
+.cl-banner { margin-bottom: 14px; padding: 10px 14px; border-radius: 12px; background: #fef3c7; color: #92400e; font-size: 13px; }
+.cl-raise { margin-left: auto; }
+.cl-wa { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.cl-timing { margin-top: 6px; font-size: 12px; color: var(--text-muted); }
+.cl-timing b { color: var(--text-primary); }
+.cl-presets { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: -4px; }
+.cl-delivery { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; border-radius: 12px; margin: 12px 0; font-size: 13px; font-weight: 600; }
+.cl-delivery small { flex-basis: 100%; font-weight: 500; }
+.cl-delivery .audit-btn { margin-left: auto; }
+.cl-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+.cl-forward { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; }
+.cl-forward-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.cl-forward-row select { flex: 1 1 220px; min-width: 0; }
+.cl-notes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.cl-notes li { padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); font-size: 13px; }
+.cl-notes small { color: var(--text-muted); }
+.cl-notes p { margin: 4px 0 0; }
+.cl-note-photo { margin-top: 6px; padding: 0; border: 0; background: none; cursor: zoom-in; }
+.cl-note-photo img { width: 96px; height: 96px; object-fit: cover; border-radius: 10px; }
+.cl-people-wrap { overflow-x: auto; }
+.cl-people { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cl-people th, .cl-people td { padding: 9px 10px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.cl-people th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+.cl-person { padding: 0; border: 0; background: none; color: #2563eb; font: inherit; font-weight: 700; cursor: pointer; }
+@media (max-width: 700px) {
+  .cl-raise { margin-left: 0; width: 100%; }
+}
