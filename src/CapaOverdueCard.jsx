@@ -71,7 +71,7 @@ export default function CapaOverdueCard({ api, headers }) {
           {message?.error && <div className="ea-error">{message.error}</div>}
           {message?.ok && <div className="acc-ok">{message.ok}</div>}
           <div className="pr-actions">
-            <button type="button" className="admin-settings-save pr-save" onClick={save} disabled={busy || !changed}>{busy ? "Saving…" : "Save overdue alerts"}</button>
+            <button type="button" className="admin-settings-save pr-save" onClick={save} disabled={busy || !changed}>{busy ? "Saving…" : changed ? "Save overdue alerts" : "✓ Saved"}</button>
           </div>
           <p className="pr-note">Messages go out with your approved capa_overdue template when the person hasn't messaged the Snackit number in the last 24 hours.</p>
         </>

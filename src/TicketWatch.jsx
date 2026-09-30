@@ -217,7 +217,7 @@ export function TicketAlertsCard({ api, headers }) {
           {message?.error && <div className="ea-error">{message.error}</div>}
           {message?.ok && <div className="acc-ok">{message.ok}</div>}
           <div className="pr-actions">
-            <button type="button" className="admin-settings-save pr-save" onClick={save} disabled={busy || !changed}>{busy ? "Saving…" : "Save ticket alerts"}</button>
+            <button type="button" className="admin-settings-save pr-save" onClick={save} disabled={busy || !changed}>{busy ? "Saving…" : changed ? "Save ticket alerts" : "✓ Saved"}</button>
           </div>
           <p className="pr-note">Same transaction ID, same screenshot and the same UPI ID on another number are always checked.</p>
         </>

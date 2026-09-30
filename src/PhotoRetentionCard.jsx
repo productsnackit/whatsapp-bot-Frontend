@@ -98,7 +98,7 @@ export default function PhotoRetentionCard({ api, headers }) {
           {message?.ok && <div className="acc-ok">{message.ok}</div>}
           <div className="pr-actions">
             <button type="button" className="pr-run" onClick={runNow} disabled={busy}>Delete old photos now</button>
-            <button type="button" className="admin-settings-save pr-save" onClick={save} disabled={busy || !changed}>{busy ? "Saving…" : "Save photo settings"}</button>
+            <button type="button" className="admin-settings-save pr-save" onClick={save} disabled={busy || !changed}>{busy ? "Saving…" : changed ? "Save photo settings" : "✓ Saved"}</button>
           </div>
           <p className="pr-note">Clean-up runs automatically every 6 hours. Deleted photos can't be recovered, so download anything you need first.</p>
         </>

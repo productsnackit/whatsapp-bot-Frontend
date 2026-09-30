@@ -118,7 +118,7 @@ export default function CapaEscalationCard({ api, headers }) {
           {message?.error && <div className="ea-error">{message.error}</div>}
           {message?.ok && <div className="acc-ok">{message.ok}</div>}
           <div className="pr-actions">
-            <button type="button" className="admin-settings-save pr-save" onClick={save} disabled={busy || !changed}>{busy ? "Saving…" : "Save escalation contacts"}</button>
+            <button type="button" className="admin-settings-save pr-save" onClick={save} disabled={busy || !changed}>{busy ? "Saving…" : changed ? "Save escalation contacts" : "✓ Saved"}</button>
           </div>
           <p className="pr-note">Messages go out with your approved capa_task template when the person hasn't messaged the Snackit number in the last 24 hours.</p>
         </>

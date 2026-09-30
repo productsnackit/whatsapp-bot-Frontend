@@ -4440,7 +4440,9 @@ button:disabled.rf-ok, button:disabled.rf-danger { opacity: .55; cursor: default
 .pr-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
 .pr-run { padding: 10px 16px; border: 1px solid #fecaca; border-radius: 12px; background: #fff; color: #b91c1c; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
 .pr-save { margin: 0 !important; }
-.pr-save:disabled { opacity: .5; cursor: default; }
+/* Nothing changed since the last save: a quiet grey "✓ Saved", not a faded red button. */
+.pr-save:disabled { opacity: 1; background: #f1f5f9; color: #64748b; box-shadow: none; cursor: default; }
+.pr-save:disabled:hover { background: #f1f5f9; }
 .pr-note { margin: 0; color: var(--text-muted); font-size: 12px; }
 @media (max-width: 768px) {
   .pr-control { justify-items: start; }
