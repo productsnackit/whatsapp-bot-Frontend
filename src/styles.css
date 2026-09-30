@@ -2997,6 +2997,11 @@ tbody tr:hover { background: var(--surface-2); }
 .audit-list-row > div:first-child span:not(.audit-pill) { color: var(--text-muted); font-size: 12px; overflow-wrap: anywhere; }
 .audit-record-side { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .audit-capa.is-open { border-left: 3px solid #e11d48; }
+/* CAPA not resolved in 24 hours */
+.audit-capa.is-overdue { border-left: 4px solid #dc2626; background: #fef2f2; }
+.audit-capa.is-overdue .audit-capa-defect { color: #991b1b !important; }
+.audit-capa-late { background: #dc2626; color: #fff; }
+.audit-filter button.is-overdue:not(.active) { border-color: #fca5a5; color: #b91c1c; background: #fef2f2; }
 .audit-capa-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .audit-list-row .audit-capa-defect { color: var(--text-primary) !important; font-size: 13px !important; }
 .audit-toolbar { display: flex; gap: 8px; margin-bottom: 12px; }

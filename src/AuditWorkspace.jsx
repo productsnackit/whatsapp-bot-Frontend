@@ -1121,9 +1121,17 @@ function CapaWhatsApp({ ticket: c }) {
   return null;
 }
 
+// Open for more than 24 hours: shown in red, and Monish gets a WhatsApp alert (Admin Settings).
+const CAPA_OVERDUE_MS = 24 * 60 * 60 * 1000;
+const capaOverdue = (c) => c.status === "OPEN" && Date.now() - new Date(c.created_at).getTime() > CAPA_OVERDUE_MS;
+function openFor(createdAt) {
+  const hours = Math.floor((Date.now() - new Date(createdAt).getTime()) / 3600000);
+  return hours < 48 ? `${hours}h` : `${Math.floor(hours / 24)}d ${hours % 24}h`;
+}
+
 function Capa({ headers, capa, onChanged, notify }) {
   const [filter, setFilter] = useState("OPEN");
-  const filtered = capa.filter((c) => filter === "ALL" || c.status === filter);
+  const filtered = capa.filter((c) => filter === "ALL" || (filter === "OVERDUE" ? capaOverdue(c) : c.status === filter));
 
   const [sendingId, setSendingId] = useState(null);
   const sendToRefiller = async (ticket) => {
@@ -1155,9 +1163,9 @@ function Capa({ headers, capa, onChanged, notify }) {
         <div className="audit-card-head">
           <div><h3>Corrective & preventive actions</h3><p>Created automatically for every failed audit point.</p></div>
           <div className="audit-filter">
-            {[["OPEN", "Open"], ["RESOLVED", "Resolved"], ["ALL", "All"]].map(([value, label]) => (
-              <button type="button" key={value} className={filter === value ? "active" : ""} onClick={() => setFilter(value)}>
-                {label} ({value === "ALL" ? capa.length : capa.filter((c) => c.status === value).length})
+            {[["OPEN", "Open"], ["OVERDUE", "Over 24 hrs"], ["RESOLVED", "Resolved"], ["ALL", "All"]].map(([value, label]) => (
+              <button type="button" key={value} className={`${filter === value ? "active" : ""} ${value === "OVERDUE" && capa.some(capaOverdue) ? "is-overdue" : ""}`} onClick={() => setFilter(value)}>
+                {label} ({value === "ALL" ? capa.length : value === "OVERDUE" ? capa.filter(capaOverdue).length : capa.filter((c) => c.status === value).length})
               </button>
             ))}
           </div>
@@ -1165,11 +1173,12 @@ function Capa({ headers, capa, onChanged, notify }) {
         {filtered.length ? (
           <div className="audit-list">
             {filtered.map((c) => (
-              <div className={`audit-list-row audit-capa ${c.status === "OPEN" ? "is-open" : ""}`} key={c.id}>
+              <div className={`audit-list-row audit-capa ${c.status === "OPEN" ? "is-open" : ""} ${capaOverdue(c) ? "is-overdue" : ""}`} key={c.id}>
                 <div>
                   <div className="audit-capa-top">
                     <b>{c.ref}</b>
                     <span className={`audit-pill audit-pill-${c.severity?.startsWith("P1") ? "bad" : "warn"}`}>{c.severity}</span>
+                    {capaOverdue(c) && <span className="audit-pill audit-capa-late" title={c.overdue_alerted_at ? `Alert sent ${formatDate(c.overdue_alerted_at, true)}` : "Not resolved in 24 hours"}>⏰ Open {openFor(c.created_at)}{c.overdue_alerted_at ? " · alert sent" : ""}</span>}
                   </div>
                   <span className="audit-capa-defect">{c.defect}</span>
                   <span>{c.location} · {c.refiller || "—"} · {c.audit_ref || "—"} · {formatDate(c.created_at)}</span>

@@ -10,6 +10,7 @@ import TicketChat from "./TicketChat.jsx";
 import ImageViewer from "./ImageViewer.jsx";
 import PhotoRetentionCard from "./PhotoRetentionCard.jsx";
 import CapaEscalationCard from "./CapaEscalationCard.jsx";
+import CapaOverdueCard from "./CapaOverdueCard.jsx";
 import NumberTicketsCard from "./NumberTicketsCard.jsx";
 import SiteCell from "./SiteCell.jsx";
 import { siteOf, NOT_MATCHED } from "./analyticsData.js";
@@ -2089,6 +2090,7 @@ export default function App() {
             <PhotoRetentionCard api={API} headers={authHeaders()} />
             <TicketAlertsCard api={API} headers={authHeaders()} />
             <CapaEscalationCard api={API} headers={authHeaders()} />
+            <CapaOverdueCard api={API} headers={authHeaders()} />
             <NumberTicketsCard api={API} headers={authHeaders()} />
           </section>
         )}
