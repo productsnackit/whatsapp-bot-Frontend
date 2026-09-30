@@ -1448,8 +1448,9 @@ export default function App() {
     if (warnings.length && !window.confirm(`Check before refunding ticket #${id}:\n\n${warnings.map((text) => `⚠ ${text}`).join("\n")}\n\nMark it as refunded anyway?`)) return;
     try {
       setLoadingId(id);
-      await API.post("/ticket/action", { ticketId: id, action }, { headers: authHeaders() });
-      alert(`Action "${action}" completed successfully`);
+      const response = await API.post("/ticket/action", { ticketId: id, action }, { headers: authHeaders() });
+      // How the customer was told (template after 24 hours, or a warning if that failed).
+      alert(`Action "${action}" completed successfully${response.data?.delivery ? `\n\n${response.data.delivery}` : ""}`);
       await fetchTickets();
     } catch (err) {
       alert(err.response?.data?.error || "Action failed. Check backend.");
