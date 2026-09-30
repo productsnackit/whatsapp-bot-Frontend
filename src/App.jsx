@@ -11,6 +11,7 @@ import ImageViewer from "./ImageViewer.jsx";
 import PhotoRetentionCard from "./PhotoRetentionCard.jsx";
 import CapaEscalationCard from "./CapaEscalationCard.jsx";
 import CapaOverdueCard from "./CapaOverdueCard.jsx";
+import AttentionContactsCard from "./AttentionContactsCard.jsx";
 import NumberTicketsCard from "./NumberTicketsCard.jsx";
 import SiteCell from "./SiteCell.jsx";
 import { siteOf, NOT_MATCHED } from "./analyticsData.js";
@@ -981,7 +982,7 @@ export default function App() {
         const signature = (list) => JSON.stringify(list.map((t) => [
           t.id, t.updated_at, t.status, t.state, t.takeover, t.priority, t.assigned_to, t.admin_notes, t.main_issue, t.sub_issue, t.location, t.site_name, t.site_match,
           t.image, t.upi_image, t.images_deleted_at, t.refund_amount, t.upi_utr, t.upi_scan?.amount, t.upi_scan?.amount_uncertain, (t.upi_scan?.flags || []).length,
-          t.waiting_since, t.first_response_at, (t.refund_checks || []).map((check) => check.text).join("|"), JSON.stringify(t.payments || null), t.product_received,
+          t.waiting_since, t.first_response_at, (t.refund_checks || []).map((check) => check.text).join("|"), JSON.stringify(t.payments || null), t.product_received, t.attention_at,
         ]));
         if (signature(prev) === signature(incoming)) return prev;
         try {
@@ -2089,6 +2090,7 @@ export default function App() {
             <button type="button" className="admin-settings-save" onClick={saveAdminProfile}>Save admin settings</button>
             <PhotoRetentionCard api={API} headers={authHeaders()} />
             <TicketAlertsCard api={API} headers={authHeaders()} />
+            <AttentionContactsCard api={API} headers={authHeaders()} />
             <CapaEscalationCard api={API} headers={authHeaders()} />
             <CapaOverdueCard api={API} headers={authHeaders()} />
             <NumberTicketsCard api={API} headers={authHeaders()} />
@@ -2683,6 +2685,9 @@ export default function App() {
                         <td className="cell-num" data-label="Ticket">
                           <span className="row-num ticket-no" title={`Ticket #${t.id}`}>#{t.id}</span>
                           <WaitBadge ticket={t} hours={watchHours} now={now} />
+                          {t.takeover && t.attention_at && (
+                            <button type="button" className="attention-badge" title={`${t.attention_reason || "Needs attention"}${t.attention_text ? `: "${t.attention_text}"` : ""}`} onClick={() => { setActiveChat(t); setMessages([]); }}>🔔 Needs you</button>
+                          )}
                           <RiskBadge ticket={t} onOpen={() => { setActiveChat(t); setMessages([]); }} />
                         </td>
                         <td className="cell-phone"><span className="phone-tag">{t.phone}</span></td>
