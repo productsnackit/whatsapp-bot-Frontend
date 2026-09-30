@@ -3,7 +3,7 @@ import axios from "axios";
 import ImageViewer from "./ImageViewer.jsx";
 
 /* Call Log: any task or concern, assigned to an employee and sent to their WhatsApp
-   (Started / Done / Forward buttons). Tracks who had it, for how long, and how long
+   (Processing / Resolved / Forward buttons). Tracks who had it, for how long, and how long
    each person takes. See callLog.js on the server. */
 
 const API = axios.create({ baseURL: "https://whatsapp-bot-backend-b3nb.onrender.com" });
@@ -12,8 +12,10 @@ const SOURCES = ["Phone call", "WhatsApp", "In person", "Email", "Internal"];
 const PRIORITIES = ["Low", "Normal", "High", "Urgent"];
 const STATUSES = ["Open", "In Progress", "Done", "Cancelled"];
 const STATUS_TONE = { Open: "warn", "In Progress": "blue", Done: "good", Cancelled: "muted" };
+// Shown with the same words as the WhatsApp buttons (Processing / Resolved / Forward).
+const STATUS_LABEL = { Open: "Open", "In Progress": "Processing", Done: "Resolved", Cancelled: "Cancelled" };
 const PRIORITY_TONE = { Low: "blue", Normal: "muted", High: "orange", Urgent: "bad" };
-const ACTION_LABEL = { raised: "Raised", started: "Started", done: "Marked done", forwarded: "Forwarded", reopened: "Re-opened", cancelled: "Cancelled", note: "Note", edited: "Edited" };
+const ACTION_LABEL = { raised: "Raised", started: "Processing", done: "Resolved", forwarded: "Forwarded", reopened: "Re-opened", cancelled: "Cancelled", note: "Note", edited: "Edited" };
 
 // "2h 15m", "3d 4h", "12m".
 function duration(ms) {
@@ -126,8 +128,8 @@ function NewTask({ employees, departments, onSave, onClose }) {
             {form.due && <button type="button" className="audit-link-danger" onClick={() => setForm((prev) => ({ ...prev, due: "" }))}>No due time</button>}
           </div>
           <p className="fnd-hint">
-            {!assignee ? "The task goes straight to their WhatsApp with Started, Done and Forward buttons."
-              : assignee.phone ? `${assignee.name} gets it on WhatsApp now, with Started, Done and Forward buttons.`
+            {!assignee ? "The task goes straight to their WhatsApp with Processing, Resolved and Forward buttons."
+              : assignee.phone ? `${assignee.name} gets it on WhatsApp now, with Processing, Resolved and Forward buttons.`
                 : `${assignee.name} has no WhatsApp number yet, so it will only show here. Add it in Employees & Access.`}
           </p>
           {error && <div className="audit-error">{error}</div>}
@@ -180,7 +182,7 @@ function TaskDetails({ task, employees, departments, canChange, isAdmin, onUpdat
         <div className="fnd-modal-body">
           <div className="fnd-snapshot">
             <div><span>With</span><b>{task.assignee_name || "—"}</b></div>
-            <div><span>Status</span><b><span className={`audit-pill fnd-tone-${STATUS_TONE[task.status]}`}>{task.status}</span></b></div>
+            <div><span>Status</span><b><span className={`audit-pill fnd-tone-${STATUS_TONE[task.status]}`}>{STATUS_LABEL[task.status]}</span></b></div>
             <div><span>Due</span><b className={isOverdue(task, now) ? "fnd-overdue-text" : ""}>{when(task.due_at)}{isOverdue(task, now) ? " · overdue" : ""}</b></div>
             <div><span>Time taken</span><b>{task.done_at ? between(task.created_at, task.done_at) : `${since(task.created_at, now)} so far`}</b></div>
             {task.details && <p><span>Details</span>{task.details}</p>}
@@ -200,8 +202,8 @@ function TaskDetails({ task, employees, departments, canChange, isAdmin, onUpdat
           {canChange && (
             <div className="cl-actions">
               {isOpen(task) ? <>
-                {task.status === "Open" && <button type="button" className="audit-btn" disabled={Boolean(busy)} onClick={() => run("start", () => onUpdate(task, { status: "In Progress", note }))}>Mark started</button>}
-                <button type="button" className="audit-btn fnd-btn-good" disabled={Boolean(busy)} onClick={() => run("done", () => onUpdate(task, { status: "Done", note }))}>{busy === "done" ? "Saving…" : "Mark done"}</button>
+                {task.status === "Open" && <button type="button" className="audit-btn" disabled={Boolean(busy)} onClick={() => run("start", () => onUpdate(task, { status: "In Progress", note }))}>Mark processing</button>}
+                <button type="button" className="audit-btn fnd-btn-good" disabled={Boolean(busy)} onClick={() => run("done", () => onUpdate(task, { status: "Done", note }))}>{busy === "done" ? "Saving…" : "Mark resolved"}</button>
                 <button type="button" className="audit-link-danger" disabled={Boolean(busy)} onClick={() => window.confirm(`Cancel ${task.ref}?`) && run("cancel", () => onUpdate(task, { status: "Cancelled", note }))}>Cancel task</button>
               </> : <button type="button" className="audit-btn" disabled={Boolean(busy)} onClick={() => run("reopen", () => onUpdate(task, { status: "Open", note }))}>Re-open & send again</button>}
               {isAdmin && <button type="button" className="audit-link-danger" onClick={() => onDelete(task)}>Delete</button>}
@@ -345,7 +347,7 @@ export default function CallLogWorkspace({ token, isAdmin, currentUserId, curren
   const update = async (task, payload) => {
     const response = await API.patch(`/internal/call-log/${task.id}`, payload, { headers });
     replace(response.data);
-    notify(payload.assignee_id ? `${task.ref} forwarded to ${response.data.assignee_name}` : payload.status ? `${task.ref} → ${payload.status}` : "Note added");
+    notify(payload.assignee_id ? `${task.ref} forwarded to ${response.data.assignee_name}` : payload.status ? `${task.ref} → ${STATUS_LABEL[payload.status]}` : "Note added");
     load();
   };
   const resend = async (task) => {
@@ -374,13 +376,13 @@ export default function CallLogWorkspace({ token, isAdmin, currentUserId, curren
       {toast && <div className={`audit-toast ${toast.isError ? "is-error" : ""}`}>{toast.message}</div>}
 
       <div className="fnd-kpis">
-        <div className="fnd-kpi-warn"><span>Open</span><b>{counts.open}</b><small>Not started yet</small></div>
-        <div className="fnd-kpi-blue"><span>In progress</span><b>{counts.progress}</b><small>Being worked on</small></div>
+        <div className="fnd-kpi-warn"><span>Open</span><b>{counts.open}</b><small>Not picked up yet</small></div>
+        <div className="fnd-kpi-blue"><span>Processing</span><b>{counts.progress}</b><small>Being worked on</small></div>
         <button type="button" className={`fnd-kpi-bad ${onlyOverdue ? "is-active" : ""}`} onClick={() => setOnlyOverdue((v) => !v)}>
           <span>Overdue</span><b>{counts.overdue}</b><small>{onlyOverdue ? "Showing overdue · tap to clear" : "Past due time · tap to show"}</small>
         </button>
-        <div className="fnd-kpi-good"><span>Done this week</span><b>{counts.doneWeek}</b><small>Last 7 days</small></div>
-        <div className="fnd-kpi-purple"><span>Avg. time to done</span><b>{counts.avg}</b><small>Raised → done, last 30 days</small></div>
+        <div className="fnd-kpi-good"><span>Resolved this week</span><b>{counts.doneWeek}</b><small>Last 7 days</small></div>
+        <div className="fnd-kpi-purple"><span>Avg. time to resolve</span><b>{counts.avg}</b><small>Raised → resolved, last 30 days</small></div>
         <div><span>Not delivered</span><b>{counts.notDelivered}</b><small>WhatsApp didn't reach them</small></div>
       </div>
 
@@ -392,9 +394,9 @@ export default function CallLogWorkspace({ token, isAdmin, currentUserId, curren
         <div className="audit-toolbar">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search task, caller, location, person or ref" />
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Status">
-            <option value="OPEN">Open & in progress</option>
+            <option value="OPEN">Open & processing</option>
             <option value="ALL">All statuses</option>
-            {STATUSES.map((status) => <option key={status}>{status}</option>)}
+            {STATUSES.map((status) => <option key={status} value={status}>{STATUS_LABEL[status]}</option>)}
           </select>
           <select value={personFilter} onChange={(e) => setPersonFilter(e.target.value)} aria-label="With">
             <option value="ALL">Everyone</option>
@@ -422,7 +424,7 @@ export default function CallLogWorkspace({ token, isAdmin, currentUserId, curren
                     <div className="fnd-item-main">
                       <div className="fnd-item-top">
                         <span className="fnd-ref">{task.ref}</span>
-                        <span className={`audit-pill fnd-tone-${STATUS_TONE[task.status]}`}>{task.status}</span>
+                        <span className={`audit-pill fnd-tone-${STATUS_TONE[task.status]}`}>{STATUS_LABEL[task.status]}</span>
                         {task.priority !== "Normal" && <span className={`audit-pill fnd-tone-${PRIORITY_TONE[task.priority]}`}>{task.priority}</span>}
                         {overdue && <span className="audit-pill fnd-tone-bad">Overdue</span>}
                         {task.forward_count > 0 && <span className="audit-pill fnd-tone-purple">↪ Forwarded {task.forward_count}×</span>}
@@ -438,14 +440,14 @@ export default function CallLogWorkspace({ token, isAdmin, currentUserId, curren
                         {task.due_at && <span className={overdue ? "fnd-overdue-text" : ""}>Due {when(task.due_at)}</span>}
                       </div>
                       <div className="cl-timing">
-                        {task.status === "Done" ? <>✅ Done by {task.done_by} in <b>{between(task.created_at, task.done_at)}</b></>
+                        {task.status === "Done" ? <>✅ Resolved by {task.done_by} in <b>{between(task.created_at, task.done_at)}</b></>
                           : task.status === "Cancelled" ? "Cancelled"
-                            : <>⏱ Open for <b>{since(task.created_at, now)}</b>{task.started_at ? ` · started ${between(task.assigned_at, task.started_at)} after it reached ${task.assignee_name}` : task.assigned_at ? ` · with ${task.assignee_name} for ${since(task.assigned_at, now)}, not started` : ""}</>}
+                            : <>⏱ Open for <b>{since(task.created_at, now)}</b>{task.started_at ? ` · processing ${between(task.assigned_at, task.started_at)} after it reached ${task.assignee_name}` : task.assigned_at ? ` · with ${task.assignee_name} for ${since(task.assigned_at, now)}, not picked up` : ""}</>}
                       </div>
                     </div>
                     <div className="fnd-item-side">
                       <button type="button" className="audit-btn" onClick={() => setOpenId(task.id)}>Details{(task.notes || []).length ? ` · ${task.notes.length} note${task.notes.length === 1 ? "" : "s"}` : ""}</button>
-                      {canChange(task) && isOpen(task) && <button type="button" className="audit-btn fnd-btn-good" onClick={() => update(task, { status: "Done" }).catch((err) => notify(err.response?.data?.error || "Could not update", true))}>Mark done</button>}
+                      {canChange(task) && isOpen(task) && <button type="button" className="audit-btn fnd-btn-good" onClick={() => update(task, { status: "Done" }).catch((err) => notify(err.response?.data?.error || "Could not update", true))}>Mark resolved</button>}
                       {canChange(task) && isOpen(task) && ["FAILED", "NO_PHONE"].includes(task.whatsapp_status) && <button type="button" className="audit-btn" onClick={() => resend(task).catch((err) => notify(err.response?.data?.error || "Could not send", true))}>Send again</button>}
                     </div>
                   </article>
@@ -470,7 +472,7 @@ export default function CallLogWorkspace({ token, isAdmin, currentUserId, curren
           <div className="cl-people-wrap">
             <table className="cl-people">
               <thead>
-                <tr><th>Employee</th><th>With them now</th><th>Overdue</th><th>Done</th><th>Avg. time to start</th><th>Avg. time to done</th><th>On time</th><th>Forwarded on</th></tr>
+                <tr><th>Employee</th><th>With them now</th><th>Overdue</th><th>Resolved</th><th>Avg. time to pick up</th><th>Avg. time to resolve</th><th>On time</th><th>Forwarded on</th></tr>
               </thead>
               <tbody>
                 {people.map((person) => (
