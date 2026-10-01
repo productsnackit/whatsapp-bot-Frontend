@@ -11,6 +11,7 @@ import ImageViewer from "./ImageViewer.jsx";
 import PhotoRetentionCard from "./PhotoRetentionCard.jsx";
 import CapaEscalationCard from "./CapaEscalationCard.jsx";
 import CapaOverdueCard from "./CapaOverdueCard.jsx";
+import SupplyBuyerCard from "./SupplyBuyerCard.jsx";
 import AttentionContactsCard from "./AttentionContactsCard.jsx";
 import NumberTicketsCard from "./NumberTicketsCard.jsx";
 import SiteCell from "./SiteCell.jsx";
@@ -2106,6 +2107,7 @@ export default function App() {
             <AttentionContactsCard api={API} headers={authHeaders()} />
             <CapaEscalationCard api={API} headers={authHeaders()} />
             <CapaOverdueCard api={API} headers={authHeaders()} />
+            <SupplyBuyerCard api={API} headers={authHeaders()} />
             <NumberTicketsCard api={API} headers={authHeaders()} />
           </section>
         )}

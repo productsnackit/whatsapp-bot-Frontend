@@ -564,7 +564,7 @@ function BuyingTab({ buying, onRate, onBuy, onRemovePurchase }) {
 }
 
 /* ---------- Page ---------- */
-export default function SupplyWorkspace({ token, isAdmin, internalUsers, version = 0 }) {
+export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
   const [overview, setOverview] = useState(null);
   const [roundId, setRoundId] = useState(null);
@@ -574,7 +574,7 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers, version
   const [newTitle, setNewTitle] = useState("");
   const [orderText, setOrderText] = useState("");
   const [orderKey, setOrderKey] = useState(0);
-  const [buyerId, setBuyerId] = useState("");
+  const [buyerInfo, setBuyerInfo] = useState(null);
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState("");
   const [buyForm, setBuyForm] = useState(null);
@@ -595,7 +595,7 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers, version
       const response = await API.get("/supply/overview", { headers });
       setOverview(response.data);
       setRoundId((current) => current ?? response.data.rounds[0]?.id ?? null);
-      setBuyerId((current) => current || response.data.buyer_id || "");
+      API.get("/supply/buyer-info", { headers }).then((info) => setBuyerInfo(info.data)).catch(() => {});
       API.get("/supply/accounts", { headers }).then((accounts) => setAccountsSummary(accounts.data.totals)).catch(() => {});
     } catch (err) {
       notify(err.response?.data?.error || "Could not load Direct Supply", true);
@@ -693,7 +693,6 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers, version
 
   const companies = overview?.companies || [];
   const units = overview?.units || ["pcs", "kg", "box", "pkt"];
-  const buyers = (internalUsers || []).filter((user) => user.phone);
   const q = search.trim().toLowerCase();
   const master = (detail?.master || []).filter((row) => !q || `${row.name} ${row.spellings.join(" ")}`.toLowerCase().includes(q));
   const checks = round ? detail.checks || [] : [];
@@ -839,16 +838,20 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers, version
       {/* ---- 2 · Buy ---- */}
       {page === "buy" && (!round ? noDate : (
         <div className="ds-grid">
-          <Box id="ds-control" icon="📲" tone="amber" title="Send the list to the buyer" sub={round.sent_at ? `Sent to ${round.sent_to} on ${new Date(round.sent_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : "Not sent yet"} className="ds-span-12">
-            <div className="ds-send">
-              <select value={buyerId} onChange={(event) => { setBuyerId(event.target.value); if (event.target.value) API.put("/supply/buyer", { buyer_id: event.target.value }, { headers }).catch(() => {}); }} aria-label="Stock buyer">
-                <option value="">Choose the stock buyer…</option>
-                {buyers.map((user) => <option key={user.id} value={String(user.id)}>{user.name}</option>)}
-              </select>
-              <button type="button" className="audit-btn audit-btn-primary" disabled={!buyerId || !detail.master.length || busy === "send"} onClick={() => call("send", () => API.post(`/supply/rounds/${round.id}/send`, { buyer_id: buyerId }, { headers }), (response) => (response.data.file_sent ? "Sent on WhatsApp with the Excel file" : "Summary sent on WhatsApp (the Excel file didn't go: download and share it)"))}>{busy === "send" ? "Sending…" : round.sent_at ? "Send again" : "Send to buyer"}</button>
-              <button type="button" className="audit-btn" onClick={downloadExcel} disabled={!detail.master.length}>⬇ Excel</button>
+          <Box id="ds-control" icon="📲" tone="amber" title={buyerInfo?.name ? `Buyer: ${buyerInfo.name}` : "Buyer"} sub={round.sent_at ? `List sent ${new Date(round.sent_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : buyerInfo?.has_phone && buyerInfo.auto ? `Goes by itself when all ${activeCount} companies have ordered, or at ${buyerInfo.cutoff} the day before delivery` : "Not sent yet"} className="ds-span-12">
+            {buyerInfo && !buyerInfo.has_phone && <p className="fnd-hint">Add the buyer's name and WhatsApp number in <b>Admin Settings → Direct Supply buyer</b>.</p>}
+            <div className="ds-buyer-steps">
+              {(buyerInfo?.steps || []).map((step, index) => {
+                const at = round.buyer_steps?.[step];
+                const reached = (buyerInfo.steps.indexOf(round.buyer_status)) >= index;
+                return <div key={step} className={reached ? "done" : ""}><span>{reached ? "✓" : index + 1}</span><b>{step}</b><small>{at ? new Date(at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—"}</small></div>;
+              })}
             </div>
-            {!buyers.length && <p className="fnd-hint">To send on WhatsApp, add the buyer's WhatsApp number in Employees & Access.</p>}
+            <div className="ds-send">
+              <button type="button" className="audit-btn audit-btn-primary" disabled={!buyerInfo?.has_phone || !detail.master.length || busy === "send"} onClick={() => call("send", () => API.post(`/supply/rounds/${round.id}/send`, {}, { headers }), (response) => (response.data.via_template ? "Sent with the WhatsApp template (link to the list)" : response.data.file_sent ? "Sent on WhatsApp with the Excel file" : "Sent on WhatsApp"))}>{busy === "send" ? "Sending…" : round.sent_at ? "Send again" : "Send now"}</button>
+              <button type="button" className="audit-btn" onClick={downloadExcel} disabled={!detail.master.length}>⬇ Excel</button>
+              <button type="button" className="audit-btn" disabled={!detail.master.length} onClick={async () => { try { const response = await API.get(`/supply/rounds/${round.id}/buyer-link`, { headers }); window.open(`${window.location.origin}/?buy=${response.data.token}`, "_blank", "noopener"); } catch { notify("Could not open the buyer's page", true); } }}>Open buyer's page</button>
+            </div>
           </Box>
 
           <Box id="ds-master" icon="📋" tone="green" title={`Total list (${detail.master.length} items)`} sub="Same items from all companies added together" className="ds-span-12"
