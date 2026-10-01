@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { DeliveryTab, Accounts, SellerSettings } from "./SupplyBilling.jsx";
+import SupplyReports from "./SupplyReports.jsx";
 
 /* Direct Supply (phase 1): each company's order for a delivery date is pasted or uploaded,
    and the master sheet adds the same items up across companies for the stock buyer.
@@ -194,9 +195,57 @@ function AddOrder({ headers, round, companies, units, onAddCompany, onSaved, onC
 }
 
 /* ---------- Companies ---------- */
-function Companies({ companies, onAdd, onUpdate, onClose }) {
+// A company's order link: copy it, send it on WhatsApp (opens WhatsApp on this device), replace or switch off.
+function OrderLink({ company, headers, base }) {
+  const [link, setLink] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState("");
+  const call = async (action) => {
+    setError("");
+    try {
+      const response = await API.post(`/supply/companies/${company.id}/order-link`, { action }, { headers });
+      setLink(response.data);
+    } catch (err) {
+      setError(err.response?.data?.error || "Could not make the link");
+    }
+  };
+  useEffect(() => { const timer = setTimeout(() => call("get"), 0); return () => clearTimeout(timer); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  if (error) return <div className="audit-error">{error}</div>;
+  if (!link) return <p className="audit-empty">Making the link…</p>;
+  const url = `${base.replace(/\/$/, "")}/?order=${link.token}`;
+  const phone = String(company.contact_phone || "").replace(/\D/g, "");
+  const waPhone = phone.length === 10 ? `91${phone}` : phone;
+  const message = `Hi${company.contact_name ? ` ${company.contact_name}` : ""}, this is your Snackit order link for ${company.name}. Open it any time to place or change your order for the next delivery:\n${url}`;
+  return (
+    <div className="ds-link">
+      {link.on ? <>
+        <code>{url}</code>
+        <div className="ds-link-actions">
+          <button type="button" className="audit-btn" onClick={() => { navigator.clipboard?.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); }}>{copied ? "Copied ✓" : "Copy link"}</button>
+          <a className="audit-btn" href={`https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`} target="_blank" rel="noreferrer">Send on WhatsApp</a>
+          <a className="audit-btn" href={url} target="_blank" rel="noreferrer">Open</a>
+          <button type="button" className="audit-btn" onClick={() => window.confirm("Make a new link? The old one will stop working.") && call("new")}>New link</button>
+          <button type="button" className="audit-link-danger" onClick={() => call("off")}>Switch off</button>
+        </div>
+        {!waPhone && <small className="na">Add the admin's WhatsApp number to send it directly.</small>}
+      </> : <>
+        <span className="na">The order link is switched off.</span>
+        <button type="button" className="audit-btn" onClick={() => call("on")}>Switch on</button>
+      </>}
+    </div>
+  );
+}
+
+function Companies({ companies, onAdd, onUpdate, onClose, headers }) {
   const [draft, setDraft] = useState({ name: "", contact_name: "", contact_phone: "", location: "" });
   const [billing, setBilling] = useState(null);
+  const [linkFor, setLinkFor] = useState(null);
+  const [base, setBase] = useState(window.location.origin);
+  useEffect(() => {
+    let alive = true;
+    API.get("/supply/seller", { headers }).then((response) => { if (alive && response.data.public_url) setBase(response.data.public_url); }).catch(() => {});
+    return () => { alive = false; };
+  }, [headers]);
   const [error, setError] = useState("");
   const add = async (event) => {
     event.preventDefault();
@@ -226,9 +275,11 @@ function Companies({ companies, onAdd, onUpdate, onClose }) {
               <li key={company.id} className={`${company.active ? "" : "is-off"} ${billing === company.id ? "is-open" : ""}`}>
                 <div><b>{company.name}</b><small>{[company.contact_name, company.contact_phone, company.location].filter(Boolean).join(" · ") || "No contact details"}{company.gstin ? ` · GSTIN ${company.gstin}` : ""}</small></div>
                 <div className="ds-company-actions">
+                  <button type="button" className="audit-btn" onClick={() => setLinkFor(linkFor === company.id ? null : company.id)}>🔗 Order link</button>
                   <button type="button" className="audit-btn" onClick={() => setBilling(billing === company.id ? null : company.id)}>Billing</button>
                   <button type="button" className="audit-btn" onClick={() => onUpdate(company, { active: !company.active })}>{company.active ? "Hide" : "Show again"}</button>
                 </div>
+                {linkFor === company.id && <OrderLink company={company} headers={headers} base={base} />}
                 {billing === company.id && (
                   <div className="ds-billing">
                     <label>Name on invoice<input defaultValue={company.billing_name || ""} placeholder={company.name} onBlur={(event) => event.target.value !== (company.billing_name || "") && onUpdate(company, { billing_name: event.target.value })} /></label>
@@ -514,7 +565,7 @@ function BuyingTab({ buying, onRate, onBuy, onRemovePurchase }) {
 }
 
 /* ---------- Page ---------- */
-export default function SupplyWorkspace({ token, isAdmin, internalUsers }) {
+export default function SupplyWorkspace({ token, isAdmin, internalUsers, version = 0 }) {
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
   const [overview, setOverview] = useState(null);
   const [roundId, setRoundId] = useState(null);
@@ -558,7 +609,8 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers }) {
   }, [headers, notify]);
 
   useEffect(() => { const timer = setTimeout(loadOverview, 0); return () => clearTimeout(timer); }, [loadOverview]);
-  useEffect(() => { const timer = setTimeout(() => loadRound(roundId), 0); return () => clearTimeout(timer); }, [loadRound, roundId]);
+  useEffect(() => { const timer = setTimeout(() => loadRound(roundId), 0); return () => clearTimeout(timer); }, [loadRound, roundId, version]);
+  useEffect(() => { if (!version) return undefined; const timer = setTimeout(loadOverview, 0); return () => clearTimeout(timer); }, [loadOverview, version]);
 
   const refresh = async () => { await Promise.all([loadOverview(), loadRound(roundId)]); };
   const call = async (label, action, success) => {
@@ -658,6 +710,7 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers }) {
           <button type="button" className="audit-btn" onClick={() => setModal("items")}>Items ({overview.products.length})</button>
           <button type="button" className="audit-btn" onClick={() => setModal("vendors")}>Vendors ({(overview.vendors || []).length})</button>
           <button type="button" className="audit-btn" onClick={() => setModal("selling")}>Selling prices</button>
+          <button type="button" className="audit-btn" onClick={() => setModal("reports")}>📊 Reports</button>
           <button type="button" className="audit-btn" onClick={() => setModal("accounts")}>💰 Accounts</button>
           <button type="button" className="audit-btn" onClick={() => setModal("seller")}>Invoice settings</button>
         </div>
@@ -763,7 +816,7 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers }) {
                 <div key={order.id} className="ds-order">
                   <div className="ds-order-head">
                     <b>{order.company_name}</b>
-                    <small>{order.lines.length} items · {order.file_name ? `📄 ${order.file_name}` : "pasted"} · by {order.created_by}</small>
+                    <small>{order.lines.length} items · {order.source === "link" ? "🔗 order link" : order.file_name ? `📄 ${order.file_name}` : "pasted"} · by {order.created_by}{order.source === "link" && order.raw_text ? ` · note: ${order.raw_text}` : ""}</small>
                     <button type="button" className="audit-link-danger" onClick={() => window.confirm(`Remove ${order.company_name}'s order from ${round.ref}?`) && call("order", () => API.delete(`/supply/orders/${order.id}`, { headers }), "Order removed")}>Remove order</button>
                   </div>
                   <table className="ds-table">
@@ -819,7 +872,8 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers }) {
           onClose={() => { setModal(null); setOrderText(""); }}
         />
       )}
-      {modal === "companies" && <Companies companies={companies} onAdd={addCompany} onUpdate={(company, patch) => call("company", () => API.patch(`/supply/companies/${company.id}`, patch, { headers }))} onClose={() => setModal(null)} />}
+      {modal === "companies" && <Companies headers={headers} companies={companies} onAdd={addCompany} onUpdate={(company, patch) => call("company", () => API.patch(`/supply/companies/${company.id}`, patch, { headers }))} onClose={() => setModal(null)} />}
+      {modal === "reports" && <SupplyReports headers={headers} products={overview.products} onClose={() => setModal(null)} />}
       {modal === "accounts" && <Accounts headers={headers} isAdmin={isAdmin} onClose={() => setModal(null)} />}
       {modal === "seller" && <SellerSettings headers={headers} notify={notify} onClose={() => setModal(null)} />}
       {modal === "vendors" && <Vendors vendors={overview.vendors || []} onAdd={addVendor} onUpdate={(vendor, patch) => call("vendor", () => API.patch(`/supply/vendors/${vendor.id}`, patch, { headers }))} onClose={() => setModal(null)} />}

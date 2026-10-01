@@ -243,6 +243,7 @@ export default function App() {
   const [keptPages, setKeptPages] = useState({ token, pages: [] });
   // Bumped when a Call Log task changes (e.g. a button tapped on WhatsApp), so the page reloads.
   const [callLogVersion, setCallLogVersion] = useState(0);
+  const [supplyVersion, setSupplyVersion] = useState(0);
   if (keptPages.token !== token) setKeptPages({ token, pages: [] });
   else if (KEEP_ALIVE_PAGES.includes(view) && !keptPages.pages.includes(view)) setKeptPages({ token, pages: [...keptPages.pages, view] });
   const keepPage = (name) => view === name || (keptPages.token === token && keptPages.pages.includes(name));
@@ -1410,6 +1411,7 @@ export default function App() {
 
     socket.on("tickets-changed", () => refreshTicketsSoon());
     socket.on("call-log-changed", () => setCallLogVersion((value) => value + 1));
+    socket.on("supply-changed", () => setSupplyVersion((value) => value + 1));
 
     socket.on("internal-user-updated", ({ removedUserId }) => {
       if (removedUserId) {
@@ -2119,7 +2121,7 @@ export default function App() {
         {keepPage("tasks") && <div className="kept-page" hidden={view !== "tasks"}><TasksWorkspace token={token} isAdmin={isAdmin} onOpenChat={(task) => openChatFromNotification({ chatId: String(task.chatId), department: task.department })} /></div>}
 
         {keepPage("supply") && can("supply") && (
-          <div className="kept-page" hidden={view !== "supply"}><SupplyWorkspace token={token} isAdmin={isAdmin} internalUsers={internalUsers} /></div>
+          <div className="kept-page" hidden={view !== "supply"}><SupplyWorkspace token={token} isAdmin={isAdmin} internalUsers={internalUsers} version={supplyVersion} /></div>
         )}
 
         {keepPage("call-log") && (

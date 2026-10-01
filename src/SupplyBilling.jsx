@@ -374,7 +374,7 @@ export function SellerSettings({ headers, onClose, notify }) {
   const [form, setForm] = useState(null);
   useEffect(() => {
     let alive = true;
-    API.get("/supply/seller", { headers }).then((response) => alive && setForm({ name: "", address: "", gstin: "", phone: "", email: "", upi: "", bank: "", terms: "", ...response.data })).catch(() => alive && setForm({}));
+    API.get("/supply/seller", { headers }).then((response) => alive && setForm({ name: "", address: "", gstin: "", phone: "", email: "", upi: "", bank: "", terms: "", public_url: "", ...response.data })).catch(() => alive && setForm({}));
     return () => { alive = false; };
   }, [headers]);
   const set = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
@@ -390,7 +390,7 @@ export function SellerSettings({ headers, onClose, notify }) {
   return (
     <div className="fnd-backdrop" onClick={onClose}>
       <div className="fnd-modal" onClick={(event) => event.stopPropagation()}>
-        <div className="fnd-modal-head"><div><h3>Invoice settings</h3><p className="fnd-sub">Snackit's details printed on every invoice</p></div><button type="button" className="fnd-close" onClick={onClose} aria-label="Close">×</button></div>
+        <div className="fnd-modal-head"><div><h3>Invoice & link settings</h3><p className="fnd-sub">Snackit's details printed on every invoice, and the order-link address</p></div><button type="button" className="fnd-close" onClick={onClose} aria-label="Close">×</button></div>
         {form && (
           <div className="fnd-modal-body">
             <div className="fnd-grid fnd-grid-3">
@@ -405,6 +405,8 @@ export function SellerSettings({ headers, onClose, notify }) {
             </div>
             <label>Bank details<textarea rows={2} value={form.bank} onChange={set("bank")} placeholder="Account name, number, IFSC" /></label>
             <label>Terms (optional)<textarea rows={2} value={form.terms} onChange={set("terms")} placeholder="e.g. Payment within 7 days" /></label>
+            <label>Dashboard address for order links<input value={form.public_url} onChange={set("public_url")} placeholder={window.location.origin} /></label>
+            <p className="fnd-hint">The main address people open the dashboard on (not a preview link). Company order links start with it.</p>
           </div>
         )}
         <div className="fnd-modal-foot">
