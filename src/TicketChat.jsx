@@ -8,6 +8,31 @@ const MAX_FILE_BYTES = 15 * 1024 * 1024;
 const MAX_FILES = 10;
 const ACCEPT = "image/*,video/mp4,video/3gpp,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt";
 const DAY_MS = 24 * 60 * 60 * 1000;
+const UNDO_MS = 10 * 1000;
+
+/* Undo: a reply waits UNDO_MS before going to WhatsApp, shown as a grey "Sending in 10s · Undo"
+   bubble. The queue lives outside the chat component, so it still sends if you switch chats;
+   closing the dashboard tab during those seconds asks first. */
+const pendingSends = new Map();
+const pendingListeners = new Set();
+const notifyPending = () => pendingListeners.forEach((listener) => listener());
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeunload", (event) => {
+    if (pendingSends.size) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+  });
+}
+function usePendingSends(ticketId) {
+  const [, setVersion] = useState(0);
+  useEffect(() => {
+    const listener = () => setVersion((value) => value + 1);
+    pendingListeners.add(listener);
+    return () => pendingListeners.delete(listener);
+  }, []);
+  return [...pendingSends.values()].filter((item) => item.ticketId === ticketId);
+}
 
 const Icons = {
   clip: <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.4 11.1l-9.2 9.2a6 6 0 01-8.5-8.5l9.2-9.2a4 4 0 015.7 5.7l-9.2 9.2a2 2 0 01-2.8-2.8l8.5-8.5" /></svg>,
@@ -177,9 +202,9 @@ function ReplyWindow({ lastCustomerAt, now }) {
 }
 
 export default function TicketChat({ ticket, messages, typing, api, headers, onChanged, onTakeover, closed = false, onReopen }) {
+  const pending = usePendingSends(ticket.id);
   const [text, setText] = useState("");
   const [files, setFiles] = useState([]);
-  const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [dragging, setDragging] = useState(false);
   const [showQuick, setShowQuick] = useState(false);
@@ -191,10 +216,11 @@ export default function TicketChat({ ticket, messages, typing, api, headers, onC
   const fileInputRef = useRef(null);
   const canReply = Boolean(ticket.takeover) && !closed;
 
+  // Every minute for the reply window; every second while a reply is waiting to send (countdown).
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 60000);
+    const timer = setInterval(() => setNow(Date.now()), pending.length ? 1000 : 60000);
     return () => clearInterval(timer);
-  }, []);
+  }, [pending.length]);
 
   const lastId = messages.at(-1)?.id;
   useEffect(() => {
@@ -205,10 +231,6 @@ export default function TicketChat({ ticket, messages, typing, api, headers, onC
   const filesRef = useRef(files);
   useEffect(() => { filesRef.current = files; }, [files]);
   useEffect(() => () => filesRef.current.forEach((item) => item.preview && URL.revokeObjectURL(item.preview)), []);
-  const clearFiles = () => {
-    files.forEach((item) => item.preview && URL.revokeObjectURL(item.preview));
-    setFiles([]);
-  };
 
   const images = useMemo(() => messages.filter((m) => m.media_url && ["image", "sticker"].includes(m.media_type)), [messages]);
   const mediaMessages = useMemo(() => messages.filter((m) => m.media_url), [messages]);
@@ -238,25 +260,46 @@ export default function TicketChat({ ticket, messages, typing, api, headers, onC
     setFiles((current) => current.filter((_, i) => i !== index));
   };
 
-  const send = async () => {
-    const body = text.trim();
-    if (!canReply || sending || (!body && !files.length)) return;
-    setSending(true);
-    setError("");
+  // Really sends a reply once its Undo time is over.
+  const deliver = async (item) => {
+    pendingSends.delete(item.id);
+    notifyPending();
     try {
-      const payloadFiles = await Promise.all(files.map(async ({ file }) => ({ name: file.name, type: file.type || "application/octet-stream", data: await readAsDataUrl(file) })));
-      const response = await api.post(`/admin/tickets/${ticket.id}/send`, { text: body, files: payloadFiles }, { headers });
-      setText("");
-      clearFiles();
+      const payloadFiles = await Promise.all(item.files.map(async ({ file }) => ({ name: file.name, type: file.type || "application/octet-stream", data: await readAsDataUrl(file) })));
+      const response = await api.post(`/admin/tickets/${item.ticketId}/send`, { text: item.text, files: payloadFiles }, { headers });
       if (response.data?.error) setError(response.data.error);
       await onChanged();
     } catch (err) {
       setError(err.response?.data?.error || "Could not send. Check your connection and try again.");
     } finally {
-      setSending(false);
-      inputRef.current?.focus();
+      item.files.forEach(({ preview }) => preview && URL.revokeObjectURL(preview));
     }
   };
+
+  const send = () => {
+    const body = text.trim();
+    if (!canReply || (!body && !files.length)) return;
+    setError("");
+    const item = { id: `${Date.now()}-${Math.random()}`, ticketId: ticket.id, text: body, files, sendAt: Date.now() + UNDO_MS };
+    item.timer = setTimeout(() => deliver(item), UNDO_MS);
+    pendingSends.set(item.id, item);
+    notifyPending();
+    setText("");
+    setFiles([]); // previews stay alive until the reply is sent or undone
+    inputRef.current?.focus();
+  };
+
+  // Undo: the reply never reaches WhatsApp; its text and files go back into the box.
+  const undo = (item) => {
+    clearTimeout(item.timer);
+    pendingSends.delete(item.id);
+    notifyPending();
+    setText((current) => (current.trim() ? `${item.text}\n${current}` : item.text));
+    setFiles((current) => [...item.files, ...current].slice(0, MAX_FILES));
+    inputRef.current?.focus();
+  };
+
+
 
   const retry = async (message) => {
     try {
@@ -357,6 +400,18 @@ export default function TicketChat({ ticket, messages, typing, api, headers, onC
             </div>
           );
         })}
+        {pending.map((item) => (
+          <div key={item.id} className="tc-row is-out">
+            <div className="tc-bubble tc-pending">
+              {item.files.length > 0 && <div className="tc-pending-files">📎 {item.files.length} file{item.files.length === 1 ? "" : "s"}</div>}
+              {item.text && <div className="tc-text">{item.text}</div>}
+              <div className="tc-pending-bar">
+                <span>Sending in {Math.max(1, Math.ceil((item.sendAt - now) / 1000))}s</span>
+                <button type="button" onClick={() => undo(item)}>Undo</button>
+              </div>
+            </div>
+          </div>
+        ))}
         {typing && <div className="tc-row is-in"><div className="tc-bubble tc-typing"><span /><span /><span /></div></div>}
         <div ref={endRef} />
       </div>
@@ -392,11 +447,11 @@ export default function TicketChat({ ticket, messages, typing, api, headers, onC
               onPaste={onPaste}
               placeholder={files.length ? "Add a caption…" : "Type a message"}
             />
-            <button type="button" className="tc-send" onClick={send} disabled={sending || (!text.trim() && !files.length)} aria-label="Send">
-              {sending ? <span className="tc-spinner" /> : Icons.send}
+            <button type="button" className="tc-send" onClick={send} disabled={!text.trim() && !files.length} aria-label="Send">
+              {Icons.send}
             </button>
           </div>
-          <div className="tc-hint">Enter to send · Shift+Enter for a new line · paste or drop photos</div>
+          <div className="tc-hint">Enter to send (10s to undo) · Shift+Enter for a new line · paste or drop photos</div>
         </div>
       ) : closed ? (
         <div className="tc-locked is-closed">
