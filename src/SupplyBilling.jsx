@@ -208,26 +208,36 @@ export function InvoiceView({ invoiceId, headers, isAdmin, onChanged, onClose })
 }
 
 /* ---------- Delivery & billing tab ---------- */
-export function DeliveryTab({ round, headers, isAdmin, notify }) {
+export function DeliveryTab({ round, headers, isAdmin, notify, version = 0, onSummary, onChanged }) {
   const [data, setData] = useState(null);
   const [draft, setDraft] = useState(null);
   const [viewing, setViewing] = useState(null);
-  const [open, setOpen] = useState(null);
+  const [hidden, setHidden] = useState(() => new Set()); // packing lists are open unless hidden
   const load = useCallback(async () => {
     try {
       const response = await API.get(`/supply/rounds/${round.id}/delivery`, { headers });
       setData(response.data);
+      const list = response.data.companies;
+      onSummary?.({
+        roundId: round.id,
+        total: list.length,
+        delivered: list.filter((entry) => entry.delivery.status === "Delivered").length,
+        invoiced: list.filter((entry) => entry.invoice).length,
+        billed: list.reduce((sum, entry) => sum + (entry.invoice?.total || 0), 0),
+        received: list.reduce((sum, entry) => sum + (entry.invoice?.paid || 0), 0),
+      });
     } catch {
       notify("Could not load deliveries", true);
     }
-  }, [round.id, headers, notify]);
-  useEffect(() => { const timer = setTimeout(load, 0); return () => clearTimeout(timer); }, [load]);
+  }, [round.id, headers, notify, onSummary]);
+  useEffect(() => { const timer = setTimeout(load, 0); return () => clearTimeout(timer); }, [load, version]);
+  const changed = async () => { await load(); onChanged?.(); };
 
   const update = async (entry, body, message) => {
     try {
       await API.post(`/supply/rounds/${round.id}/delivery/${entry.company.id}`, body, { headers });
       if (message) notify(message);
-      await load();
+      await changed();
     } catch (err) {
       notify(err.response?.data?.error || "Could not save", true);
     }
@@ -235,7 +245,7 @@ export function DeliveryTab({ round, headers, isAdmin, notify }) {
   const setDelivered = async (line, value) => {
     try {
       await API.patch(`/supply/lines/${line.line_id}/delivered`, { delivered_qty: value }, { headers });
-      await load();
+      await changed();
     } catch (err) {
       notify(err.response?.data?.error || "Could not save", true);
     }
@@ -254,11 +264,11 @@ export function DeliveryTab({ round, headers, isAdmin, notify }) {
         <div className="fnd-kpi-blue"><span>Invoiced</span><b>{money(billed)}</b><small>{data.companies.filter((entry) => entry.invoice).length} invoice(s)</small></div>
         <div className="fnd-kpi-purple"><span>Received</span><b>{money(received)}</b><small>Balance {money(billed - received)}</small></div>
       </div>
-      {!data.seller?.name && <p className="fnd-hint">Add Snackit's name, address and GSTIN for invoices under <b>Invoice settings</b> (top of the page).</p>}
-      <div className="ds-orders">
+      {!data.seller?.name && <p className="fnd-hint">Add Snackit's name, address and GSTIN for invoices under <b>Invoice & link settings</b> (further down this page).</p>}
+      <div className="ds-orders is-grid is-wide">
         {data.companies.map((entry) => {
           const step = STEPS.indexOf(entry.delivery.status);
-          const isOpen = open === entry.company.id;
+          const isOpen = !hidden.has(entry.company.id);
           return (
             <div key={entry.company.id} className="ds-order ds-delivery">
               <div className="ds-order-head">
@@ -275,7 +285,7 @@ export function DeliveryTab({ round, headers, isAdmin, notify }) {
                 ))}
               </div>
               <div className="ds-delivery-tools">
-                <button type="button" className="audit-btn" onClick={() => setOpen(isOpen ? null : entry.company.id)}>{isOpen ? "Hide" : "Packing list"} ({entry.lines.length})</button>
+                <button type="button" className="audit-btn" onClick={() => setHidden((current) => { const next = new Set(current); if (isOpen) next.add(entry.company.id); else next.delete(entry.company.id); return next; })}>{isOpen ? "Hide list" : "Show list"} ({entry.lines.length})</button>
                 <button type="button" className="audit-btn" onClick={() => printPage(`Packing slip ${entry.company.name}`, packingSlip(round, entry, data.seller || {}))}>🖨 Packing slip</button>
                 <label className="audit-btn">📷 {entry.delivery.proof_url ? "Change photo" : "Delivery photo"}<input type="file" accept="image/*" hidden onChange={async (event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) update(entry, { photo: await readFile(file) }, "Photo saved"); }} /></label>
                 {entry.delivery.proof_url && <a href={entry.delivery.proof_url} target="_blank" rel="noreferrer" className="ds-proof"><img src={entry.delivery.proof_url} alt="Delivery proof" /></a>}
@@ -283,7 +293,7 @@ export function DeliveryTab({ round, headers, isAdmin, notify }) {
               </div>
               {entry.missing_prices.length > 0 && !entry.invoice && <p className="fnd-hint">No selling price yet for: {entry.missing_prices.join(", ")} (you can type it on the invoice).</p>}
               {isOpen && (
-                <table className="ds-table">
+                <div className="ds-table-wrap"><table className="ds-table">
                   <thead><tr><th>Item</th><th>Ordered</th><th>Packed / delivered</th><th>Rate</th><th>Amount</th></tr></thead>
                   <tbody>
                     {entry.lines.map((line) => (
@@ -296,123 +306,126 @@ export function DeliveryTab({ round, headers, isAdmin, notify }) {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></div>
               )}
             </div>
           );
         })}
       </div>
-      {draft && <InvoiceDraft round={round} entry={draft} headers={headers} onClose={() => setDraft(null)} onCreated={async (invoice) => { setDraft(null); notify(`${invoice.ref} created · ${money(invoice.total)}`); await load(); setViewing(invoice.id); }} />}
-      {viewing && <InvoiceView invoiceId={viewing} headers={headers} isAdmin={isAdmin} onChanged={load} onClose={() => setViewing(null)} />}
+      {draft && <InvoiceDraft round={round} entry={draft} headers={headers} onClose={() => setDraft(null)} onCreated={async (invoice) => { setDraft(null); notify(`${invoice.ref} created · ${money(invoice.total)}`); await changed(); setViewing(invoice.id); }} />}
+      {viewing && <InvoiceView invoiceId={viewing} headers={headers} isAdmin={isAdmin} onChanged={changed} onClose={() => setViewing(null)} />}
     </>
   );
 }
 
-/* ---------- Accounts: what each company owes ---------- */
-export function Accounts({ headers, isAdmin, onClose }) {
+/* ---------- Accounts: what each company owes (shown inside its box on the page) ---------- */
+export function Accounts({ headers, isAdmin, version = 0, onSummary, onChanged }) {
   const [data, setData] = useState(null);
   const [filter, setFilter] = useState("open");
   const [viewing, setViewing] = useState(null);
   const load = useCallback(async () => {
     const response = await API.get("/supply/accounts", { headers });
     setData(response.data);
-  }, [headers]);
-  useEffect(() => { const timer = setTimeout(() => load().catch(() => {}), 0); return () => clearTimeout(timer); }, [load]);
-  const invoices = (data?.invoices || []).filter((invoice) => filter === "all" || (filter === "open" ? invoice.balance > 0 : filter === "overdue" ? invoice.balance > 0 && invoice.due_date < data.today : invoice.status === "Paid"));
+    onSummary?.(response.data.totals);
+  }, [headers, onSummary]);
+  useEffect(() => { const timer = setTimeout(() => load().catch(() => {}), 0); return () => clearTimeout(timer); }, [load, version]);
+  if (!data) return <p className="audit-empty">Loading…</p>;
+  const invoices = data.invoices.filter((invoice) => filter === "all" || (filter === "open" ? invoice.balance > 0 : filter === "overdue" ? invoice.balance > 0 && invoice.due_date < data.today : invoice.status === "Paid"));
+  const count = (key) => data.invoices.filter((invoice) => (key === "open" ? invoice.balance > 0 : key === "overdue" ? invoice.balance > 0 && invoice.due_date < data.today : key === "paid" ? invoice.status === "Paid" : true)).length;
   return (
-    <div className="fnd-backdrop" onClick={onClose}>
-      <div className="fnd-modal ds-modal" onClick={(event) => event.stopPropagation()}>
-        <div className="fnd-modal-head"><div><h3>Accounts</h3><p className="fnd-sub">Invoices, payments received and what each company still owes</p></div><button type="button" className="fnd-close" onClick={onClose} aria-label="Close">×</button></div>
-        <div className="fnd-modal-body">
-          {!data ? <p className="audit-empty">Loading…</p> : <>
-            <div className="fnd-kpis ds-kpis">
-              <div className="fnd-kpi-blue"><span>Billed</span><b>{money(data.totals.billed)}</b><small>All invoices</small></div>
-              <div className="fnd-kpi-good"><span>Received</span><b>{money(data.totals.received)}</b><small>Payments</small></div>
-              <div className="fnd-kpi-warn"><span>Outstanding</span><b>{money(data.totals.outstanding)}</b><small>Still to collect</small></div>
-              <div className="fnd-kpi-bad"><span>Overdue</span><b>{money(data.totals.overdue)}</b><small>Past due date</small></div>
-            </div>
-            <h4 className="fnd-timeline-title">By company</h4>
-            <div className="ds-table-wrap">
-              <table className="ds-table">
-                <thead><tr><th>Company</th><th>Billed</th><th>Received</th><th>Outstanding</th><th>Overdue</th><th>Oldest due</th></tr></thead>
-                <tbody>
-                  {data.companies.map((entry) => (
-                    <tr key={entry.company_id}><td>{entry.name}</td><td>{money(entry.billed)}</td><td>{money(entry.received)}</td><td><b>{money(entry.outstanding)}</b></td><td className={entry.overdue > 0 ? "ds-minus" : ""}>{money(entry.overdue)}</td><td>{entry.oldest_due ? dateText(entry.oldest_due) : "—"}</td></tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            <div className="ds-tabs">
-              {[["open", "Unpaid"], ["overdue", "Overdue"], ["paid", "Paid"], ["all", "All"]].map(([key, label]) => <button type="button" key={key} className={filter === key ? "active" : ""} onClick={() => setFilter(key)}>{label}</button>)}
-            </div>
-            <div className="ds-table-wrap">
-              <table className="ds-table">
-                <thead><tr><th>Invoice</th><th>Company</th><th>Date</th><th>Due</th><th>Total</th><th>Balance</th><th>Status</th></tr></thead>
-                <tbody>
-                  {invoices.map((invoice) => (
-                    <tr key={invoice.id} className="ds-click" onClick={() => setViewing(invoice.id)}>
-                      <td><b>{invoice.ref}</b></td><td>{invoice.company_name}</td><td>{dateText(invoice.invoice_date)}</td>
-                      <td className={invoice.balance > 0 && invoice.due_date < data.today ? "ds-minus" : ""}>{dateText(invoice.due_date)}</td>
-                      <td>{money(invoice.total)}</td><td>{money(invoice.balance)}</td>
-                      <td><span className={`audit-pill fnd-tone-${STATUS_TONE[invoice.status]}`}>{invoice.status}</span></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+    <>
+      <div className="fnd-kpis ds-kpis">
+        <div className="fnd-kpi-blue"><span>Billed</span><b>{money(data.totals.billed)}</b><small>All invoices</small></div>
+        <div className="fnd-kpi-good"><span>Received</span><b>{money(data.totals.received)}</b><small>Payments</small></div>
+        <div className="fnd-kpi-warn"><span>Outstanding</span><b>{money(data.totals.outstanding)}</b><small>Still to collect</small></div>
+        <div className="fnd-kpi-bad" onClick={() => setFilter("overdue")}><span>Overdue</span><b>{money(data.totals.overdue)}</b><small>Past due date</small></div>
+      </div>
+      <div className="ds-split">
+        <div>
+          <h4 className="fnd-timeline-title">By company</h4>
+          <div className="ds-table-wrap is-tall">
+            <table className="ds-table">
+              <thead><tr><th>Company</th><th>Billed</th><th>Received</th><th>Outstanding</th><th>Overdue</th><th>Oldest due</th></tr></thead>
+              <tbody>
+                {data.companies.map((entry) => (
+                  <tr key={entry.company_id}><td>{entry.name}</td><td>{money(entry.billed)}</td><td>{money(entry.received)}</td><td><b>{money(entry.outstanding)}</b></td><td className={entry.overdue > 0 ? "ds-minus" : ""}>{money(entry.overdue)}</td><td>{entry.oldest_due ? dateText(entry.oldest_due) : "—"}</td></tr>
+                ))}
+              </tbody>
+            </table>
+            {!data.companies.length && <p className="audit-empty">No invoices yet.</p>}
+          </div>
+        </div>
+        <div>
+          <div className="ds-tabs ds-filter">
+            {[["open", "Unpaid"], ["overdue", "Overdue"], ["paid", "Paid"], ["all", "All"]].map(([key, label]) => <button type="button" key={key} className={filter === key ? "active" : ""} onClick={() => setFilter(key)}>{label} ({count(key)})</button>)}
+          </div>
+          <div className="ds-table-wrap is-tall">
+            <table className="ds-table">
+              <thead><tr><th>Invoice</th><th>Company</th><th>Due</th><th>Total</th><th>Balance</th><th>Status</th></tr></thead>
+              <tbody>
+                {invoices.map((invoice) => (
+                  <tr key={invoice.id} className="ds-click" onClick={() => setViewing(invoice.id)}>
+                    <td><b>{invoice.ref}</b><small className="ds-sub">{dateText(invoice.invoice_date)}</small></td><td>{invoice.company_name}</td>
+                    <td className={invoice.balance > 0 && invoice.due_date < data.today ? "ds-minus" : ""}>{dateText(invoice.due_date)}</td>
+                    <td>{money(invoice.total)}</td><td>{money(invoice.balance)}</td>
+                    <td><span className={`audit-pill fnd-tone-${STATUS_TONE[invoice.status]}`}>{invoice.status}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
             {!invoices.length && <p className="audit-empty">No invoices here.</p>}
-          </>}
+          </div>
         </div>
       </div>
-      {viewing && <InvoiceView invoiceId={viewing} headers={headers} isAdmin={isAdmin} onChanged={load} onClose={() => setViewing(null)} />}
-    </div>
+      {viewing && <InvoiceView invoiceId={viewing} headers={headers} isAdmin={isAdmin} onChanged={async () => { await load(); onChanged?.(); }} onClose={() => setViewing(null)} />}
+    </>
   );
 }
 
-/* ---------- Invoice settings: Snackit's details ---------- */
-export function SellerSettings({ headers, onClose, notify }) {
+/* ---------- Invoice settings: Snackit's details (shown inside its box on the page) ---------- */
+export function SellerSettings({ headers, notify }) {
   const [form, setForm] = useState(null);
+  const [saved, setSaved] = useState(null);
   useEffect(() => {
     let alive = true;
-    API.get("/supply/seller", { headers }).then((response) => alive && setForm({ name: "", address: "", gstin: "", phone: "", email: "", upi: "", bank: "", terms: "", public_url: "", ...response.data })).catch(() => alive && setForm({}));
+    API.get("/supply/seller", { headers }).then((response) => {
+      if (!alive) return;
+      const value = { name: "", address: "", gstin: "", phone: "", email: "", upi: "", bank: "", terms: "", public_url: "", ...response.data };
+      setForm(value);
+      setSaved(value);
+    }).catch(() => alive && setForm({}));
     return () => { alive = false; };
   }, [headers]);
   const set = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
+  const dirty = form && saved && JSON.stringify(form) !== JSON.stringify(saved);
   const save = async () => {
     try {
       await API.put("/supply/seller", form, { headers });
+      setSaved(form);
       notify("Invoice details saved");
-      onClose();
     } catch {
       notify("Could not save", true);
     }
   };
+  if (!form) return <p className="audit-empty">Loading…</p>;
   return (
-    <div className="fnd-backdrop" onClick={onClose}>
-      <div className="fnd-modal" onClick={(event) => event.stopPropagation()}>
-        <div className="fnd-modal-head"><div><h3>Invoice & link settings</h3><p className="fnd-sub">Snackit's details printed on every invoice, and the order-link address</p></div><button type="button" className="fnd-close" onClick={onClose} aria-label="Close">×</button></div>
-        {form && (
-          <div className="fnd-modal-body">
-            <div className="fnd-grid fnd-grid-3">
-              <label>Business name<input value={form.name} onChange={set("name")} placeholder="Snackit … Pvt Ltd" /></label>
-              <label>GSTIN<input value={form.gstin} onChange={set("gstin")} /></label>
-              <label>Phone<input value={form.phone} onChange={set("phone")} /></label>
-            </div>
-            <label>Address<textarea rows={2} value={form.address} onChange={set("address")} /></label>
-            <div className="fnd-grid fnd-grid-3">
-              <label>Email<input value={form.email} onChange={set("email")} /></label>
-              <label>UPI ID for payments<input value={form.upi} onChange={set("upi")} /></label>
-            </div>
-            <label>Bank details<textarea rows={2} value={form.bank} onChange={set("bank")} placeholder="Account name, number, IFSC" /></label>
-            <label>Terms (optional)<textarea rows={2} value={form.terms} onChange={set("terms")} placeholder="e.g. Payment within 7 days" /></label>
-            <label>Dashboard address for order links<input value={form.public_url} onChange={set("public_url")} placeholder={window.location.origin} /></label>
-            <p className="fnd-hint">The main address people open the dashboard on (not a preview link). Company order links start with it.</p>
-          </div>
-        )}
-        <div className="fnd-modal-foot">
-          <button type="button" className="audit-btn" onClick={onClose}>Cancel</button>
-          <button type="button" className="audit-btn audit-btn-primary" disabled={!form} onClick={save}>Save</button>
-        </div>
+    <div className="ds-settings">
+      <div className="fnd-grid fnd-grid-3">
+        <label>Business name<input value={form.name} onChange={set("name")} placeholder="Snackit … Pvt Ltd" /></label>
+        <label>GSTIN<input value={form.gstin} onChange={set("gstin")} /></label>
+        <label>Phone<input value={form.phone} onChange={set("phone")} /></label>
+      </div>
+      <label>Address<textarea rows={2} value={form.address} onChange={set("address")} /></label>
+      <div className="fnd-grid fnd-grid-3">
+        <label>Email<input value={form.email} onChange={set("email")} /></label>
+        <label>UPI ID for payments<input value={form.upi} onChange={set("upi")} /></label>
+        <label>Dashboard address for order links<input value={form.public_url} onChange={set("public_url")} placeholder={window.location.origin} /></label>
+      </div>
+      <label>Bank details<textarea rows={2} value={form.bank} onChange={set("bank")} placeholder="Account name, number, IFSC" /></label>
+      <label>Terms (optional)<textarea rows={2} value={form.terms} onChange={set("terms")} placeholder="e.g. Payment within 7 days" /></label>
+      <div className="ds-settings-foot">
+        <small className="na">The dashboard address is the main one people open (not a preview link).</small>
+        <button type="button" className={`audit-btn audit-btn-primary ${dirty ? "" : "is-saved"}`} disabled={!dirty} onClick={save}>{dirty ? "Save" : "✓ Saved"}</button>
       </div>
     </div>
   );

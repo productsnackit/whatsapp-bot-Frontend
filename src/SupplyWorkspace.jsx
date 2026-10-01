@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { Box } from "./SupplyFrame.jsx";
 import { DeliveryTab, Accounts, SellerSettings } from "./SupplyBilling.jsx";
 import SupplyReports from "./SupplyReports.jsx";
 
-/* Direct Supply (phase 1): each company's order for a delivery date is pasted or uploaded,
-   and the master sheet adds the same items up across companies for the stock buyer.
+/* Direct Supply: one page of always-open boxes. The top half is the delivery date you pick
+   (orders → master sheet → buying → delivery & billing); the bottom half is the business
+   across all dates (accounts, companies, vendors, items, prices, reports, settings).
    See directSupply.js on the server. */
 
 const API = axios.create({ baseURL: "https://whatsapp-bot-backend-b3nb.onrender.com" });
@@ -21,6 +23,75 @@ const readFile = (file) => new Promise((resolve, reject) => {
   reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
   reader.readAsDataURL(file);
 });
+const jump = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+/* Two "how to use" points and a use case for every box. */
+const GUIDES = {
+  dates: {
+    how: ["Pick a delivery date, or start a new one: every box below works on the date you pick.", "Orders that come on WhatsApp or through an order link go to the right date by themselves."],
+    use: "Fruits for Thursday and snacks for Friday are two dates, each with its own master sheet, buying and invoices.",
+  },
+  add: {
+    how: ["Paste a company admin's message, or one message with several companies under their names (or upload their Excel).", "Check what was read, pick the company if asked, and press Add: the master sheet updates at once."],
+    use: "Someone forwards “AERO – Apple 6 kg … CRED One – Apple 12 kg” in one message: paste it once and both companies' orders are added.",
+  },
+  control: {
+    how: ["Move the status as the day goes: Collecting → Sent to buyer → Bought → Delivered.", "Choose the stock buyer and press Send: they get the master sheet and the Excel file on WhatsApp."],
+    use: "At 6 pm all orders are in: send the combined list to the buyer so they can buy at the market early next morning.",
+  },
+  checks: {
+    how: ["A name that looks like an item you already have waits here: press Same as, or Different item.", "It remembers your answer, so the same spelling combines by itself next time."],
+    use: "“Banana Robusta” from one company and “banana” from another become one line in the master sheet.",
+  },
+  master: {
+    how: ["The same item from every company is added up into one Total, with each company's share beside it.", "Search an item or download the Excel; boxes turn into pieces once Pcs per box is set under Items."],
+    use: "Apple 6 kg for AERO + 12 kg for CRED shows as one line, Apple 18 kg: exactly what the buyer needs to buy.",
+  },
+  orders: {
+    how: ["Each company's order as it came in: change a quantity or unit right here.", "“Not ordered yet” shows which companies are still missing for this date."],
+    use: "AERO calls to make bananas 10 kg instead of 7: change it here and the master sheet and invoice follow.",
+  },
+  buying: {
+    how: ["Add each vendor's price with + Rate: the cheapest shows as Best rate and the margin is worked out before buying.", "After buying, press Bought with the quantity and price: Short shows what is still left to buy."],
+    use: "Two vendors quote apples at ₹120 and ₹110 a kg: the sheet uses ₹110 and shows the profit on this delivery.",
+  },
+  delivery: {
+    how: ["Tap the steps as each company's order moves: Packed → Out for delivery → Delivered, with photo and receiver's name.", "Change the packed quantity if something was short, then Create invoice: it bills only what was delivered."],
+    use: "Only 5 kg of the 6 kg apples went: type 5 and the invoice charges 5 kg, so there's no dispute later.",
+  },
+  accounts: {
+    how: ["What each company owes, what is overdue, and every invoice: all dates together.", "Click an invoice to record a payment (UPI, bank, cash, cheque) or print it as a PDF."],
+    use: "Every Monday, open Overdue and remind the companies that are past their due date.",
+  },
+  companies: {
+    how: ["Add each company with its admin's WhatsApp number: their messages to the Snackit number become orders automatically.", "Billing holds the invoice name, GSTIN, address and payment days; Order link gives them a page to order on their own."],
+    use: "Save CRED's admin number once: every list they WhatsApp lands here on the right delivery date.",
+  },
+  vendors: {
+    how: ["Add the shops and markets you buy from, with phone and area.", "Hide a vendor you no longer use: their old rates stay in the history."],
+    use: "Keep the fruit market and the wholesale dealer side by side to compare their rates every day.",
+  },
+  items: {
+    how: ["Every item ever ordered: fix the name, set a category, pieces per box and the selling price.", "Merge two items that are really the same: their quantities add up from then on."],
+    use: "Set Lays Classic 52g to 24 pcs per box, so one company's “2 box” and another's “30 pcs” add up to 78 pcs.",
+  },
+  selling: {
+    how: ["The Default column is the price charged to every company.", "Fill a company's column only when they pay a different price."],
+    use: "Apples are ₹160 a kg for everyone, but ₹150 for AERO by agreement: type 150 in AERO's column only.",
+  },
+  reports: {
+    how: ["Pick a period to see sales, cost, profit, and money received and still owed.", "See it by company and by item; pick an item to see how its buying price moved across vendors."],
+    use: "At month end, see which company and which item made the most profit, and whether apple prices are rising.",
+  },
+  settings: {
+    how: ["Snackit's name, GSTIN, address, UPI and bank details, printed on every invoice.", "The dashboard address is used at the start of every company's order link."],
+    use: "Add the UPI ID once and every invoice shows companies exactly where to pay.",
+  },
+  channels: {
+    how: ["Orders can arrive in four ways (below); all of them land in the same master sheet.", "Whoever sends again for the same date replaces their earlier order, so nothing is counted twice."],
+    use: "One company orders on WhatsApp, another through its link, and a third sends an Excel: one combined sheet for the buyer.",
+  },
+};
 
 /* ---------- Add orders: one company's, or a message with several companies ---------- */
 function LinesTable({ lines, units, onChange }) {
@@ -45,7 +116,7 @@ function LinesTable({ lines, units, onChange }) {
   );
 }
 
-function AddOrder({ headers, round, companies, units, onAddCompany, onSaved, onClose, initialText = "" }) {
+function AddOrder({ headers, round, companies, units, onAddCompany, onSaved, onMoveToDate, initialText = "" }) {
   const [mode, setMode] = useState("paste");
   const [text, setText] = useState(initialText);
   const [file, setFile] = useState(null);
@@ -56,6 +127,8 @@ function AddOrder({ headers, round, companies, units, onAddCompany, onSaved, onC
   const [error, setError] = useState("");
   const active = companies.filter((company) => company.active);
   const already = new Set(round.orderCompanyIds || []);
+
+  const reset = () => { setGroups(null); setText(""); setFile(null); setFound(null); setError(""); };
 
   const read = async (source = text) => {
     setBusy("read");
@@ -77,7 +150,7 @@ function AddOrder({ headers, round, companies, units, onAddCompany, onSaved, onC
     }
   };
 
-  // Pasted from "New delivery date": read straight away.
+  // Moved here from another date: read straight away.
   const [autoRead] = useState(Boolean(initialText));
   useEffect(() => {
     if (!autoRead) return undefined;
@@ -114,6 +187,8 @@ function AddOrder({ headers, round, companies, units, onAddCompany, onSaved, onC
         }, { headers });
         saved += 1;
       }
+      reset();
+      setBusy("");
       onSaved(saved);
     } catch (err) {
       setError(err.response?.data?.error || err.message || "Could not save");
@@ -132,65 +207,58 @@ function AddOrder({ headers, round, companies, units, onAddCompany, onSaved, onC
     </div>
   );
 
+  const foot = <>
+    {(groups || text || file) && <button type="button" className="audit-btn" onClick={reset}>Clear</button>}
+    {!groups
+      ? <button type="button" className="audit-btn audit-btn-primary" disabled={busy === "read" || (mode === "paste" ? !text.trim() : !file)} onClick={() => read()}>{busy === "read" ? "Reading…" : "Read order"}</button>
+      : <button type="button" className="audit-btn audit-btn-primary" disabled={busy === "save" || !itemCount || !ready} onClick={save}>{busy === "save" ? "Saving…" : several ? `Add ${groups.filter((group) => kept(group).length).length} companies' orders` : `Add ${itemCount} items to ${round.ref}`}</button>}
+  </>;
+
   return (
-    <div className="fnd-backdrop" onClick={onClose}>
-      <div className="fnd-modal ds-modal" onClick={(event) => event.stopPropagation()}>
-        <div className="fnd-modal-head">
-          <div><h3>Add orders</h3><p className="fnd-sub">{round.ref} · delivery {dayLabel(round.delivery_date)} · paste one company's order, or a message with several companies</p></div>
-          <button type="button" className="fnd-close" onClick={onClose} aria-label="Close">×</button>
+    <Box id="ds-add" icon="📥" tone="green" title="Add orders" sub={`To ${round.ref} · delivery ${dayLabel(round.delivery_date)}`} guide={GUIDES.add} foot={foot} className="ds-span-7">
+      {!groups && <>
+        <div className="ds-mode">
+          <button type="button" className={mode === "paste" ? "active" : ""} onClick={() => setMode("paste")}>Paste from WhatsApp</button>
+          <button type="button" className={mode === "file" ? "active" : ""} onClick={() => setMode("file")}>Upload Excel / CSV</button>
         </div>
-        <div className="fnd-modal-body">
-          {!groups && <>
-            <div className="ds-mode">
-              <button type="button" className={mode === "paste" ? "active" : ""} onClick={() => setMode("paste")}>Paste from WhatsApp</button>
-              <button type="button" className={mode === "file" ? "active" : ""} onClick={() => setMode("file")}>Upload Excel / CSV</button>
-            </div>
-            {mode === "paste" ? (
-              <label>The order message
-                <textarea rows={12} value={text} onChange={(event) => setText(event.target.value)} placeholder={"AERO\n- Apple - 6 kg\n- Banana - 7 kg\n\nCRED One\n- Apple - 12 kg\n\n(or one company's list: Lays Classic 52g - 20 …)"} />
-              </label>
-            ) : (
-              <label className="ds-file">{file ? `📄 ${file.name}` : "Choose the Excel or CSV file the admin sent"}
-                <input type="file" accept=".xlsx,.xls,.csv" onChange={(event) => setFile(event.target.files?.[0] || null)} />
-              </label>
-            )}
-          </>}
-          {groups && (
-            <div className="ds-preview">
-              <div className="ds-preview-head">
-                <b>{itemCount} item{itemCount === 1 ? "" : "s"}{several ? ` from ${groups.length} compan${groups.length === 1 ? "y" : "ies"}` : ""}</b>
-                <button type="button" className="audit-link-danger" onClick={() => setGroups(null)}>Read again</button>
-              </div>
-              {found?.date && found.date !== round.delivery_date && (
-                <div className="ds-note">📅 The message says <b>{dayLabel(found.date)}</b>, but this delivery date is <b>{dayLabel(round.delivery_date)}</b>. Check you're adding it to the right date.</div>
-              )}
-              {groups.map((group, index) => (
-                <div key={index} className={several ? "ds-group" : ""}>
-                  {several ? (
-                    <div className="ds-group-head">
-                      <b>{group.heading || "Company"}</b>
-                      {group.company && group.company !== "new" ? <span className="ds-chip is-known">✓ saved company</span> : group.company === "new" ? <span className="ds-chip is-new">✚ new company</span> : null}
-                      {companyPicker(group, index)}
-                    </div>
-                  ) : (
-                    <label className="ds-single-company">Company *{companyPicker(group, index)}</label>
-                  )}
-                  <LinesTable lines={group.lines} units={units} onChange={(lines) => setGroup(index, { lines })} />
-                </div>
-              ))}
-              {groups.some((group) => kept(group).some((line) => !(Number(line.qty) > 0))) && <p className="fnd-hint">Rows in red have no quantity. Fill it in, or remove the row.</p>}
+        {mode === "paste" ? (
+          <textarea className="ds-paste" rows={7} value={text} onChange={(event) => setText(event.target.value)} aria-label="The order message" placeholder={"AERO\n- Apple - 6 kg\n- Banana - 7 kg\n\nCRED One\n- Apple - 12 kg\n\n(or one company's list: Lays Classic 52g - 20 …)"} />
+        ) : (
+          <label className="ds-file">{file ? `📄 ${file.name}` : "Choose the Excel or CSV file the admin sent"}
+            <input type="file" accept=".xlsx,.xls,.csv" onChange={(event) => setFile(event.target.files?.[0] || null)} />
+          </label>
+        )}
+      </>}
+      {groups && (
+        <div className="ds-preview">
+          <div className="ds-preview-head">
+            <b>{itemCount} item{itemCount === 1 ? "" : "s"}{several ? ` from ${groups.length} compan${groups.length === 1 ? "y" : "ies"}` : ""}</b>
+          </div>
+          {found?.date && found.date !== round.delivery_date && (
+            <div className="ds-note">
+              📅 The message says <b>{dayLabel(found.date)}</b>, but you're adding to <b>{dayLabel(round.delivery_date)}</b>.
+              {mode === "paste" && <button type="button" className="audit-btn" onClick={() => onMoveToDate(found.date, found.title, text)}>Add to {dayLabel(found.date)} instead</button>}
             </div>
           )}
-          {error && <div className="audit-error">{error}</div>}
+          {groups.map((group, index) => (
+            <div key={index} className={several ? "ds-group" : ""}>
+              {several ? (
+                <div className="ds-group-head">
+                  <b>{group.heading || "Company"}</b>
+                  {group.company && group.company !== "new" ? <span className="ds-chip is-known">✓ saved company</span> : group.company === "new" ? <span className="ds-chip is-new">✚ new company</span> : null}
+                  {companyPicker(group, index)}
+                </div>
+              ) : (
+                <label className="ds-single-company">Company *{companyPicker(group, index)}</label>
+              )}
+              <div className="ds-table-wrap"><LinesTable lines={group.lines} units={units} onChange={(lines) => setGroup(index, { lines })} /></div>
+            </div>
+          ))}
+          {groups.some((group) => kept(group).some((line) => !(Number(line.qty) > 0))) && <p className="fnd-hint">Rows in red have no quantity. Fill it in, or remove the row.</p>}
         </div>
-        <div className="fnd-modal-foot">
-          <button type="button" className="audit-btn" onClick={onClose}>Cancel</button>
-          {!groups
-            ? <button type="button" className="audit-btn audit-btn-primary" disabled={busy === "read" || (mode === "paste" ? !text.trim() : !file)} onClick={() => read()}>{busy === "read" ? "Reading…" : "Read order"}</button>
-            : <button type="button" className="audit-btn audit-btn-primary" disabled={busy === "save" || !itemCount || !ready} onClick={save}>{busy === "save" ? "Saving…" : several ? `Add ${groups.filter((group) => kept(group).length).length} companies' orders` : `Add ${itemCount} items to ${round.ref}`}</button>}
-        </div>
-      </div>
-    </div>
+      )}
+      {error && <div className="audit-error">{error}</div>}
+    </Box>
   );
 }
 
@@ -213,7 +281,7 @@ function OrderLink({ company, headers, base }) {
   if (error) return <div className="audit-error">{error}</div>;
   if (!link) return <p className="audit-empty">Making the link…</p>;
   const url = `${base.replace(/\/$/, "")}/?order=${link.token}`;
-  const phone = String(company.contact_phone || "").replace(/\D/g, "");
+  const phone = String(company.contact_phone || "").split(/[,;/\n]+/)[0].replace(/\D/g, "");
   const waPhone = phone.length === 10 ? `91${phone}` : phone;
   const message = `Hi${company.contact_name ? ` ${company.contact_name}` : ""}, this is your Snackit order link for ${company.name}. Open it any time to place or change your order for the next delivery:\n${url}`;
   return (
@@ -236,7 +304,7 @@ function OrderLink({ company, headers, base }) {
   );
 }
 
-function Companies({ companies, onAdd, onUpdate, onClose, headers }) {
+function Companies({ companies, onAdd, onUpdate, headers, className }) {
   const [draft, setDraft] = useState({ name: "", contact_name: "", contact_phone: "", location: "" });
   const [billing, setBilling] = useState(null);
   const [linkFor, setLinkFor] = useState(null);
@@ -257,96 +325,95 @@ function Companies({ companies, onAdd, onUpdate, onClose, headers }) {
       setError(err.response?.data?.error || "Could not add");
     }
   };
+  const live = companies.filter((company) => company.active).length;
   return (
-    <div className="fnd-backdrop" onClick={onClose}>
-      <div className="fnd-modal" onClick={(event) => event.stopPropagation()}>
-        <div className="fnd-modal-head"><h3>Companies you supply</h3><button type="button" className="fnd-close" onClick={onClose} aria-label="Close">×</button></div>
-        <div className="fnd-modal-body">
-          <form className="ds-company-form" onSubmit={add}>
-            <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Company name *" required />
-            <input value={draft.contact_name} onChange={(event) => setDraft({ ...draft, contact_name: event.target.value })} placeholder="Admin's name" />
-            <input value={draft.contact_phone} onChange={(event) => setDraft({ ...draft, contact_phone: event.target.value })} placeholder="Admin's WhatsApp (commas for more)" inputMode="tel" />
-            <input value={draft.location} onChange={(event) => setDraft({ ...draft, location: event.target.value })} placeholder="Location" />
-            <button type="submit" className="audit-btn audit-btn-primary">Add</button>
-          </form>
-          {error && <div className="audit-error">{error}</div>}
-          <ul className="ds-companies">
-            {companies.map((company) => (
-              <li key={company.id} className={`${company.active ? "" : "is-off"} ${billing === company.id ? "is-open" : ""}`}>
-                <div><b>{company.name}</b><small>{[company.contact_name, company.contact_phone, company.location].filter(Boolean).join(" · ") || "No contact details"}{company.gstin ? ` · GSTIN ${company.gstin}` : ""}</small></div>
-                <div className="ds-company-actions">
-                  <button type="button" className="audit-btn" onClick={() => setLinkFor(linkFor === company.id ? null : company.id)}>🔗 Order link</button>
-                  <button type="button" className="audit-btn" onClick={() => setBilling(billing === company.id ? null : company.id)}>Billing</button>
-                  <button type="button" className="audit-btn" onClick={() => onUpdate(company, { active: !company.active })}>{company.active ? "Hide" : "Show again"}</button>
-                </div>
-                {linkFor === company.id && <OrderLink company={company} headers={headers} base={base} />}
-                {billing === company.id && (
-                  <div className="ds-billing">
-                    <label>Name on invoice<input defaultValue={company.billing_name || ""} placeholder={company.name} onBlur={(event) => event.target.value !== (company.billing_name || "") && onUpdate(company, { billing_name: event.target.value })} /></label>
-                    <label>GSTIN<input defaultValue={company.gstin || ""} onBlur={(event) => event.target.value !== (company.gstin || "") && onUpdate(company, { gstin: event.target.value })} /></label>
-                    <label>Admin's WhatsApp<input defaultValue={company.contact_phone || ""} placeholder="98xxxxxxxx, 99xxxxxxxx" onBlur={(event) => event.target.value !== (company.contact_phone || "") && onUpdate(company, { contact_phone: event.target.value })} /></label>
-                    <label>Admin's name<input defaultValue={company.contact_name || ""} onBlur={(event) => event.target.value !== (company.contact_name || "") && onUpdate(company, { contact_name: event.target.value })} /></label>
-                    <label>Pays within (days)<input type="number" min="0" defaultValue={company.payment_days ?? ""} placeholder="7" onBlur={(event) => String(event.target.value) !== String(company.payment_days ?? "") && onUpdate(company, { payment_days: event.target.value })} /></label>
-                    <label className="ds-billing-wide">Billing address<textarea rows={2} defaultValue={company.address || ""} onBlur={(event) => event.target.value !== (company.address || "") && onUpdate(company, { address: event.target.value })} /></label>
-                  </div>
-                )}
-              </li>
-            ))}
-            {!companies.length && <p className="audit-empty">No companies yet. Add the first one above.</p>}
-          </ul>
-        </div>
-      </div>
-    </div>
+    <Box id="ds-companies" icon="🏢" tone="blue" title="Companies you supply" sub={`${live} active${companies.length > live ? ` · ${companies.length - live} hidden` : ""} · ${companies.filter((company) => company.contact_phone).length} order on WhatsApp`} guide={GUIDES.companies} className={className}>
+      <form className="ds-company-form" onSubmit={add}>
+        <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Company name *" required />
+        <input value={draft.contact_name} onChange={(event) => setDraft({ ...draft, contact_name: event.target.value })} placeholder="Admin's name" />
+        <input value={draft.contact_phone} onChange={(event) => setDraft({ ...draft, contact_phone: event.target.value })} placeholder="Admin's WhatsApp (commas for more)" inputMode="tel" />
+        <input value={draft.location} onChange={(event) => setDraft({ ...draft, location: event.target.value })} placeholder="Location" />
+        <button type="submit" className="audit-btn audit-btn-primary">Add</button>
+      </form>
+      {error && <div className="audit-error">{error}</div>}
+      <ul className="ds-companies">
+        {companies.map((company) => (
+          <li key={company.id} className={`${company.active ? "" : "is-off"} ${billing === company.id ? "is-open" : ""}`}>
+            <div>
+              <b>{company.name}</b>
+              {company.contact_phone && <span className="ds-chip is-known" title="Messages from this number become orders">💬 WhatsApp orders</span>}
+              {company.gstin && <span className="ds-chip is-new">GST</span>}
+              <small>{[company.contact_name, company.contact_phone, company.location].filter(Boolean).join(" · ") || "No contact details"}{company.payment_days != null ? ` · pays in ${company.payment_days} days` : ""}</small>
+            </div>
+            <div className="ds-company-actions">
+              <button type="button" className="audit-btn" onClick={() => setLinkFor(linkFor === company.id ? null : company.id)}>🔗 Order link</button>
+              <button type="button" className="audit-btn" onClick={() => setBilling(billing === company.id ? null : company.id)}>Billing</button>
+              <button type="button" className="audit-btn" onClick={() => onUpdate(company, { active: !company.active })}>{company.active ? "Hide" : "Show again"}</button>
+            </div>
+            {linkFor === company.id && <OrderLink company={company} headers={headers} base={base} />}
+            {billing === company.id && (
+              <div className="ds-billing">
+                <label>Name on invoice<input defaultValue={company.billing_name || ""} placeholder={company.name} onBlur={(event) => event.target.value !== (company.billing_name || "") && onUpdate(company, { billing_name: event.target.value })} /></label>
+                <label>GSTIN<input defaultValue={company.gstin || ""} onBlur={(event) => event.target.value !== (company.gstin || "") && onUpdate(company, { gstin: event.target.value })} /></label>
+                <label>Admin's WhatsApp<input defaultValue={company.contact_phone || ""} placeholder="98xxxxxxxx, 99xxxxxxxx" onBlur={(event) => event.target.value !== (company.contact_phone || "") && onUpdate(company, { contact_phone: event.target.value })} /></label>
+                <label>Admin's name<input defaultValue={company.contact_name || ""} onBlur={(event) => event.target.value !== (company.contact_name || "") && onUpdate(company, { contact_name: event.target.value })} /></label>
+                <label>Pays within (days)<input type="number" min="0" defaultValue={company.payment_days ?? ""} placeholder="7" onBlur={(event) => String(event.target.value) !== String(company.payment_days ?? "") && onUpdate(company, { payment_days: event.target.value })} /></label>
+                <label className="ds-billing-wide">Billing address<textarea rows={2} defaultValue={company.address || ""} onBlur={(event) => event.target.value !== (company.address || "") && onUpdate(company, { address: event.target.value })} /></label>
+              </div>
+            )}
+          </li>
+        ))}
+        {!companies.length && <p className="audit-empty">No companies yet. Add the first one above.</p>}
+      </ul>
+    </Box>
   );
 }
 
 /* ---------- Items (names the master sheet uses) ---------- */
-function Items({ products, units, onUpdate, onMerge, onClose }) {
+function Items({ products, units, onUpdate, onMerge }) {
   const [query, setQuery] = useState("");
   const [merging, setMerging] = useState(null);
   const q = query.trim().toLowerCase();
   const shown = products.filter((product) => !q || `${product.name} ${(product.aliases || []).join(" ")} ${product.category || ""}`.toLowerCase().includes(q));
+  const noPrice = products.filter((product) => product.sell_price == null).length;
   return (
-    <div className="fnd-backdrop" onClick={onClose}>
-      <div className="fnd-modal ds-modal" onClick={(event) => event.stopPropagation()}>
-        <div className="fnd-modal-head"><div><h3>Items</h3><p className="fnd-sub">Every item ever ordered. Rename, set a category, or merge two that are the same.</p></div><button type="button" className="fnd-close" onClick={onClose} aria-label="Close">×</button></div>
-        <div className="fnd-modal-body">
-          <input className="ds-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search items" />
-          <table className="ds-table">
-            <thead><tr><th>Item</th><th>Unit</th><th>Category</th><th title="So '2 box' adds to pieces">Pcs per box</th><th>Sell price (₹)</th><th>Other spellings</th><th /></tr></thead>
-            <tbody>
-              {shown.map((product) => (
-                <tr key={product.id}>
-                  <td><input defaultValue={product.name} onBlur={(event) => event.target.value.trim() !== product.name && onUpdate(product, { name: event.target.value })} /></td>
-                  <td><select value={product.unit} onChange={(event) => onUpdate(product, { unit: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></td>
-                  <td><input defaultValue={product.category || ""} placeholder="e.g. Chips, Fruit" onBlur={(event) => event.target.value !== (product.category || "") && onUpdate(product, { category: event.target.value })} /></td>
-                  <td><input type="number" min="0" step="1" className="ds-qty" defaultValue={product.pack_size ?? ""} placeholder="—" onBlur={(event) => String(event.target.value) !== String(product.pack_size ?? "") && onUpdate(product, { pack_size: event.target.value })} /></td>
-                  <td><input type="number" min="0" step="any" className="ds-qty" defaultValue={product.sell_price ?? ""} placeholder={`per ${product.unit}`} onBlur={(event) => String(event.target.value) !== String(product.sell_price ?? "") && onUpdate(product, { sell_price: event.target.value })} /></td>
-                  <td><small>{(product.aliases || []).join(", ") || "—"}</small></td>
-                  <td>
-                    {merging === product.id ? (
-                      <select autoFocus onChange={(event) => { if (event.target.value) onMerge(product, Number(event.target.value)); setMerging(null); }} onBlur={() => setMerging(null)}>
-                        <option value="">Same as…</option>
-                        {products.filter((other) => other.id !== product.id).map((other) => <option key={other.id} value={other.id}>{other.name}</option>)}
-                      </select>
-                    ) : <button type="button" className="audit-btn" onClick={() => setMerging(product.id)}>Merge</button>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!shown.length && <p className="audit-empty">No items yet. They appear as orders are added.</p>}
-        </div>
+    <Box id="ds-items" icon="🏷️" tone="slate" title="Items" sub={`${products.length} items${noPrice ? ` · ${noPrice} without a selling price` : ""}`} guide={GUIDES.items}
+      actions={<input className="ds-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search items" />}>
+      <div className="ds-table-wrap is-tall">
+        <table className="ds-table">
+          <thead><tr><th>Item</th><th>Unit</th><th>Category</th><th title="So '2 box' adds to pieces">Pcs per box</th><th>Sell price (₹)</th><th>Other spellings</th><th /></tr></thead>
+          <tbody>
+            {shown.map((product) => (
+              <tr key={product.id}>
+                <td><input defaultValue={product.name} onBlur={(event) => event.target.value.trim() !== product.name && onUpdate(product, { name: event.target.value })} /></td>
+                <td><select value={product.unit} onChange={(event) => onUpdate(product, { unit: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></td>
+                <td><input defaultValue={product.category || ""} placeholder="e.g. Chips, Fruit" onBlur={(event) => event.target.value !== (product.category || "") && onUpdate(product, { category: event.target.value })} /></td>
+                <td><input type="number" min="0" step="1" className="ds-qty" defaultValue={product.pack_size ?? ""} placeholder="—" onBlur={(event) => String(event.target.value) !== String(product.pack_size ?? "") && onUpdate(product, { pack_size: event.target.value })} /></td>
+                <td><input type="number" min="0" step="any" className="ds-qty" defaultValue={product.sell_price ?? ""} placeholder={`per ${product.unit}`} onBlur={(event) => String(event.target.value) !== String(product.sell_price ?? "") && onUpdate(product, { sell_price: event.target.value })} /></td>
+                <td><small>{(product.aliases || []).join(", ") || "—"}</small></td>
+                <td>
+                  {merging === product.id ? (
+                    <select autoFocus onChange={(event) => { if (event.target.value) onMerge(product, Number(event.target.value)); setMerging(null); }} onBlur={() => setMerging(null)}>
+                      <option value="">Same as…</option>
+                      {products.filter((other) => other.id !== product.id).map((other) => <option key={other.id} value={other.id}>{other.name}</option>)}
+                    </select>
+                  ) : <button type="button" className="audit-btn" onClick={() => setMerging(product.id)}>Merge</button>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-    </div>
+      {!shown.length && <p className="audit-empty">No items yet. They appear as orders are added.</p>}
+    </Box>
   );
 }
 
-/* ---------- Phase 2: vendors, rates, purchases, selling prices ---------- */
+/* ---------- Vendors, rates, purchases, selling prices ---------- */
 const money = (value) => (value == null ? "—" : `₹${Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`);
 const when = (value) => (value ? new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "");
 
-function Vendors({ vendors, onAdd, onUpdate, onClose }) {
+function Vendors({ vendors, onAdd, onUpdate, className }) {
   const [draft, setDraft] = useState({ name: "", contact_name: "", phone: "", location: "" });
   const [error, setError] = useState("");
   const add = async (event) => {
@@ -360,30 +427,25 @@ function Vendors({ vendors, onAdd, onUpdate, onClose }) {
     }
   };
   return (
-    <div className="fnd-backdrop" onClick={onClose}>
-      <div className="fnd-modal" onClick={(event) => event.stopPropagation()}>
-        <div className="fnd-modal-head"><div><h3>Vendors</h3><p className="fnd-sub">Where stock and fruit are bought</p></div><button type="button" className="fnd-close" onClick={onClose} aria-label="Close">×</button></div>
-        <div className="fnd-modal-body">
-          <form className="ds-company-form" onSubmit={add}>
-            <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Vendor name *" required />
-            <input value={draft.contact_name} onChange={(event) => setDraft({ ...draft, contact_name: event.target.value })} placeholder="Contact person" />
-            <input value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} placeholder="Phone" inputMode="tel" />
-            <input value={draft.location} onChange={(event) => setDraft({ ...draft, location: event.target.value })} placeholder="Market / area" />
-            <button type="submit" className="audit-btn audit-btn-primary">Add</button>
-          </form>
-          {error && <div className="audit-error">{error}</div>}
-          <ul className="ds-companies">
-            {vendors.map((vendor) => (
-              <li key={vendor.id} className={vendor.active ? "" : "is-off"}>
-                <div><b>{vendor.name}</b><small>{[vendor.contact_name, vendor.phone, vendor.location].filter(Boolean).join(" · ") || "No contact details"}</small></div>
-                <button type="button" className="audit-btn" onClick={() => onUpdate(vendor, { active: !vendor.active })}>{vendor.active ? "Hide" : "Show again"}</button>
-              </li>
-            ))}
-            {!vendors.length && <p className="audit-empty">No vendors yet. Add the first one above.</p>}
-          </ul>
-        </div>
-      </div>
-    </div>
+    <Box id="ds-vendors" icon="🧺" tone="purple" title="Vendors" sub={`${vendors.filter((vendor) => vendor.active).length} active · where stock and fruit are bought`} guide={GUIDES.vendors} className={className}>
+      <form className="ds-company-form ds-vendor-form" onSubmit={add}>
+        <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Vendor name *" required />
+        <input value={draft.contact_name} onChange={(event) => setDraft({ ...draft, contact_name: event.target.value })} placeholder="Contact person" />
+        <input value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} placeholder="Phone" inputMode="tel" />
+        <input value={draft.location} onChange={(event) => setDraft({ ...draft, location: event.target.value })} placeholder="Market / area" />
+        <button type="submit" className="audit-btn audit-btn-primary">Add</button>
+      </form>
+      {error && <div className="audit-error">{error}</div>}
+      <ul className="ds-companies">
+        {vendors.map((vendor) => (
+          <li key={vendor.id} className={vendor.active ? "" : "is-off"}>
+            <div><b>{vendor.name}</b><small>{[vendor.contact_name, vendor.phone, vendor.location].filter(Boolean).join(" · ") || "No contact details"}</small></div>
+            <button type="button" className="audit-btn" onClick={() => onUpdate(vendor, { active: !vendor.active })}>{vendor.active ? "Hide" : "Show again"}</button>
+          </li>
+        ))}
+        {!vendors.length && <p className="audit-empty">No vendors yet. Add the first one above.</p>}
+      </ul>
+    </Box>
   );
 }
 
@@ -467,12 +529,12 @@ function BuyForm({ kind, row, round, vendors, headers, onAddVendor, onSaved, onC
 }
 
 // Selling prices: a default per item, and any company that pays a different price.
-function SellingPrices({ headers, companies, onClose, onChanged }) {
+function SellingPrices({ headers, companies, onChanged, version }) {
   const [data, setData] = useState(null);
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const load = useCallback(() => API.get("/supply/selling-prices", { headers }).then((response) => setData(response.data)).catch(() => setError("Could not load prices")), [headers]);
-  useEffect(() => { const timer = setTimeout(load, 0); return () => clearTimeout(timer); }, [load]);
+  useEffect(() => { const timer = setTimeout(load, 0); return () => clearTimeout(timer); }, [load, version]);
   const active = companies.filter((company) => company.active);
   const special = (companyId, item) => data.company_prices.find((price) => price.company_id === companyId && price.product_id === item.id && price.unit === item.unit)?.price;
   const save = async (request) => {
@@ -486,34 +548,30 @@ function SellingPrices({ headers, companies, onClose, onChanged }) {
   };
   const q = query.trim().toLowerCase();
   return (
-    <div className="fnd-backdrop" onClick={onClose}>
-      <div className="fnd-modal ds-modal" onClick={(event) => event.stopPropagation()}>
-        <div className="fnd-modal-head"><div><h3>Selling prices</h3><p className="fnd-sub">Price per unit charged to companies. Fill a company's box only if they pay differently from the default.</p></div><button type="button" className="fnd-close" onClick={onClose} aria-label="Close">×</button></div>
-        <div className="fnd-modal-body">
-          {error && <div className="audit-error">{error}</div>}
-          <input className="ds-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search items" />
-          {!data ? <p className="audit-empty">Loading…</p> : (
-            <div className="ds-table-wrap">
-              <table className="ds-table ds-prices">
-                <thead><tr><th>Item</th><th>Unit</th><th>Default (₹)</th>{active.map((company) => <th key={company.id}>{company.name}</th>)}</tr></thead>
-                <tbody>
-                  {data.items.filter((item) => !q || item.name.toLowerCase().includes(q)).map((item) => (
-                    <tr key={item.id}>
-                      <td>{item.name}</td>
-                      <td>{item.unit}</td>
-                      <td><input type="number" min="0" step="any" className="ds-qty" defaultValue={item.sell_price ?? ""} onBlur={(event) => String(event.target.value) !== String(item.sell_price ?? "") && save(() => API.patch(`/supply/products/${item.id}`, { sell_price: event.target.value }, { headers }))} /></td>
-                      {active.map((company) => (
-                        <td key={company.id}><input type="number" min="0" step="any" className="ds-qty" placeholder={item.sell_price ?? ""} defaultValue={special(company.id, item) ?? ""} onBlur={(event) => String(event.target.value) !== String(special(company.id, item) ?? "") && save(() => API.put("/supply/company-prices", { company_id: company.id, product_id: item.id, unit: item.unit, price: event.target.value }, { headers }))} /></td>
-                      ))}
-                    </tr>
+    <Box id="ds-selling" icon="💲" tone="green" title="Selling prices" sub={data ? `${data.items.length} items · ${data.company_prices.length} company price${data.company_prices.length === 1 ? "" : "s"}` : "Price per unit charged to companies"} guide={GUIDES.selling}
+      actions={<input className="ds-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search items" />}>
+      {error && <div className="audit-error">{error}</div>}
+      {!data ? <p className="audit-empty">Loading…</p> : (
+        <div className="ds-table-wrap is-tall">
+          <table className="ds-table ds-prices">
+            <thead><tr><th>Item</th><th>Unit</th><th>Default (₹)</th>{active.map((company) => <th key={company.id}>{company.name}</th>)}</tr></thead>
+            <tbody>
+              {data.items.filter((item) => !q || item.name.toLowerCase().includes(q)).map((item) => (
+                <tr key={`${item.id}-${item.sell_price}`}>
+                  <td>{item.name}</td>
+                  <td>{item.unit}</td>
+                  <td><input type="number" min="0" step="any" className="ds-qty" defaultValue={item.sell_price ?? ""} onBlur={(event) => String(event.target.value) !== String(item.sell_price ?? "") && save(() => API.patch(`/supply/products/${item.id}`, { sell_price: event.target.value }, { headers }))} /></td>
+                  {active.map((company) => (
+                    <td key={company.id}><input type="number" min="0" step="any" className="ds-qty" placeholder={item.sell_price ?? ""} defaultValue={special(company.id, item) ?? ""} onBlur={(event) => String(event.target.value) !== String(special(company.id, item) ?? "") && save(() => API.put("/supply/company-prices", { company_id: company.id, product_id: item.id, unit: item.unit, price: event.target.value }, { headers }))} /></td>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!data.items.length && <p className="audit-empty">No items yet.</p>}
         </div>
-      </div>
-    </div>
+      )}
+    </Box>
   );
 }
 
@@ -528,7 +586,7 @@ function BuyingTab({ buying, onRate, onBuy, onRemovePurchase }) {
         <div className={totals.margin >= 0 ? "fnd-kpi-good" : "fnd-kpi-bad"}><span>Margin</span><b>{money(totals.margin)}</b><small>{totals.margin_percent != null ? `${totals.margin_percent}% of selling value` : "Add rates and selling prices"}</small></div>
       </div>
       {totals.missing_rates > 0 && <p className="fnd-hint">{totals.missing_rates} item{totals.missing_rates === 1 ? " has" : "s have"} no vendor rate yet: tap "+ Rate" to add one.</p>}
-      <div className="ds-table-wrap">
+      <div className="ds-table-wrap is-tall">
         <table className="ds-table ds-buying">
           <thead><tr><th>Item</th><th>Need</th><th>Best rate</th><th>Est. cost</th><th>Bought</th><th>Short</th><th>Selling</th><th>Margin</th><th /></tr></thead>
           <tbody>
@@ -566,23 +624,40 @@ function BuyingTab({ buying, onRate, onBuy, onRemovePurchase }) {
   );
 }
 
+/* ---------- The day's flow at the top: five steps with live numbers, tap to jump ---------- */
+function Flow({ steps }) {
+  return (
+    <ol className="ds-flow">
+      {steps.map((step, index) => (
+        <li key={step.title} className={`is-${step.state}`}>
+          <button type="button" onClick={() => jump(step.target)}>
+            <span className="ds-flow-num">{step.state === "done" ? "✓" : index + 1}</span>
+            <span className="ds-flow-text"><b>{step.title}</b><strong>{step.value}</strong><small>{step.note}</small></span>
+          </button>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 /* ---------- Page ---------- */
 export default function SupplyWorkspace({ token, isAdmin, internalUsers, version = 0 }) {
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
   const [overview, setOverview] = useState(null);
   const [roundId, setRoundId] = useState(null);
   const [detail, setDetail] = useState(null);
-  const [tab, setTab] = useState("master");
-  const [modal, setModal] = useState(null);
   const [toast, setToast] = useState(null);
   const [newDate, setNewDate] = useState(tomorrow);
   const [newTitle, setNewTitle] = useState("");
-  const [newMessage, setNewMessage] = useState("");
   const [orderText, setOrderText] = useState("");
+  const [orderKey, setOrderKey] = useState(0);
   const [buyerId, setBuyerId] = useState("");
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState("");
   const [buyForm, setBuyForm] = useState(null);
+  const [billingVersion, setBillingVersion] = useState(0);
+  const [deliverySummary, setDeliverySummary] = useState(null);
+  const [accountsSummary, setAccountsSummary] = useState(null);
 
   const notify = useCallback((message, isError = false) => {
     setToast({ message, isError });
@@ -630,31 +705,27 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers, version
     }
   };
 
-  const createRound = () => call("round", async () => {
-    const response = await API.post("/supply/rounds", { delivery_date: newDate, title: newTitle }, { headers });
-    setRoundId(response.data.id);
-    setNewTitle("");
-    // A pasted message goes straight into "Add orders" for the new date.
-    if (newMessage.trim()) {
-      setOrderText(newMessage);
-      setNewMessage("");
-      setModal("order");
-    } else setModal(null);
+  const startRound = async (date, title) => {
+    const response = await API.post("/supply/rounds", { delivery_date: date, title }, { headers });
     return response.data;
+  };
+
+  const createRound = () => call("round", async () => {
+    const created = await startRound(newDate, newTitle);
+    setRoundId(created.id);
+    setNewTitle("");
+    return created;
   }, (round) => `${round.ref} started for ${dayLabel(round.delivery_date)}`);
 
-  // The date and title in a pasted message ("Fruits requirements for 1/10/26") fill the form.
-  const readMessage = async (value) => {
-    setNewMessage(value);
-    if (!value.trim()) return;
-    try {
-      const response = await API.post("/supply/parse", { text: value }, { headers });
-      if (response.data.date) setNewDate(response.data.date);
-      if (response.data.title) setNewTitle((current) => current || response.data.title);
-    } catch {
-      // nothing readable yet: the form stays as it is
-    }
-  };
+  // "Add to <date> instead": that date's open delivery (or a new one), with the message read again there.
+  const moveToDate = (date, title, text) => call("round", async () => {
+    const existing = (overview?.rounds || []).find((item) => item.delivery_date === date && item.status !== "Delivered");
+    const target = existing || await startRound(date, title || "");
+    setRoundId(target.id);
+    setOrderText(text);
+    setOrderKey((key) => key + 1);
+    return target;
+  }, (round) => `Now adding to ${round.ref} · ${dayLabel(round.delivery_date)}`);
 
   const addVendor = async (draft) => {
     const response = await API.post("/supply/vendors", draft, { headers });
@@ -667,6 +738,8 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers, version
     await loadOverview();
     return response.data;
   };
+
+  const round = detail?.round || null;
 
   const downloadExcel = async () => {
     try {
@@ -682,119 +755,185 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers, version
     }
   };
 
-  const round = detail?.round;
+  const onDeliverySummary = useCallback((summary) => setDeliverySummary(summary), []);
+  const onAccountsSummary = useCallback((summary) => setAccountsSummary(summary), []);
+  const billingChanged = useCallback(() => setBillingVersion((value) => value + 1), []);
+
   const companies = overview?.companies || [];
   const units = overview?.units || ["pcs", "kg", "box", "pkt"];
   const buyers = (internalUsers || []).filter((user) => user.phone);
   const q = search.trim().toLowerCase();
   const master = (detail?.master || []).filter((row) => !q || `${row.name} ${row.spellings.join(" ")}`.toLowerCase().includes(q));
-  const checks = detail?.checks || [];
+  const checks = round ? detail.checks || [] : [];
 
   if (!overview) return <div className="audit-workspace"><p className="audit-empty">Loading Direct Supply…</p></div>;
+
+  const ordered = new Set((round ? detail.orders : []).map((order) => order.company_id));
+  const waiting = companies.filter((company) => company.active && !ordered.has(company.id));
+  const totals = round ? detail.buying?.totals : null;
+  const delivery = deliverySummary?.roundId === round?.id ? deliverySummary : null;
+  const statusIndex = round ? STATUSES.indexOf(round.status) : -1;
+  const flow = round ? [
+    {
+      title: "Orders in", target: "ds-orders",
+      value: `${detail.orders.length} / ${companies.filter((company) => company.active).length || detail.orders.length}`,
+      note: waiting.length && round.status === "Collecting" ? `Waiting: ${waiting.slice(0, 2).map((company) => company.name).join(", ")}${waiting.length > 2 ? ` +${waiting.length - 2}` : ""}` : "companies ordered",
+      state: statusIndex > 0 ? "done" : detail.orders.length ? "now" : "todo",
+    },
+    {
+      title: "Master sheet", target: "ds-master",
+      value: `${detail.master.length} items`,
+      note: checks.length ? `${checks.length} name${checks.length === 1 ? "" : "s"} to check` : round.sent_at ? `Sent to ${round.sent_to}` : "Ready to send",
+      state: round.sent_at || statusIndex > 0 ? "done" : checks.length ? "warn" : detail.master.length ? "now" : "todo",
+    },
+    {
+      title: "Buy", target: "ds-buying",
+      value: totals ? money(totals.spent) : "—",
+      note: totals ? (totals.short_items ? `${totals.short_items} item${totals.short_items === 1 ? "" : "s"} still to buy` : detail.master.length ? "Everything bought" : "Nothing to buy yet") : "",
+      state: totals && detail.master.length && !totals.short_items ? "done" : totals?.spent ? "now" : "todo",
+    },
+    {
+      title: "Deliver", target: "ds-delivery",
+      value: delivery ? `${delivery.delivered} / ${delivery.total}` : "—",
+      note: delivery ? (delivery.total && delivery.delivered === delivery.total ? "All delivered" : "companies delivered") : "",
+      state: delivery?.total && delivery.delivered === delivery.total ? "done" : delivery?.delivered ? "now" : "todo",
+    },
+    {
+      title: "Bill & collect", target: "ds-delivery",
+      value: delivery ? money(delivery.billed) : "—",
+      note: delivery ? (delivery.billed ? `${money(delivery.received)} received` : `${delivery.invoiced} invoice${delivery.invoiced === 1 ? "" : "s"}`) : "",
+      state: delivery?.billed && delivery.received >= delivery.billed - 0.005 ? "done" : delivery?.billed ? "now" : "todo",
+    },
+  ] : [];
 
   return (
     <div className="audit-workspace ds-workspace">
       {toast && <div className={`audit-toast ${toast.isError ? "is-error" : ""}`}>{toast.message}</div>}
 
-      <section className="audit-card ds-top">
+      {/* ---- Header: delivery dates, money at a glance, quick jumps ---- */}
+      <section className="audit-card ds-hero">
+        <div className="ds-hero-head">
+          <div>
+            <h2>Direct Supply</h2>
+            <p>Orders from companies → one master sheet → buy → deliver → bill and collect.</p>
+          </div>
+          <div className="ds-hero-stats">
+            <div><span>Outstanding</span><b>{accountsSummary ? money(accountsSummary.outstanding) : "—"}</b></div>
+            <div className={accountsSummary?.overdue > 0 ? "is-bad" : ""}><span>Overdue</span><b>{accountsSummary ? money(accountsSummary.overdue) : "—"}</b></div>
+            <div><span>Companies</span><b>{companies.filter((company) => company.active).length}</b></div>
+            <div><span>Vendors</span><b>{(overview.vendors || []).filter((vendor) => vendor.active).length}</b></div>
+          </div>
+        </div>
+
+        <div className="ds-guide-row">
+          <div className="ds-guide">
+            <div className="ds-guide-how"><b>How to use</b><ol>{GUIDES.dates.how.map((point) => <li key={point}>{point}</li>)}</ol></div>
+            <div className="ds-guide-use"><b>Use case</b><p>{GUIDES.dates.use}</p></div>
+          </div>
+        </div>
+
         <div className="ds-rounds">
+          <div className="ds-round ds-round-new">
+            <b>＋ New delivery date</b>
+            <input type="date" value={newDate} onChange={(event) => setNewDate(event.target.value)} aria-label="Delivery date" />
+            <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="Name (optional)" aria-label="Name" />
+            <button type="button" className="audit-btn audit-btn-primary" disabled={!newDate || busy === "round"} onClick={createRound}>Start</button>
+          </div>
           {overview.rounds.map((item) => (
             <button type="button" key={item.id} className={`ds-round ${item.id === roundId ? "active" : ""}`} onClick={() => setRoundId(item.id)}>
+              <span className={`ds-round-dot fnd-tone-${STATUS_TONE[item.status]}`} />
               <b>{dayLabel(item.delivery_date)}</b>
               <small>{item.ref}{item.title ? ` · ${item.title}` : ""}</small>
               <small>{item.company_count} compan{item.company_count === 1 ? "y" : "ies"} · {item.status}</small>
             </button>
           ))}
-          <button type="button" className="ds-round ds-round-new" onClick={() => setModal("round")}>＋ New delivery date</button>
         </div>
-        <div className="ds-top-actions">
-          <button type="button" className="audit-btn" onClick={() => setModal("companies")}>Companies ({companies.length})</button>
-          <button type="button" className="audit-btn" onClick={() => setModal("items")}>Items ({overview.products.length})</button>
-          <button type="button" className="audit-btn" onClick={() => setModal("vendors")}>Vendors ({(overview.vendors || []).length})</button>
-          <button type="button" className="audit-btn" onClick={() => setModal("selling")}>Selling prices</button>
-          <button type="button" className="audit-btn" onClick={() => setModal("reports")}>📊 Reports</button>
-          <button type="button" className="audit-btn" onClick={() => setModal("accounts")}>💰 Accounts</button>
-          <button type="button" className="audit-btn" onClick={() => setModal("seller")}>Invoice settings</button>
-        </div>
+
+        <nav className="ds-jump" aria-label="Jump to">
+          {[
+            ...(round ? [["ds-add", "Add orders"], ["ds-master", "Master sheet"], ["ds-orders", "Orders"], ["ds-buying", "Buying"], ["ds-delivery", "Delivery & billing"]] : []),
+            ["ds-accounts", "Accounts"], ["ds-companies", "Companies"], ["ds-vendors", "Vendors"], ["ds-items", "Items"], ["ds-selling", "Selling prices"], ["ds-reports", "Reports"], ["ds-settings", "Settings"],
+          ].map(([id, label]) => <button type="button" key={id} onClick={() => jump(id)}>{label}</button>)}
+        </nav>
       </section>
 
+      {/* ---- The delivery date you picked ---- */}
       {!round ? (
-        <div className="audit-empty fnd-empty">
-          <b>No supply rounds yet</b>
-          <span>Start one for a delivery date, then add each company's order. The master sheet builds itself.</span>
-          <button type="button" className="audit-btn audit-btn-primary" onClick={() => setModal("round")}>＋ New delivery date</button>
-        </div>
+        overview.rounds.length ? <p className="audit-empty">Loading this delivery…</p> : (
+          <div className="audit-empty fnd-empty">
+            <b>No delivery dates yet</b>
+            <span>Pick a date under “New delivery date” above and press Start. Then add each company's order: the master sheet builds itself.</span>
+          </div>
+        )
       ) : <>
-        <section className="audit-card">
-          <div className="ds-round-head">
-            <div>
-              <h3>{round.ref} · Delivery {dayLabel(round.delivery_date)}{round.title ? ` · ${round.title}` : ""}</h3>
-              <p>{detail.orders.length} order{detail.orders.length === 1 ? "" : "s"} from {detail.companies.length} compan{detail.companies.length === 1 ? "y" : "ies"} · {detail.master.length} items{round.sent_at ? ` · sent to ${round.sent_to} ${new Date(round.sent_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : ""}</p>
-            </div>
-            <select value={round.status} onChange={(event) => call("status", () => API.patch(`/supply/rounds/${round.id}`, { status: event.target.value }, { headers }))} className={`ds-status fnd-tone-${STATUS_TONE[round.status]}`}>
-              {STATUSES.map((status) => <option key={status}>{status}</option>)}
-            </select>
-          </div>
-          <div className="ds-actions">
-            <button type="button" className="audit-btn audit-btn-primary" onClick={() => setModal("order")}>＋ Add company order</button>
-            <button type="button" className="audit-btn" onClick={downloadExcel} disabled={!detail.master.length}>⬇ Excel</button>
-            <div className="ds-send">
-              <select value={buyerId} onChange={(event) => { setBuyerId(event.target.value); if (event.target.value) API.put("/supply/buyer", { buyer_id: event.target.value }, { headers }).catch(() => {}); }} aria-label="Stock buyer" title="Gets the master sheet, and WhatsApp orders are forwarded to them">
-                <option value="">Stock buyer…</option>
-                {buyers.map((user) => <option key={user.id} value={String(user.id)}>{user.name}</option>)}
-              </select>
-              <button type="button" className="audit-btn" disabled={!buyerId || !detail.master.length || busy === "send"} onClick={() => call("send", () => API.post(`/supply/rounds/${round.id}/send`, { buyer_id: buyerId }, { headers }), (response) => (response.data.file_sent ? "Sent on WhatsApp with the Excel file" : "Summary sent on WhatsApp (the Excel file didn't go: download and share it)"))}>{busy === "send" ? "Sending…" : "📲 Send to buyer"}</button>
-            </div>
-            {isAdmin && <button type="button" className="audit-link-danger" onClick={() => window.confirm(`Delete ${round.ref} and all its orders?`) && call("delete", async () => { await API.delete(`/supply/rounds/${round.id}`, { headers }); setRoundId(null); }, `${round.ref} deleted`)}>Delete round</button>}
-          </div>
-          {!buyers.length && <p className="fnd-hint">To send the sheet on WhatsApp, give the stock buyer a WhatsApp number in Employees & Access.</p>}
-        </section>
+        <div className="ds-section-title">
+          <h3>{round.ref} · Delivery {dayLabel(round.delivery_date)}{round.title ? ` · ${round.title}` : ""}</h3>
+          <span className={`audit-pill fnd-tone-${STATUS_TONE[round.status]}`}>{round.status}</span>
+        </div>
+        <Flow steps={flow} />
 
-        {checks.length > 0 && (
-          <section className="audit-card ds-checks">
-            <div className="audit-card-head"><div><h3>🔎 Check names ({checks.length})</h3><p>These look like an item you already have. Confirm, so the master sheet adds them together (it remembers for next time).</p></div></div>
-            {checks.map((line) => (
-              <div key={line.id} className="ds-check">
-                <div><b>"{line.raw_name}"</b><small>{line.company_name} · {qty(line.qty)} {line.unit}</small></div>
-                <div className="ds-check-actions">
-                  {line.suggestion_id && <button type="button" className="audit-btn audit-btn-primary" onClick={() => call("resolve", () => API.post(`/supply/lines/${line.id}/resolve`, { product_id: line.suggestion_id }, { headers }), `Combined with ${line.suggestion_name}`)}>Same as {line.suggestion_name}</button>}
-                  <select defaultValue="" onChange={(event) => event.target.value && call("resolve", () => API.post(`/supply/lines/${line.id}/resolve`, { product_id: Number(event.target.value) }, { headers }), "Combined")}>
-                    <option value="">Same as another item…</option>
-                    {overview.products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
-                  </select>
-                  <button type="button" className="audit-btn" onClick={() => call("resolve", () => API.post(`/supply/lines/${line.id}/resolve`, { new: true }, { headers }), "Kept as a new item")}>Different item</button>
-                </div>
+        <div className="ds-grid">
+          <AddOrder
+            key={`${round.id}-${orderKey}`}
+            headers={headers}
+            round={{ ...round, orderCompanyIds: detail.orders.map((order) => order.company_id) }}
+            companies={companies}
+            units={units}
+            onAddCompany={addCompany}
+            initialText={orderText}
+            onMoveToDate={moveToDate}
+            onSaved={async (count) => { setOrderText(""); notify(count > 1 ? `${count} companies' orders added to the master sheet` : "Order added to the master sheet"); await refresh(); }}
+          />
+
+          <div className="ds-stack ds-span-5">
+            <Box id="ds-control" icon="🚚" tone="amber" title="This delivery" sub={`${detail.orders.length} order${detail.orders.length === 1 ? "" : "s"} · ${detail.master.length} items${round.sent_at ? ` · sent to ${round.sent_to} ${new Date(round.sent_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : ""}`} guide={GUIDES.control}>
+              <div className="ds-status-steps">
+                {STATUSES.map((status, index) => (
+                  <button type="button" key={status} className={`${index <= statusIndex ? "done" : ""} ${index === statusIndex ? "current" : ""}`} disabled={busy === "status"} onClick={() => index !== statusIndex && call("status", () => API.patch(`/supply/rounds/${round.id}`, { status }, { headers }), `${round.ref}: ${status}`)}>
+                    {index < statusIndex ? "✓ " : ""}{status}
+                  </button>
+                ))}
               </div>
-            ))}
-          </section>
-        )}
-        {(detail.problems || []).length > 0 && (
-          <div className="audit-error ds-problems">⚠ {detail.problems.length} line{detail.problems.length === 1 ? " has" : "s have"} no quantity: {detail.problems.map((line) => `${line.raw_name} (${line.company_name})`).join(", ")}. Fix them under Orders by company.</div>
-        )}
+              <div className="ds-send">
+                <select value={buyerId} onChange={(event) => { setBuyerId(event.target.value); if (event.target.value) API.put("/supply/buyer", { buyer_id: event.target.value }, { headers }).catch(() => {}); }} aria-label="Stock buyer" title="Gets the master sheet, and WhatsApp orders are forwarded to them">
+                  <option value="">Stock buyer…</option>
+                  {buyers.map((user) => <option key={user.id} value={String(user.id)}>{user.name}</option>)}
+                </select>
+                <button type="button" className="audit-btn audit-btn-primary" disabled={!buyerId || !detail.master.length || busy === "send"} onClick={() => call("send", () => API.post(`/supply/rounds/${round.id}/send`, { buyer_id: buyerId }, { headers }), (response) => (response.data.file_sent ? "Sent on WhatsApp with the Excel file" : "Summary sent on WhatsApp (the Excel file didn't go: download and share it)"))}>{busy === "send" ? "Sending…" : "📲 Send to buyer"}</button>
+                <button type="button" className="audit-btn" onClick={downloadExcel} disabled={!detail.master.length}>⬇ Excel</button>
+              </div>
+              {!buyers.length && <p className="fnd-hint">To send the sheet on WhatsApp, give the stock buyer a WhatsApp number in Employees & Access.</p>}
+              {isAdmin && <button type="button" className="audit-link-danger ds-delete" onClick={() => window.confirm(`Delete ${round.ref} and all its orders?`) && call("delete", async () => { await API.delete(`/supply/rounds/${round.id}`, { headers }); setRoundId(null); }, `${round.ref} deleted`)}>Delete this delivery date</button>}
+            </Box>
 
-        <section className="audit-card">
-          <div className="ds-tabs">
-            <button type="button" className={tab === "master" ? "active" : ""} onClick={() => setTab("master")}>Master sheet</button>
-            <button type="button" className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}>Orders by company ({detail.orders.length})</button>
-            <button type="button" className={tab === "buying" ? "active" : ""} onClick={() => setTab("buying")}>Buying & margin</button>
-            <button type="button" className={tab === "delivery" ? "active" : ""} onClick={() => setTab("delivery")}>Delivery & billing</button>
-            {tab === "master" && <input className="ds-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search items" />}
+            <Box id="ds-checks" icon="🔎" tone={checks.length ? "amber" : "green"} title={checks.length ? `Check names (${checks.length})` : "Check names"} sub={checks.length ? "These look like an item you already have" : "All names matched ✓"} guide={GUIDES.checks} className={checks.length ? "ds-checks" : ""}>
+              {checks.map((line) => (
+                <div key={line.id} className="ds-check">
+                  <div><b>"{line.raw_name}"</b><small>{line.company_name} · {qty(line.qty)} {line.unit}</small></div>
+                  <div className="ds-check-actions">
+                    {line.suggestion_id && <button type="button" className="audit-btn audit-btn-primary" onClick={() => call("resolve", () => API.post(`/supply/lines/${line.id}/resolve`, { product_id: line.suggestion_id }, { headers }), `Combined with ${line.suggestion_name}`)}>Same as {line.suggestion_name}</button>}
+                    <select defaultValue="" onChange={(event) => event.target.value && call("resolve", () => API.post(`/supply/lines/${line.id}/resolve`, { product_id: Number(event.target.value) }, { headers }), "Combined")} aria-label="Same as another item">
+                      <option value="">Same as another item…</option>
+                      {overview.products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}
+                    </select>
+                    <button type="button" className="audit-btn" onClick={() => call("resolve", () => API.post(`/supply/lines/${line.id}/resolve`, { new: true }, { headers }), "Kept as a new item")}>Different item</button>
+                  </div>
+                </div>
+              ))}
+              {!checks.length && <p className="ds-ok">Every item name matched one you already have. Nothing to do.</p>}
+              {(detail.problems || []).length > 0 && (
+                <div className="audit-error ds-problems">⚠ {detail.problems.length} line{detail.problems.length === 1 ? " has" : "s have"} no quantity: {detail.problems.map((line) => `${line.raw_name} (${line.company_name})`).join(", ")}. Fix them under Orders by company.</div>
+              )}
+            </Box>
           </div>
 
-          {tab === "delivery" ? (
-            <DeliveryTab key={`${round.id}-${detail.orders.length}`} round={round} headers={headers} isAdmin={isAdmin} notify={notify} />
-          ) : tab === "buying" ? (
-            detail.master.length ? (
-              <BuyingTab
-                buying={detail.buying}
-                onRate={(row) => setBuyForm({ kind: "rate", row })}
-                onBuy={(row) => setBuyForm({ kind: "purchase", row })}
-                onRemovePurchase={(item) => window.confirm(`Remove this purchase (${qty(item.qty)} at ${money(item.price)})?`) && call("purchase", () => API.delete(`/supply/purchases/${item.id}`, { headers }), "Purchase removed")}
-              />
-            ) : <p className="audit-empty">Add orders first: buying works from the master sheet.</p>
-          ) : tab === "master" ? (
-            detail.master.length ? (
-              <div className="ds-table-wrap">
+          <Box id="ds-master" icon="📋" tone="green" title="Master sheet" sub={`${detail.master.length} items from ${detail.companies.length} compan${detail.companies.length === 1 ? "y" : "ies"} · same items added together`} guide={GUIDES.master} className="ds-span-12"
+            actions={<>
+              <input className="ds-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search items" />
+              <button type="button" className="audit-btn" onClick={downloadExcel} disabled={!detail.master.length}>⬇ Excel</button>
+            </>}>
+            {detail.master.length ? (
+              <div className="ds-table-wrap is-tall">
                 <table className="ds-table ds-master">
                   <thead>
                     <tr><th>Item</th><th>Unit</th><th className="is-total">Total</th>{detail.companies.map((company) => <th key={company.id}>{company.name}</th>)}</tr>
@@ -811,75 +950,94 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers, version
                   </tbody>
                 </table>
               </div>
-            ) : <p className="audit-empty">No orders yet. Add each company's order and the master sheet fills in here.</p>
-          ) : (
-            <div className="ds-orders">
+            ) : <p className="audit-empty">No orders yet. Add each company's order in “Add orders” and the master sheet fills in here.</p>}
+          </Box>
+
+          <Box id="ds-orders" icon="🧾" tone="blue" title={`Orders by company (${detail.orders.length})`} sub="Edit a quantity or unit and the master sheet follows" guide={GUIDES.orders} className="ds-span-12">
+            {waiting.length > 0 && (
+              <div className="ds-waiting">
+                <b>Not ordered yet ({waiting.length}):</b>
+                {waiting.map((company) => <span key={company.id} className="ds-chip is-check">{company.name}</span>)}
+              </div>
+            )}
+            <div className="ds-orders is-grid">
               {detail.orders.map((order) => (
                 <div key={order.id} className="ds-order">
                   <div className="ds-order-head">
                     <b>{order.company_name}</b>
-                    <small>{order.lines.length} items · {order.source === "link" ? "🔗 order link" : order.source === "whatsapp" ? "💬 WhatsApp" : order.file_name ? `📄 ${order.file_name}` : "pasted"} · by {order.created_by}{order.source === "link" && order.raw_text ? ` · note: ${order.raw_text}` : ""}</small>
-                    <button type="button" className="audit-link-danger" onClick={() => window.confirm(`Remove ${order.company_name}'s order from ${round.ref}?`) && call("order", () => API.delete(`/supply/orders/${order.id}`, { headers }), "Order removed")}>Remove order</button>
+                    <span className="ds-chip is-new">{order.source === "link" ? "🔗 order link" : order.source === "whatsapp" ? "💬 WhatsApp" : order.file_name ? "📄 Excel" : "📋 pasted"}</span>
+                    <button type="button" className="audit-link-danger" onClick={() => window.confirm(`Remove ${order.company_name}'s order from ${round.ref}?`) && call("order", () => API.delete(`/supply/orders/${order.id}`, { headers }), "Order removed")}>Remove</button>
+                    <small className="ds-order-by">{order.lines.length} items · by {order.created_by}{order.file_name ? ` · ${order.file_name}` : ""}{order.source === "link" && order.raw_text ? ` · note: ${order.raw_text}` : ""}</small>
                   </div>
-                  <table className="ds-table">
+                  <div className="ds-table-wrap"><table className="ds-table">
                     <tbody>
                       {order.lines.map((line) => (
                         <tr key={line.id} className={Number(line.qty) > 0 ? "" : "is-problem"}>
                           <td>{line.raw_name}{!line.product_id && <span className="ds-chip is-check">check name</span>}</td>
-                          <td><input type="number" min="0" step="any" defaultValue={qty(line.qty)} className="ds-qty" onBlur={(event) => Number(event.target.value) !== Number(line.qty) && call("line", () => API.patch(`/supply/lines/${line.id}`, { qty: event.target.value }, { headers }))} /></td>
-                          <td><select value={line.unit} onChange={(event) => call("line", () => API.patch(`/supply/lines/${line.id}`, { unit: event.target.value }, { headers }))}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></td>
+                          <td><input type="number" min="0" step="any" defaultValue={qty(line.qty)} className="ds-qty" onBlur={(event) => Number(event.target.value) !== Number(line.qty) && call("line", () => API.patch(`/supply/lines/${line.id}`, { qty: event.target.value }, { headers }))} aria-label={`${line.raw_name} quantity`} /></td>
+                          <td><select value={line.unit} onChange={(event) => call("line", () => API.patch(`/supply/lines/${line.id}`, { unit: event.target.value }, { headers }))} aria-label={`${line.raw_name} unit`}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></td>
                           <td><button type="button" className="ds-x" onClick={() => call("line", () => API.delete(`/supply/lines/${line.id}`, { headers }))} aria-label="Remove line">✕</button></td>
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table></div>
                 </div>
               ))}
-              {!detail.orders.length && <p className="audit-empty">No orders yet.</p>}
             </div>
-          )}
-        </section>
+            {!detail.orders.length && <p className="audit-empty">No orders yet for this date.</p>}
+          </Box>
+
+          <Box id="ds-buying" icon="🛒" tone="purple" title="Buying & margin" sub="Vendor rates, what was bought, and the profit on this delivery" guide={GUIDES.buying} className="ds-span-12">
+            {detail.master.length ? (
+              <BuyingTab
+                buying={detail.buying}
+                onRate={(row) => setBuyForm({ kind: "rate", row })}
+                onBuy={(row) => setBuyForm({ kind: "purchase", row })}
+                onRemovePurchase={(item) => window.confirm(`Remove this purchase (${qty(item.qty)} at ${money(item.price)})?`) && call("purchase", () => API.delete(`/supply/purchases/${item.id}`, { headers }), "Purchase removed")}
+              />
+            ) : <p className="audit-empty">Add orders first: buying works from the master sheet.</p>}
+          </Box>
+
+          <Box id="ds-delivery" icon="📦" tone="green" title="Delivery & billing" sub="Packing list, delivery steps with photo proof, and the invoice for each company" guide={GUIDES.delivery} className="ds-span-12">
+            <DeliveryTab key={`${round.id}-${detail.orders.length}`} round={round} headers={headers} isAdmin={isAdmin} notify={notify} version={billingVersion + version} onSummary={onDeliverySummary} onChanged={billingChanged} />
+          </Box>
+        </div>
       </>}
 
-      {modal === "round" && (
-        <div className="fnd-backdrop" onClick={() => setModal(null)}>
-          <div className="fnd-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="fnd-modal-head"><h3>New delivery date</h3><button type="button" className="fnd-close" onClick={() => setModal(null)} aria-label="Close">×</button></div>
-            <div className="fnd-modal-body">
-              <div className="fnd-grid fnd-grid-3">
-                <label>Delivery date *<input type="date" value={newDate} onChange={(event) => setNewDate(event.target.value)} /></label>
-                <label>Name (optional)<input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="e.g. Weekly order, Fruits" /></label>
-              </div>
-              <label>Or paste the order message (optional)
-                <textarea rows={6} value={newMessage} onChange={(event) => setNewMessage(event.target.value)} onBlur={(event) => readMessage(event.target.value)} onPaste={(event) => { const value = event.clipboardData.getData("text"); setTimeout(() => readMessage(value), 0); }} placeholder={"Fruits requirements for\n1/10/26\n\nAERO\n- Apple - 6 kg …"} />
-              </label>
-              <p className="fnd-hint">All companies' orders for this delivery go into one master sheet. A pasted message fills in the date and name, and its orders are added next.</p>
-            </div>
-            <div className="fnd-modal-foot">
-              <button type="button" className="audit-btn" onClick={() => setModal(null)}>Cancel</button>
-              <button type="button" className="audit-btn audit-btn-primary" disabled={!newDate || busy === "round"} onClick={createRound}>Start</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {modal === "order" && round && (
-        <AddOrder
-          headers={headers}
-          round={{ ...round, orderCompanyIds: detail.orders.map((order) => order.company_id) }}
-          companies={companies}
+      {/* ---- The business, across all delivery dates ---- */}
+      <div className="ds-section-title ds-section-business">
+        <h3>Business · all delivery dates</h3>
+        <span className="ds-section-sub">Money owed, who you supply, where you buy, prices and reports</span>
+      </div>
+      <div className="ds-grid">
+        <Box id="ds-accounts" icon="💰" tone="amber" title="Accounts" sub="Invoices, payments received and what each company still owes" guide={GUIDES.accounts} className="ds-span-12">
+          <Accounts headers={headers} isAdmin={isAdmin} version={billingVersion + version} onSummary={onAccountsSummary} onChanged={billingChanged} />
+        </Box>
+        <Companies headers={headers} companies={companies} onAdd={addCompany} onUpdate={(company, patch) => call("company", () => API.patch(`/supply/companies/${company.id}`, patch, { headers }))} className="ds-span-7" />
+        <Vendors vendors={overview.vendors || []} onAdd={addVendor} onUpdate={(vendor, patch) => call("vendor", () => API.patch(`/supply/vendors/${vendor.id}`, patch, { headers }))} className="ds-span-5" />
+        <Items
+          products={overview.products}
           units={units}
-          onAddCompany={addCompany}
-          initialText={orderText}
-          onSaved={async (count) => { setModal(null); setOrderText(""); notify(count > 1 ? `${count} companies' orders added to the master sheet` : "Order added to the master sheet"); await refresh(); }}
-          onClose={() => { setModal(null); setOrderText(""); }}
+          onUpdate={(product, patch) => call("item", () => API.patch(`/supply/products/${product.id}`, patch, { headers }))}
+          onMerge={(product, intoId) => window.confirm(`Merge "${product.name}" into "${overview.products.find((item) => item.id === intoId)?.name}"? Their quantities will be added together from now on.`) && call("merge", () => API.post("/supply/products/merge", { from_id: product.id, into_id: intoId }, { headers }), "Items merged")}
         />
-      )}
-      {modal === "companies" && <Companies headers={headers} companies={companies} onAdd={addCompany} onUpdate={(company, patch) => call("company", () => API.patch(`/supply/companies/${company.id}`, patch, { headers }))} onClose={() => setModal(null)} />}
-      {modal === "reports" && <SupplyReports headers={headers} products={overview.products} onClose={() => setModal(null)} />}
-      {modal === "accounts" && <Accounts headers={headers} isAdmin={isAdmin} onClose={() => setModal(null)} />}
-      {modal === "seller" && <SellerSettings headers={headers} notify={notify} onClose={() => setModal(null)} />}
-      {modal === "vendors" && <Vendors vendors={overview.vendors || []} onAdd={addVendor} onUpdate={(vendor, patch) => call("vendor", () => API.patch(`/supply/vendors/${vendor.id}`, patch, { headers }))} onClose={() => setModal(null)} />}
-      {modal === "selling" && <SellingPrices headers={headers} companies={companies} onChanged={() => loadRound(roundId)} onClose={() => setModal(null)} />}
+        <SellingPrices headers={headers} companies={companies} version={overview} onChanged={() => loadRound(roundId)} />
+        <Box id="ds-reports" icon="📊" tone="blue" title="Reports" sub="By delivery date · sales are invoiced amounts before GST" guide={GUIDES.reports} className="ds-span-12">
+          <SupplyReports headers={headers} products={overview.products} version={billingVersion + version} />
+        </Box>
+        <Box id="ds-settings" icon="⚙️" tone="slate" title="Invoice & link settings" sub="Snackit's details on every invoice, and the order-link address" guide={GUIDES.settings} className="ds-span-7">
+          <SellerSettings headers={headers} notify={notify} />
+        </Box>
+        <Box id="ds-channels" icon="📨" tone="green" title="How orders reach you" sub="Four ways in, one master sheet" guide={GUIDES.channels} className="ds-span-5">
+          <ul className="ds-channels">
+            <li><b>💬 Company admin on WhatsApp</b><span>They message the Snackit number from the number saved on their company. A reply confirms what was understood, and the stock buyer gets it forwarded.</span></li>
+            <li><b>👥 Employee forwards several companies</b><span>One message with company names as headings (“AERO / – Apple 6 kg / CRED One / …”) becomes each company's order.</span></li>
+            <li><b>🔗 Order link</b><span>A page for each company (Companies → Order link): they pick the date, type quantities and send. Sending again updates it.</span></li>
+            <li><b>📋 Paste or Excel</b><span>Anything else: paste it or upload the file in Add orders.</span></li>
+          </ul>
+        </Box>
+      </div>
+
       {buyForm && round && (
         <BuyForm
           key={`${buyForm.kind}-${buyForm.row.key}`}
@@ -891,15 +1049,6 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers, version
           onAddVendor={addVendor}
           onSaved={async (message) => { setBuyForm(null); notify(message); await refresh(); }}
           onClose={() => setBuyForm(null)}
-        />
-      )}
-      {modal === "items" && (
-        <Items
-          products={overview.products}
-          units={units}
-          onUpdate={(product, patch) => call("item", () => API.patch(`/supply/products/${product.id}`, patch, { headers }))}
-          onMerge={(product, intoId) => window.confirm(`Merge "${product.name}" into "${overview.products.find((item) => item.id === intoId)?.name}"? Their quantities will be added together from now on.`) && call("merge", () => API.post("/supply/products/merge", { from_id: product.id, into_id: intoId }, { headers }), "Items merged")}
-          onClose={() => setModal(null)}
         />
       )}
     </div>

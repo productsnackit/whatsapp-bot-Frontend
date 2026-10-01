@@ -153,7 +153,7 @@ function PriceTrend({ rates, unit }) {
   );
 }
 
-export default function SupplyReports({ headers, products, onClose }) {
+export default function SupplyReports({ headers, products, version = 0 }) {
   const [period, setPeriod] = useState("month");
   const [range, setRange] = useState(PERIODS[0][2]());
   const [data, setData] = useState(null);
@@ -170,7 +170,7 @@ export default function SupplyReports({ headers, products, onClose }) {
       setError(err.response?.data?.error || "Could not load the report");
     }
   }, [headers, range]);
-  useEffect(() => { const timer = setTimeout(load, 0); return () => clearTimeout(timer); }, [load]);
+  useEffect(() => { const timer = setTimeout(load, 0); return () => clearTimeout(timer); }, [load, version]);
 
   const item = products.find((product) => String(product.id) === String(itemId));
   useEffect(() => {
@@ -187,10 +187,8 @@ export default function SupplyReports({ headers, products, onClose }) {
   };
 
   return (
-    <div className="fnd-backdrop" onClick={onClose}>
-      <div className="fnd-modal ds-modal sr" onClick={(event) => event.stopPropagation()}>
-        <div className="fnd-modal-head"><div><h3>Direct Supply reports</h3><p className="fnd-sub">By delivery date · sales are invoiced amounts before GST</p></div><button type="button" className="fnd-close" onClick={onClose} aria-label="Close">×</button></div>
-        <div className="fnd-modal-body">
+    <div className="sr">
+        <div>
           <div className="sr-filters">
             {PERIODS.map(([key, label]) => <button type="button" key={key} className={period === key ? "active" : ""} onClick={() => choosePeriod(key)}>{label}</button>)}
             <input type="date" value={range[0]} onChange={(event) => { setPeriod("custom"); setRange([event.target.value, range[1]]); }} aria-label="From" />
@@ -211,8 +209,22 @@ export default function SupplyReports({ headers, products, onClose }) {
             {data.uncosted_sales > 0 && <p className="fnd-hint">⚠ {money(data.uncosted_sales)} of sales ({data.uncosted_items.join(", ")}) has no purchase or vendor rate, so it's left out of the profit. Add a rate under Buying & margin.</p>}
             <p className="fnd-hint">Profit uses the cost of what was sold: the price paid for that delivery, else the average paid in the period, else the latest vendor rate (estimated).</p>
 
+            <div className="ds-split">
+            <div>
             <h4 className="fnd-timeline-title">Last 6 months</h4>
             <MonthlyChart months={data.months} />
+            </div>
+            <div>
+            <h4 className="fnd-timeline-title">Price trend</h4>
+            <div className="sr-filters">
+              <select value={itemId} onChange={(event) => setItemId(event.target.value)} aria-label="Item">
+                <option value="">Choose an item…</option>
+                {products.map((product) => <option key={product.id} value={product.id}>{product.name} ({product.unit})</option>)}
+              </select>
+            </div>
+            {itemId ? (rates === null ? <p className="audit-empty">Loading…</p> : <PriceTrend rates={rates} unit={item?.unit || ""} />) : <p className="audit-empty">Pick an item (or press Price trend in the table) to see its buying price over time, by vendor.</p>}
+            </div>
+            </div>
 
             <h4 className="fnd-timeline-title">By company</h4>
             <div className="ds-table-wrap">
@@ -244,17 +256,8 @@ export default function SupplyReports({ headers, products, onClose }) {
               </table>
             </div>
 
-            <h4 className="fnd-timeline-title">Price trend</h4>
-            <div className="sr-filters">
-              <select value={itemId} onChange={(event) => setItemId(event.target.value)} aria-label="Item">
-                <option value="">Choose an item…</option>
-                {products.map((product) => <option key={product.id} value={product.id}>{product.name} ({product.unit})</option>)}
-              </select>
-            </div>
-            {itemId && (rates === null ? <p className="audit-empty">Loading…</p> : <PriceTrend rates={rates} unit={item?.unit || ""} />)}
           </>}
         </div>
-      </div>
     </div>
   );
 }
