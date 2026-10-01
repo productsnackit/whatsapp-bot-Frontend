@@ -51,7 +51,7 @@ export default function AttentionContactsCard({ api, headers }) {
       <div className="admin-settings-card-heading">
         <div>
           <h3>Admin WhatsApp alerts</h3>
-          <p>The bot has no "talk to admin" option. It reads what customers write and hands the chat to you when they ask for a person ("talk to someone", "call me", "customer care"…), are upset ("fraud", "complaint", "still not received"…), or write something the menus don't cover. The ticket goes to Admin Mode with a 🔔 Needs attention badge, and these people get a WhatsApp message with what the customer said.</p>
+          <p>The bot has no "talk to admin" option. It hands the chat to you only when a customer asks for a person ("talk to someone", "call me", "customer care"), says their issue isn't in the options ("this is not my issue", "none of these", "other"), uses serious words ("fraud", "police"), or is stuck (three wrong answers). The ticket goes to Admin Mode with a 🔔 Needs you badge, and these people get a WhatsApp message with what the customer said.</p>
         </div>
       </div>
       {!people ? <p className="pr-note">{message?.error || "Loading…"}</p> : (
