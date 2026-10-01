@@ -34,6 +34,7 @@ const PAGE_LOADERS = {
   RefillWorkspace: () => import("./RefillWorkspace.jsx"),
   TasksWorkspace: () => import("./TasksWorkspace.jsx"),
   CallLogWorkspace: () => import("./CallLogWorkspace.jsx"),
+  SupplyWorkspace: () => import("./SupplyWorkspace.jsx"),
   AnalyticsWorkspace: () => import("./AnalyticsWorkspace.jsx"),
 };
 const OperationsWorkspace = lazy(PAGE_LOADERS.OperationsWorkspace);
@@ -45,6 +46,7 @@ const ActivityLog = lazy(PAGE_LOADERS.ActivityLog);
 const RefillWorkspace = lazy(PAGE_LOADERS.RefillWorkspace);
 const TasksWorkspace = lazy(PAGE_LOADERS.TasksWorkspace);
 const CallLogWorkspace = lazy(PAGE_LOADERS.CallLogWorkspace);
+const SupplyWorkspace = lazy(PAGE_LOADERS.SupplyWorkspace);
 const AnalyticsWorkspace = lazy(PAGE_LOADERS.AnalyticsWorkspace);
 
 
@@ -64,12 +66,12 @@ const SHOW_OPERATIONS = false;
 // A "customer replied" notification opens ?view=tickets&ticket=<id>&phone=<phone>
 const LAUNCH_TICKET = LAUNCH_PARAMS.get("ticket") ? { ticketId: LAUNCH_PARAMS.get("ticket"), phone: LAUNCH_PARAMS.get("phone") || "" } : null;
 // Pages a person can be given (the server decides; this mirrors it for the menu).
-const ALL_PAGE_KEYS = ["tickets", "feedback", "products", ...(SHOW_OPERATIONS ? ["operations"] : []), "audit", "refills", "findings", "expiry", "analytics", "activity", "settings"];
+const ALL_PAGE_KEYS = ["tickets", "feedback", "products", ...(SHOW_OPERATIONS ? ["operations"] : []), "audit", "refills", "supply", "findings", "expiry", "analytics", "activity", "settings"];
 const OPERATIONS_VIEWS = ["inventory", "clients", "brands", "performance", "leads", "routes", "demand", "import"];
 // Until the server answers /me, people keep what they had before roles existed.
 function defaultAccess(role, department) {
   if (role === "admin") return { accessRole: "admin", roleLabel: "Owner", pages: ALL_PAGE_KEYS, readOnly: false, isAdmin: true };
-  const pages = department === "Operations" ? ["operations", "audit", "refills", "findings", "expiry"] : department === "Audit" ? ["audit", "refills", "findings", "expiry"] : ["findings", "expiry"];
+  const pages = department === "Operations" ? ["operations", "audit", "refills", "supply", "findings", "expiry"] : department === "Audit" ? ["audit", "refills", "findings", "expiry"] : ["findings", "expiry"];
   return { accessRole: "staff", roleLabel: "Staff", pages, readOnly: false, isAdmin: false };
 }
 function readStoredAccess() {
@@ -86,7 +88,7 @@ const DEFAULT_LOGO = "/brand-mark.png";
 // Ticket filters: issue text as shown (trimmed), and the choice for tickets without one.
 const NO_VALUE = "__none__";
 const TICKETS_CACHE = "ticketsCache";
-const KEEP_ALIVE_PAGES = ["expiry", "refills", "tasks", "call-log", "findings", "audit", "analytics"];
+const KEEP_ALIVE_PAGES = ["expiry", "refills", "supply", "tasks", "call-log", "findings", "audit", "analytics"];
 // Table thumbnails: a small Cloudinary copy (a few KB) instead of the full photo; the viewer opens the full one.
 const thumbUrl = (url) => (typeof url === "string" && url.includes("res.cloudinary.com/") && url.includes("/image/upload/")
   ? url.replace("/image/upload/", "/image/upload/c_fill,w_120,h_120,q_auto,f_auto/")
@@ -1796,6 +1798,13 @@ export default function App() {
             {Icon.product}
             <span>Products</span>
           </button>}
+          {can("supply") && <button
+            className={`nav-item ${view === "supply" ? "active" : ""}`}
+            onClick={() => setView("supply")}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z" /><path d="M3 7v10l9 4 9-4V7" /><path d="M12 11v10" /></svg>
+            <span>Direct Supply</span>
+          </button>}
 
           {canAccessOperations && <>
             <div className="sidebar-divider" />
@@ -1967,6 +1976,7 @@ export default function App() {
               {view === "refills" && "Refill Schedule"}
               {view === "tasks" && "Tasks"}
               {view === "call-log" && "Call Log"}
+              {view === "supply" && "Direct Supply"}
               {view === "analytics" && "Analytics"}
               {view === "internal-chat" && "Internal Chat"}
               {view === "employees" && "Employees & Access"}
@@ -1990,6 +2000,7 @@ export default function App() {
               {view === "expiry" && "Batch expiry dates, expired stock and write-off value"}
               {view === "refills" && "Refill days per site (refillers go in their own order), WhatsApp reminders and photo proof"}
               {view === "tasks" && `${myTaskCounts.open} open for you${myTaskCounts.overdue ? ` · ${myTaskCounts.overdue} overdue` : ""} · from @tags in Internal Chat`}
+              {view === "supply" && "Company orders combined into one master sheet for the stock buyer"}
               {view === "call-log" && "Tasks and concerns sent to employees on WhatsApp · who has it and how long it takes"}
               {view === "analytics" && "Complaints, refunds and resolution · India time"}
               {view === "internal-chat" && `${departmentChats.length} active ${selectedDepartment} conversations`}
@@ -2106,6 +2117,10 @@ export default function App() {
         {keepPage("refills") && <div className="kept-page" hidden={view !== "refills"}><RefillWorkspace token={token} /></div>}
 
         {keepPage("tasks") && <div className="kept-page" hidden={view !== "tasks"}><TasksWorkspace token={token} isAdmin={isAdmin} onOpenChat={(task) => openChatFromNotification({ chatId: String(task.chatId), department: task.department })} /></div>}
+
+        {keepPage("supply") && can("supply") && (
+          <div className="kept-page" hidden={view !== "supply"}><SupplyWorkspace token={token} isAdmin={isAdmin} internalUsers={internalUsers} /></div>
+        )}
 
         {keepPage("call-log") && (
           <div className="kept-page" hidden={view !== "call-log"}>

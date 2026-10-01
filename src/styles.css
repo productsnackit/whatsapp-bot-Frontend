@@ -4911,3 +4911,70 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 .tc-pending-files { font-size: 12px; color: var(--text-muted); }
 .tc-pending-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 6px; font-size: 11.5px; color: var(--text-muted); }
 .tc-pending-bar button { padding: 3px 12px; border: 0; border-radius: 999px; background: #0f172a; color: #fff; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+
+/* Direct Supply */
+.ds-top { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.ds-rounds { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; min-width: 0; flex: 1 1 400px; }
+.ds-round { display: grid; gap: 2px; flex: 0 0 auto; min-width: 150px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); text-align: left; font: inherit; cursor: pointer; }
+.ds-round b { font-size: 14px; }
+.ds-round small { color: var(--text-muted); font-size: 11.5px; }
+.ds-round.active { border-color: #0f172a; box-shadow: 0 0 0 2px #0f172a inset; }
+.ds-round-new { place-content: center; color: #2563eb; font-size: 13px; font-weight: 700; border-style: dashed; }
+.ds-top-actions { display: flex; gap: 8px; }
+.ds-round-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.ds-round-head h3 { margin: 0; font-size: 16px; }
+.ds-round-head p { margin: 4px 0 0; color: var(--text-muted); font-size: 12.5px; }
+.ds-status { width: auto !important; flex: 0 0 auto; padding: 6px 10px; border: 0; border-radius: 999px; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.ds-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.ds-send { display: flex; gap: 6px; }
+.ds-send select, .ds-check select, .ds-table select { width: auto; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font: inherit; font-size: 13px; }
+.ds-checks { border-color: #fcd34d; background: #fffbeb; }
+.ds-check { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; border-top: 1px solid #fde68a; }
+.ds-check small { display: block; color: var(--text-muted); font-size: 12px; }
+.ds-check-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.ds-problems { margin: 0; }
+.ds-tabs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px; }
+.ds-tabs button { padding: 7px 14px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.ds-tabs button.active { border-color: #0f172a; background: #0f172a; color: #fff; }
+.ds-search { flex: 1 1 200px; max-width: 320px; margin-left: auto; padding: 7px 12px; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 13px; }
+.ds-table-wrap { overflow-x: auto; }
+.ds-table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+.ds-table th { position: sticky; top: 0; padding: 8px 10px; background: var(--surface-2, #f8fafc); color: var(--text-muted); font-size: 11px; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; white-space: nowrap; }
+.ds-table td { padding: 7px 10px; border-top: 1px solid var(--border); vertical-align: middle; }
+.ds-table input { width: 100%; min-width: 0; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: 13px; }
+.ds-table .ds-qty { width: 96px !important; }
+.ds-orders .ds-table td:first-child { width: 60%; }
+.ds-master td:first-child, .ds-master th:first-child { position: sticky; left: 0; background: var(--surface); min-width: 220px; }
+.ds-master th:first-child { background: var(--surface-2, #f8fafc); }
+.ds-master .is-total { font-weight: 800; color: var(--text-primary); background: #f0fdf4; }
+.ds-master td:not(:first-child), .ds-master th:not(:first-child) { text-align: right; }
+.ds-table tr.is-check td { background: #fffbeb; }
+.ds-table tr.is-problem td { background: #fef2f2; }
+.ds-chip { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.ds-chip.is-known { background: #dcfce7; color: #166534; margin-left: 0; }
+.ds-chip.is-check { background: #fef3c7; color: #92400e; }
+.ds-chip.is-new { background: #e0f2fe; color: #075985; margin-left: 0; }
+.ds-spellings { color: var(--text-muted); }
+.ds-x { padding: 2px 6px; border: 0; background: none; color: var(--text-muted); cursor: pointer; }
+.ds-orders { display: grid; gap: 12px; }
+.ds-order { border: 1px solid var(--border); border-radius: 12px; padding: 10px; }
+.ds-order-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
+.ds-order-head small { color: var(--text-muted); }
+.ds-order-head .audit-link-danger { margin-left: auto; }
+.ds-modal { width: min(920px, 100%); }
+.ds-mode { display: flex; gap: 6px; margin: 4px 0 10px; }
+.ds-mode button { padding: 7px 14px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.ds-mode button.active { border-color: #0f172a; background: #0f172a; color: #fff; }
+.ds-file { display: grid; place-items: center; gap: 8px; padding: 26px; border: 2px dashed var(--border); border-radius: 12px; text-align: center; cursor: pointer; }
+.ds-preview-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.ds-company-form { display: grid; grid-template-columns: 2fr 1.4fr 1.4fr 1.4fr auto; gap: 8px; }
+.ds-company-form input { padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 13px; min-width: 0; }
+.ds-companies { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; }
+.ds-companies li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
+.ds-companies li small { display: block; color: var(--text-muted); font-size: 12px; }
+.ds-companies li.is-off { opacity: .55; }
+@media (max-width: 700px) {
+  .ds-company-form { grid-template-columns: 1fr; }
+  .ds-search { max-width: none; margin-left: 0; }
+  .ds-send { flex: 1 1 100%; }
+}
