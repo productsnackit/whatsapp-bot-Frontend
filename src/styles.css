@@ -5255,3 +5255,39 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
   .ds-box .fnd-kpis b { font-size: 19px; }
 }
 .ds-box-body > *, .ds-box .sr > div, .ds-split > * { min-width: 0; }
+
+/* Direct Supply · simple pages */
+.ds-steps-nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 8px; }
+.ds-steps-nav button { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); font: inherit; text-align: left; cursor: pointer; }
+.ds-steps-nav button:hover { border-color: #94a3b8; }
+.ds-steps-nav button.active { border-color: #0f172a; background: #0f172a; color: #fff; }
+.ds-step-num { display: grid; place-items: center; flex: 0 0 30px; height: 30px; border-radius: 50%; background: #e2e8f0; color: #0f172a; font-size: 14px; font-weight: 800; }
+.ds-steps-nav button.active .ds-step-num { background: #fff; }
+.ds-step-text { display: grid; min-width: 0; }
+.ds-step-text b { font-size: 15px; }
+.ds-step-text small { overflow: hidden; color: var(--text-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.ds-steps-nav button.active small { color: #cbd5e1; }
+.ds-help { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; padding: 12px 16px; border-radius: 14px; background: #eff6ff; color: #1e3a8a; font-size: 13.5px; line-height: 1.5; }
+.ds-help b { display: block; margin-bottom: 2px; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: #1d4ed8; }
+.ds-help ol { margin: 0; padding-left: 18px; }
+.ds-help p { margin: 0; }
+.ds-datebar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 16px; }
+.ds-datebar label { font-size: 13px; font-weight: 800; }
+.ds-datebar select { flex: 0 1 420px; width: auto !important; font-weight: 700 !important; }
+.ds-newdate { display: flex; flex-wrap: wrap; gap: 8px; flex-basis: 100%; }
+.ds-newdate input { width: auto !important; flex: 0 1 220px; }
+.ds-waiting-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.ds-waiting-list span { padding: 5px 10px; border-radius: 999px; background: #fef3c7; color: #92400e; font-size: 13px; font-weight: 700; }
+.ds-next { display: flex; align-items: center; justify-content: flex-end; gap: 12px; color: var(--text-muted); font-size: 13px; }
+.ds-simple .ds-box { gap: 12px; }
+.ds-simple .ds-box-icon { flex-basis: 34px; width: 34px; height: 34px; font-size: 17px; }
+@media (max-width: 700px) {
+  .ds-steps-nav { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+  .ds-steps-nav button { flex-direction: column; gap: 4px; padding: 8px 2px; text-align: center; }
+  .ds-step-text small { display: none; }
+  .ds-step-text b { font-size: 12px; }
+  .ds-step-num { flex-basis: auto; width: 26px; height: 26px; font-size: 12px; }
+  .ds-help { grid-template-columns: 1fr; gap: 8px; padding: 10px 12px; font-size: 13px; }
+  .ds-datebar select { flex: 1 1 100%; }
+  .ds-newdate input { flex: 1 1 100%; }
+}

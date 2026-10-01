@@ -11,7 +11,6 @@ import SupplyReports from "./SupplyReports.jsx";
 
 const API = axios.create({ baseURL: "https://whatsapp-bot-backend-b3nb.onrender.com" });
 const STATUSES = ["Collecting", "Sent to buyer", "Bought", "Delivered"];
-const STATUS_TONE = { Collecting: "warn", "Sent to buyer": "blue", Bought: "purple", Delivered: "good" };
 const pad = (n) => String(n).padStart(2, "0");
 const isoDay = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 const tomorrow = () => { const date = new Date(); date.setDate(date.getDate() + 1); return isoDay(date); };
@@ -23,75 +22,15 @@ const readFile = (file) => new Promise((resolve, reject) => {
   reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
   reader.readAsDataURL(file);
 });
-const jump = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
-/* Two "how to use" points and a use case for every box. */
-const GUIDES = {
-  dates: {
-    how: ["Pick a delivery date, or start a new one: every box below works on the date you pick.", "Orders that come on WhatsApp or through an order link go to the right date by themselves."],
-    use: "Fruits for Thursday and snacks for Friday are two dates, each with its own master sheet, buying and invoices.",
-  },
-  add: {
-    how: ["Paste a company admin's message, or one message with several companies under their names (or upload their Excel).", "Check what was read, pick the company if asked, and press Add: the master sheet updates at once."],
-    use: "Someone forwards “AERO – Apple 6 kg … CRED One – Apple 12 kg” in one message: paste it once and both companies' orders are added.",
-  },
-  control: {
-    how: ["Move the status as the day goes: Collecting → Sent to buyer → Bought → Delivered.", "Choose the stock buyer and press Send: they get the master sheet and the Excel file on WhatsApp."],
-    use: "At 6 pm all orders are in: send the combined list to the buyer so they can buy at the market early next morning.",
-  },
-  checks: {
-    how: ["A name that looks like an item you already have waits here: press Same as, or Different item.", "It remembers your answer, so the same spelling combines by itself next time."],
-    use: "“Banana Robusta” from one company and “banana” from another become one line in the master sheet.",
-  },
-  master: {
-    how: ["The same item from every company is added up into one Total, with each company's share beside it.", "Search an item or download the Excel; boxes turn into pieces once Pcs per box is set under Items."],
-    use: "Apple 6 kg for AERO + 12 kg for CRED shows as one line, Apple 18 kg: exactly what the buyer needs to buy.",
-  },
-  orders: {
-    how: ["Each company's order as it came in: change a quantity or unit right here.", "“Not ordered yet” shows which companies are still missing for this date."],
-    use: "AERO calls to make bananas 10 kg instead of 7: change it here and the master sheet and invoice follow.",
-  },
-  buying: {
-    how: ["Add each vendor's price with + Rate: the cheapest shows as Best rate and the margin is worked out before buying.", "After buying, press Bought with the quantity and price: Short shows what is still left to buy."],
-    use: "Two vendors quote apples at ₹120 and ₹110 a kg: the sheet uses ₹110 and shows the profit on this delivery.",
-  },
-  delivery: {
-    how: ["Tap the steps as each company's order moves: Packed → Out for delivery → Delivered, with photo and receiver's name.", "Change the packed quantity if something was short, then Create invoice: it bills only what was delivered."],
-    use: "Only 5 kg of the 6 kg apples went: type 5 and the invoice charges 5 kg, so there's no dispute later.",
-  },
-  accounts: {
-    how: ["What each company owes, what is overdue, and every invoice: all dates together.", "Click an invoice to record a payment (UPI, bank, cash, cheque) or print it as a PDF."],
-    use: "Every Monday, open Overdue and remind the companies that are past their due date.",
-  },
-  companies: {
-    how: ["Add each company with its admin's WhatsApp number: their messages to the Snackit number become orders automatically.", "Billing holds the invoice name, GSTIN, address and payment days; Order link gives them a page to order on their own."],
-    use: "Save CRED's admin number once: every list they WhatsApp lands here on the right delivery date.",
-  },
-  vendors: {
-    how: ["Add the shops and markets you buy from, with phone and area.", "Hide a vendor you no longer use: their old rates stay in the history."],
-    use: "Keep the fruit market and the wholesale dealer side by side to compare their rates every day.",
-  },
-  items: {
-    how: ["Every item ever ordered: fix the name, set a category, pieces per box and the selling price.", "Merge two items that are really the same: their quantities add up from then on."],
-    use: "Set Lays Classic 52g to 24 pcs per box, so one company's “2 box” and another's “30 pcs” add up to 78 pcs.",
-  },
-  selling: {
-    how: ["The Default column is the price charged to every company.", "Fill a company's column only when they pay a different price."],
-    use: "Apples are ₹160 a kg for everyone, but ₹150 for AERO by agreement: type 150 in AERO's column only.",
-  },
-  reports: {
-    how: ["Pick a period to see sales, cost, profit, and money received and still owed.", "See it by company and by item; pick an item to see how its buying price moved across vendors."],
-    use: "At month end, see which company and which item made the most profit, and whether apple prices are rising.",
-  },
-  settings: {
-    how: ["Snackit's name, GSTIN, address, UPI and bank details, printed on every invoice.", "The dashboard address is used at the start of every company's order link."],
-    use: "Add the UPI ID once and every invoice shows companies exactly where to pay.",
-  },
-  channels: {
-    how: ["Orders can arrive in four ways (below); all of them land in the same master sheet.", "Whoever sends again for the same date replaces their earlier order, so nothing is counted twice."],
-    use: "One company orders on WhatsApp, another through its link, and a third sends an Excel: one combined sheet for the buyer.",
-  },
-};
+/* The five simple pages of Direct Supply, each with two "how to use" points and an example. */
+const PAGES = [
+  { key: "orders", num: "1", label: "Orders", how: ["Pick the delivery date.", "Paste a company's WhatsApp message, press Read order, then Add."], example: "AERO sends “Apple 6 kg, Banana 7 kg”: paste it and it's saved as AERO's order. Orders sent to the Snackit WhatsApp number or through an order link appear here by themselves." },
+  { key: "buy", num: "2", label: "Buy", how: ["Check the total list and press Send to buyer.", "After buying, press Bought next to each item."], example: "AERO wants 6 kg apples and CRED 12 kg: the list shows Apple 18 kg." },
+  { key: "deliver", num: "3", label: "Deliver", how: ["Tap Packed → Out for delivery → Delivered for each company.", "When it's delivered, press Create invoice."], example: "Only 5 of the 6 kg apples went? Change it to 5 before making the invoice." },
+  { key: "money", num: "4", label: "Money", how: ["See who owes money and what is overdue.", "Click an invoice to add a payment or print it."], example: "Every Monday, check Overdue and call those companies." },
+  { key: "setup", num: "⚙", label: "Setup", how: ["Add your companies (with the admin's WhatsApp number) and vendors once.", "Set selling prices and Snackit's invoice details."], example: "Save AERO's admin number and every list they WhatsApp becomes an order." },
+];
 
 /* ---------- Add orders: one company's, or a message with several companies ---------- */
 function LinesTable({ lines, units, onChange }) {
@@ -215,7 +154,7 @@ function AddOrder({ headers, round, companies, units, onAddCompany, onSaved, onM
   </>;
 
   return (
-    <Box id="ds-add" icon="📥" tone="green" title="Add orders" sub={`To ${round.ref} · delivery ${dayLabel(round.delivery_date)}`} guide={GUIDES.add} foot={foot} className="ds-span-7">
+    <Box id="ds-add" icon="📥" tone="green" title="Add orders" sub={`To ${round.ref} · delivery ${dayLabel(round.delivery_date)}`} foot={foot} className="ds-span-7">
       {!groups && <>
         <div className="ds-mode">
           <button type="button" className={mode === "paste" ? "active" : ""} onClick={() => setMode("paste")}>Paste from WhatsApp</button>
@@ -327,7 +266,7 @@ function Companies({ companies, onAdd, onUpdate, headers, className }) {
   };
   const live = companies.filter((company) => company.active).length;
   return (
-    <Box id="ds-companies" icon="🏢" tone="blue" title="Companies you supply" sub={`${live} active${companies.length > live ? ` · ${companies.length - live} hidden` : ""} · ${companies.filter((company) => company.contact_phone).length} order on WhatsApp`} guide={GUIDES.companies} className={className}>
+    <Box id="ds-companies" icon="🏢" tone="blue" title="Companies you supply" sub={`${live} companies`} className={className}>
       <form className="ds-company-form" onSubmit={add}>
         <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Company name *" required />
         <input value={draft.contact_name} onChange={(event) => setDraft({ ...draft, contact_name: event.target.value })} placeholder="Admin's name" />
@@ -377,7 +316,7 @@ function Items({ products, units, onUpdate, onMerge }) {
   const shown = products.filter((product) => !q || `${product.name} ${(product.aliases || []).join(" ")} ${product.category || ""}`.toLowerCase().includes(q));
   const noPrice = products.filter((product) => product.sell_price == null).length;
   return (
-    <Box id="ds-items" icon="🏷️" tone="slate" title="Items" sub={`${products.length} items${noPrice ? ` · ${noPrice} without a selling price` : ""}`} guide={GUIDES.items}
+    <Box id="ds-items" icon="🏷️" tone="slate" title="Items" sub={`${products.length} items${noPrice ? ` · ${noPrice} without a selling price` : ""}`}
       actions={<input className="ds-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search items" />}>
       <div className="ds-table-wrap is-tall">
         <table className="ds-table">
@@ -427,7 +366,7 @@ function Vendors({ vendors, onAdd, onUpdate, className }) {
     }
   };
   return (
-    <Box id="ds-vendors" icon="🧺" tone="purple" title="Vendors" sub={`${vendors.filter((vendor) => vendor.active).length} active · where stock and fruit are bought`} guide={GUIDES.vendors} className={className}>
+    <Box id="ds-vendors" icon="🧺" tone="purple" title="Vendors" sub="Where you buy stock and fruit" className={className}>
       <form className="ds-company-form ds-vendor-form" onSubmit={add}>
         <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Vendor name *" required />
         <input value={draft.contact_name} onChange={(event) => setDraft({ ...draft, contact_name: event.target.value })} placeholder="Contact person" />
@@ -548,7 +487,7 @@ function SellingPrices({ headers, companies, onChanged, version }) {
   };
   const q = query.trim().toLowerCase();
   return (
-    <Box id="ds-selling" icon="💲" tone="green" title="Selling prices" sub={data ? `${data.items.length} items · ${data.company_prices.length} company price${data.company_prices.length === 1 ? "" : "s"}` : "Price per unit charged to companies"} guide={GUIDES.selling}
+    <Box id="ds-selling" icon="💲" tone="green" title="Selling prices" sub={data ? `${data.items.length} items · ${data.company_prices.length} company price${data.company_prices.length === 1 ? "" : "s"}` : "Price per unit charged to companies"}
       actions={<input className="ds-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search items" />}>
       {error && <div className="audit-error">{error}</div>}
       {!data ? <p className="audit-empty">Loading…</p> : (
@@ -624,22 +563,6 @@ function BuyingTab({ buying, onRate, onBuy, onRemovePurchase }) {
   );
 }
 
-/* ---------- The day's flow at the top: five steps with live numbers, tap to jump ---------- */
-function Flow({ steps }) {
-  return (
-    <ol className="ds-flow">
-      {steps.map((step, index) => (
-        <li key={step.title} className={`is-${step.state}`}>
-          <button type="button" onClick={() => jump(step.target)}>
-            <span className="ds-flow-num">{step.state === "done" ? "✓" : index + 1}</span>
-            <span className="ds-flow-text"><b>{step.title}</b><strong>{step.value}</strong><small>{step.note}</small></span>
-          </button>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
 /* ---------- Page ---------- */
 export default function SupplyWorkspace({ token, isAdmin, internalUsers, version = 0 }) {
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
@@ -658,6 +581,9 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers, version
   const [billingVersion, setBillingVersion] = useState(0);
   const [deliverySummary, setDeliverySummary] = useState(null);
   const [accountsSummary, setAccountsSummary] = useState(null);
+  const [page, setPageState] = useState(() => { try { return localStorage.getItem("supplyPage") || "orders"; } catch { return "orders"; } });
+  const [newOpen, setNewOpen] = useState(false);
+  const setPage = (key) => { setPageState(key); try { localStorage.setItem("supplyPage", key); } catch { /* private browsing */ } window.scrollTo({ top: 0 }); };
 
   const notify = useCallback((message, isError = false) => {
     setToast({ message, isError });
@@ -670,6 +596,7 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers, version
       setOverview(response.data);
       setRoundId((current) => current ?? response.data.rounds[0]?.id ?? null);
       setBuyerId((current) => current || response.data.buyer_id || "");
+      API.get("/supply/accounts", { headers }).then((accounts) => setAccountsSummary(accounts.data.totals)).catch(() => {});
     } catch (err) {
       notify(err.response?.data?.error || "Could not load Direct Supply", true);
     }
@@ -680,6 +607,10 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers, version
     try {
       const response = await API.get(`/supply/rounds/${id}`, { headers });
       setDetail(response.data);
+      API.get(`/supply/rounds/${id}/delivery`, { headers }).then((delivery) => {
+        const list = delivery.data.companies;
+        setDeliverySummary({ roundId: id, total: list.length, delivered: list.filter((entry) => entry.delivery.status === "Delivered").length, invoiced: list.filter((entry) => entry.invoice).length, billed: list.reduce((sum, entry) => sum + (entry.invoice?.total || 0), 0), received: list.reduce((sum, entry) => sum + (entry.invoice?.paid || 0), 0) });
+      }).catch(() => {});
     } catch (err) {
       notify(err.response?.data?.error || "Could not load this round", true);
     }
@@ -714,6 +645,7 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers, version
     const created = await startRound(newDate, newTitle);
     setRoundId(created.id);
     setNewTitle("");
+    setNewOpen(false);
     return created;
   }, (round) => `${round.ref} started for ${dayLabel(round.delivery_date)}`);
 
@@ -773,105 +705,68 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers, version
   const totals = round ? detail.buying?.totals : null;
   const delivery = deliverySummary?.roundId === round?.id ? deliverySummary : null;
   const statusIndex = round ? STATUSES.indexOf(round.status) : -1;
-  const flow = round ? [
-    {
-      title: "Orders in", target: "ds-orders",
-      value: `${detail.orders.length} / ${companies.filter((company) => company.active).length || detail.orders.length}`,
-      note: waiting.length && round.status === "Collecting" ? `Waiting: ${waiting.slice(0, 2).map((company) => company.name).join(", ")}${waiting.length > 2 ? ` +${waiting.length - 2}` : ""}` : "companies ordered",
-      state: statusIndex > 0 ? "done" : detail.orders.length ? "now" : "todo",
-    },
-    {
-      title: "Master sheet", target: "ds-master",
-      value: `${detail.master.length} items`,
-      note: checks.length ? `${checks.length} name${checks.length === 1 ? "" : "s"} to check` : round.sent_at ? `Sent to ${round.sent_to}` : "Ready to send",
-      state: round.sent_at || statusIndex > 0 ? "done" : checks.length ? "warn" : detail.master.length ? "now" : "todo",
-    },
-    {
-      title: "Buy", target: "ds-buying",
-      value: totals ? money(totals.spent) : "—",
-      note: totals ? (totals.short_items ? `${totals.short_items} item${totals.short_items === 1 ? "" : "s"} still to buy` : detail.master.length ? "Everything bought" : "Nothing to buy yet") : "",
-      state: totals && detail.master.length && !totals.short_items ? "done" : totals?.spent ? "now" : "todo",
-    },
-    {
-      title: "Deliver", target: "ds-delivery",
-      value: delivery ? `${delivery.delivered} / ${delivery.total}` : "—",
-      note: delivery ? (delivery.total && delivery.delivered === delivery.total ? "All delivered" : "companies delivered") : "",
-      state: delivery?.total && delivery.delivered === delivery.total ? "done" : delivery?.delivered ? "now" : "todo",
-    },
-    {
-      title: "Bill & collect", target: "ds-delivery",
-      value: delivery ? money(delivery.billed) : "—",
-      note: delivery ? (delivery.billed ? `${money(delivery.received)} received` : `${delivery.invoiced} invoice${delivery.invoiced === 1 ? "" : "s"}`) : "",
-      state: delivery?.billed && delivery.received >= delivery.billed - 0.005 ? "done" : delivery?.billed ? "now" : "todo",
-    },
-  ] : [];
+  const activeCount = companies.filter((company) => company.active).length;
+  const info = PAGES.find((item) => item.key === page) || PAGES[0];
+  // A short live number under each step.
+  const badge = {
+    orders: round ? `${detail.orders.length} of ${activeCount} companies` : "",
+    buy: totals && detail.master.length ? (totals.short_items ? `${totals.short_items} to buy` : "All bought ✓") : "",
+    deliver: delivery?.total ? (delivery.delivered === delivery.total ? "All delivered ✓" : `${delivery.delivered} of ${delivery.total} delivered`) : "",
+    money: accountsSummary ? (accountsSummary.outstanding > 0 ? `${money(accountsSummary.outstanding)} due` : "Nothing due ✓") : "",
+    setup: `${activeCount} companies`,
+  };
+  const needsDate = ["orders", "buy", "deliver"].includes(page);
+
+  const dateBar = (
+    <section className="audit-card ds-datebar">
+      <label htmlFor="ds-date">Delivery date</label>
+      {overview.rounds.length ? (
+        <select id="ds-date" value={roundId ?? ""} onChange={(event) => setRoundId(Number(event.target.value))}>
+          {overview.rounds.map((item) => (
+            <option key={item.id} value={item.id}>{dayLabel(item.delivery_date)}{item.title ? ` · ${item.title}` : ""} · {item.company_count} compan{item.company_count === 1 ? "y" : "ies"} · {item.status}</option>
+          ))}
+        </select>
+      ) : <span className="na">No dates yet</span>}
+      <button type="button" className="audit-btn" onClick={() => setNewOpen((open) => !open)}>{newOpen ? "Cancel" : "＋ New date"}</button>
+      {newOpen && (
+        <div className="ds-newdate">
+          <input type="date" value={newDate} onChange={(event) => setNewDate(event.target.value)} aria-label="New delivery date" />
+          <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="Name (optional), e.g. Fruits" aria-label="Name" />
+          <button type="button" className="audit-btn audit-btn-primary" disabled={!newDate || busy === "round"} onClick={createRound}>Start</button>
+        </div>
+      )}
+    </section>
+  );
+
+  const noDate = (
+    <div className="audit-empty fnd-empty">
+      <b>No delivery date yet</b>
+      <span>Press “＋ New date” above, pick the date and press Start.</span>
+    </div>
+  );
 
   return (
-    <div className="audit-workspace ds-workspace">
+    <div className="audit-workspace ds-workspace ds-simple">
       {toast && <div className={`audit-toast ${toast.isError ? "is-error" : ""}`}>{toast.message}</div>}
 
-      {/* ---- Header: delivery dates, money at a glance, quick jumps ---- */}
-      <section className="audit-card ds-hero">
-        <div className="ds-hero-head">
-          <div>
-            <h2>Direct Supply</h2>
-            <p>Orders from companies → one master sheet → buy → deliver → bill and collect.</p>
-          </div>
-          <div className="ds-hero-stats">
-            <div><span>Outstanding</span><b>{accountsSummary ? money(accountsSummary.outstanding) : "—"}</b></div>
-            <div className={accountsSummary?.overdue > 0 ? "is-bad" : ""}><span>Overdue</span><b>{accountsSummary ? money(accountsSummary.overdue) : "—"}</b></div>
-            <div><span>Companies</span><b>{companies.filter((company) => company.active).length}</b></div>
-            <div><span>Vendors</span><b>{(overview.vendors || []).filter((vendor) => vendor.active).length}</b></div>
-          </div>
-        </div>
+      <nav className="ds-steps-nav" aria-label="Direct Supply">
+        {PAGES.map((item) => (
+          <button type="button" key={item.key} className={`${page === item.key ? "active" : ""} ${item.key === "setup" ? "is-setup" : ""}`} onClick={() => setPage(item.key)}>
+            <span className="ds-step-num">{item.num}</span>
+            <span className="ds-step-text"><b>{item.label}</b>{badge[item.key] && <small>{badge[item.key]}</small>}</span>
+          </button>
+        ))}
+      </nav>
 
-        <div className="ds-guide-row">
-          <div className="ds-guide">
-            <div className="ds-guide-how"><b>How to use</b><ol>{GUIDES.dates.how.map((point) => <li key={point}>{point}</li>)}</ol></div>
-            <div className="ds-guide-use"><b>Use case</b><p>{GUIDES.dates.use}</p></div>
-          </div>
-        </div>
+      <div className="ds-help">
+        <div><b>How to use</b><ol>{info.how.map((point) => <li key={point}>{point}</li>)}</ol></div>
+        <div><b>Example</b><p>{info.example}</p></div>
+      </div>
 
-        <div className="ds-rounds">
-          <div className="ds-round ds-round-new">
-            <b>＋ New delivery date</b>
-            <input type="date" value={newDate} onChange={(event) => setNewDate(event.target.value)} aria-label="Delivery date" />
-            <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="Name (optional)" aria-label="Name" />
-            <button type="button" className="audit-btn audit-btn-primary" disabled={!newDate || busy === "round"} onClick={createRound}>Start</button>
-          </div>
-          {overview.rounds.map((item) => (
-            <button type="button" key={item.id} className={`ds-round ${item.id === roundId ? "active" : ""}`} onClick={() => setRoundId(item.id)}>
-              <span className={`ds-round-dot fnd-tone-${STATUS_TONE[item.status]}`} />
-              <b>{dayLabel(item.delivery_date)}</b>
-              <small>{item.ref}{item.title ? ` · ${item.title}` : ""}</small>
-              <small>{item.company_count} compan{item.company_count === 1 ? "y" : "ies"} · {item.status}</small>
-            </button>
-          ))}
-        </div>
+      {needsDate && dateBar}
 
-        <nav className="ds-jump" aria-label="Jump to">
-          {[
-            ...(round ? [["ds-add", "Add orders"], ["ds-master", "Master sheet"], ["ds-orders", "Orders"], ["ds-buying", "Buying"], ["ds-delivery", "Delivery & billing"]] : []),
-            ["ds-accounts", "Accounts"], ["ds-companies", "Companies"], ["ds-vendors", "Vendors"], ["ds-items", "Items"], ["ds-selling", "Selling prices"], ["ds-reports", "Reports"], ["ds-settings", "Settings"],
-          ].map(([id, label]) => <button type="button" key={id} onClick={() => jump(id)}>{label}</button>)}
-        </nav>
-      </section>
-
-      {/* ---- The delivery date you picked ---- */}
-      {!round ? (
-        overview.rounds.length ? <p className="audit-empty">Loading this delivery…</p> : (
-          <div className="audit-empty fnd-empty">
-            <b>No delivery dates yet</b>
-            <span>Pick a date under “New delivery date” above and press Start. Then add each company's order: the master sheet builds itself.</span>
-          </div>
-        )
-      ) : <>
-        <div className="ds-section-title">
-          <h3>{round.ref} · Delivery {dayLabel(round.delivery_date)}{round.title ? ` · ${round.title}` : ""}</h3>
-          <span className={`audit-pill fnd-tone-${STATUS_TONE[round.status]}`}>{round.status}</span>
-        </div>
-        <Flow steps={flow} />
-
+      {/* ---- 1 · Orders ---- */}
+      {page === "orders" && (!round ? noDate : (
         <div className="ds-grid">
           <AddOrder
             key={`${round.id}-${orderKey}`}
@@ -882,31 +777,14 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers, version
             onAddCompany={addCompany}
             initialText={orderText}
             onMoveToDate={moveToDate}
-            onSaved={async (count) => { setOrderText(""); notify(count > 1 ? `${count} companies' orders added to the master sheet` : "Order added to the master sheet"); await refresh(); }}
+            onSaved={async (count) => { setOrderText(""); notify(count > 1 ? `${count} companies' orders added` : "Order added"); await refresh(); }}
           />
+          <Box id="ds-waiting" icon="⏳" tone={waiting.length ? "amber" : "green"} title="Not ordered yet" sub={waiting.length ? `${waiting.length} compan${waiting.length === 1 ? "y" : "ies"} still to order` : "Every company has ordered ✓"} className="ds-span-5">
+            {waiting.length ? <div className="ds-waiting-list">{waiting.map((company) => <span key={company.id}>{company.name}</span>)}</div> : <p className="ds-ok">Nothing to chase.</p>}
+          </Box>
 
-          <div className="ds-stack ds-span-5">
-            <Box id="ds-control" icon="🚚" tone="amber" title="This delivery" sub={`${detail.orders.length} order${detail.orders.length === 1 ? "" : "s"} · ${detail.master.length} items${round.sent_at ? ` · sent to ${round.sent_to} ${new Date(round.sent_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : ""}`} guide={GUIDES.control}>
-              <div className="ds-status-steps">
-                {STATUSES.map((status, index) => (
-                  <button type="button" key={status} className={`${index <= statusIndex ? "done" : ""} ${index === statusIndex ? "current" : ""}`} disabled={busy === "status"} onClick={() => index !== statusIndex && call("status", () => API.patch(`/supply/rounds/${round.id}`, { status }, { headers }), `${round.ref}: ${status}`)}>
-                    {index < statusIndex ? "✓ " : ""}{status}
-                  </button>
-                ))}
-              </div>
-              <div className="ds-send">
-                <select value={buyerId} onChange={(event) => { setBuyerId(event.target.value); if (event.target.value) API.put("/supply/buyer", { buyer_id: event.target.value }, { headers }).catch(() => {}); }} aria-label="Stock buyer" title="Gets the master sheet, and WhatsApp orders are forwarded to them">
-                  <option value="">Stock buyer…</option>
-                  {buyers.map((user) => <option key={user.id} value={String(user.id)}>{user.name}</option>)}
-                </select>
-                <button type="button" className="audit-btn audit-btn-primary" disabled={!buyerId || !detail.master.length || busy === "send"} onClick={() => call("send", () => API.post(`/supply/rounds/${round.id}/send`, { buyer_id: buyerId }, { headers }), (response) => (response.data.file_sent ? "Sent on WhatsApp with the Excel file" : "Summary sent on WhatsApp (the Excel file didn't go: download and share it)"))}>{busy === "send" ? "Sending…" : "📲 Send to buyer"}</button>
-                <button type="button" className="audit-btn" onClick={downloadExcel} disabled={!detail.master.length}>⬇ Excel</button>
-              </div>
-              {!buyers.length && <p className="fnd-hint">To send the sheet on WhatsApp, give the stock buyer a WhatsApp number in Employees & Access.</p>}
-              {isAdmin && <button type="button" className="audit-link-danger ds-delete" onClick={() => window.confirm(`Delete ${round.ref} and all its orders?`) && call("delete", async () => { await API.delete(`/supply/rounds/${round.id}`, { headers }); setRoundId(null); }, `${round.ref} deleted`)}>Delete this delivery date</button>}
-            </Box>
-
-            <Box id="ds-checks" icon="🔎" tone={checks.length ? "amber" : "green"} title={checks.length ? `Check names (${checks.length})` : "Check names"} sub={checks.length ? "These look like an item you already have" : "All names matched ✓"} guide={GUIDES.checks} className={checks.length ? "ds-checks" : ""}>
+          {checks.length > 0 && (
+            <Box id="ds-checks" icon="🔎" tone="amber" title={`Same item? (${checks.length})`} sub="These names look like an item you already have. Answer once, it remembers." className="ds-span-12 ds-checks">
               {checks.map((line) => (
                 <div key={line.id} className="ds-check">
                   <div><b>"{line.raw_name}"</b><small>{line.company_name} · {qty(line.qty)} {line.unit}</small></div>
@@ -920,60 +798,26 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers, version
                   </div>
                 </div>
               ))}
-              {!checks.length && <p className="ds-ok">Every item name matched one you already have. Nothing to do.</p>}
-              {(detail.problems || []).length > 0 && (
-                <div className="audit-error ds-problems">⚠ {detail.problems.length} line{detail.problems.length === 1 ? " has" : "s have"} no quantity: {detail.problems.map((line) => `${line.raw_name} (${line.company_name})`).join(", ")}. Fix them under Orders by company.</div>
-              )}
             </Box>
-          </div>
+          )}
+          {(detail.problems || []).length > 0 && (
+            <div className="audit-error ds-problems ds-span-12">⚠ No quantity for: {detail.problems.map((line) => `${line.raw_name} (${line.company_name})`).join(", ")}. Fix it below.</div>
+          )}
 
-          <Box id="ds-master" icon="📋" tone="green" title="Master sheet" sub={`${detail.master.length} items from ${detail.companies.length} compan${detail.companies.length === 1 ? "y" : "ies"} · same items added together`} guide={GUIDES.master} className="ds-span-12"
-            actions={<>
-              <input className="ds-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search items" />
-              <button type="button" className="audit-btn" onClick={downloadExcel} disabled={!detail.master.length}>⬇ Excel</button>
-            </>}>
-            {detail.master.length ? (
-              <div className="ds-table-wrap is-tall">
-                <table className="ds-table ds-master">
-                  <thead>
-                    <tr><th>Item</th><th>Unit</th><th className="is-total">Total</th>{detail.companies.map((company) => <th key={company.id}>{company.name}</th>)}</tr>
-                  </thead>
-                  <tbody>
-                    {master.map((row) => (
-                      <tr key={row.key} className={row.to_check ? "is-check" : ""}>
-                        <td title={row.spellings.length > 1 ? `Written as: ${row.spellings.join(", ")}` : ""}>{row.name}{row.to_check && <span className="ds-chip is-check">check name</span>}{row.spellings.length > 1 && <small className="ds-spellings"> · {row.spellings.length} spellings combined</small>}{row.from_boxes > 0 && <small className="ds-spellings"> · incl. {qty(row.from_boxes)} box</small>}</td>
-                        <td>{row.unit}</td>
-                        <td className="is-total">{qty(row.total)}</td>
-                        {detail.companies.map((company) => <td key={company.id}>{row.by_company[company.id] ? qty(row.by_company[company.id]) : ""}</td>)}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : <p className="audit-empty">No orders yet. Add each company's order in “Add orders” and the master sheet fills in here.</p>}
-          </Box>
-
-          <Box id="ds-orders" icon="🧾" tone="blue" title={`Orders by company (${detail.orders.length})`} sub="Edit a quantity or unit and the master sheet follows" guide={GUIDES.orders} className="ds-span-12">
-            {waiting.length > 0 && (
-              <div className="ds-waiting">
-                <b>Not ordered yet ({waiting.length}):</b>
-                {waiting.map((company) => <span key={company.id} className="ds-chip is-check">{company.name}</span>)}
-              </div>
-            )}
+          <Box id="ds-orders" icon="🧾" tone="blue" title={`Orders received (${detail.orders.length})`} sub="Change a quantity here if a company asks" className="ds-span-12">
             <div className="ds-orders is-grid">
               {detail.orders.map((order) => (
                 <div key={order.id} className="ds-order">
                   <div className="ds-order-head">
                     <b>{order.company_name}</b>
-                    <span className="ds-chip is-new">{order.source === "link" ? "🔗 order link" : order.source === "whatsapp" ? "💬 WhatsApp" : order.file_name ? "📄 Excel" : "📋 pasted"}</span>
-                    <button type="button" className="audit-link-danger" onClick={() => window.confirm(`Remove ${order.company_name}'s order from ${round.ref}?`) && call("order", () => API.delete(`/supply/orders/${order.id}`, { headers }), "Order removed")}>Remove</button>
-                    <small className="ds-order-by">{order.lines.length} items · by {order.created_by}{order.file_name ? ` · ${order.file_name}` : ""}{order.source === "link" && order.raw_text ? ` · note: ${order.raw_text}` : ""}</small>
+                    <span className="ds-chip is-new">{order.source === "link" ? "🔗 link" : order.source === "whatsapp" ? "💬 WhatsApp" : order.file_name ? "📄 Excel" : "📋 pasted"}</span>
+                    <button type="button" className="audit-link-danger" onClick={() => window.confirm(`Remove ${order.company_name}'s order?`) && call("order", () => API.delete(`/supply/orders/${order.id}`, { headers }), "Order removed")}>Remove</button>
                   </div>
                   <div className="ds-table-wrap"><table className="ds-table">
                     <tbody>
                       {order.lines.map((line) => (
                         <tr key={line.id} className={Number(line.qty) > 0 ? "" : "is-problem"}>
-                          <td>{line.raw_name}{!line.product_id && <span className="ds-chip is-check">check name</span>}</td>
+                          <td>{line.raw_name}</td>
                           <td><input type="number" min="0" step="any" defaultValue={qty(line.qty)} className="ds-qty" onBlur={(event) => Number(event.target.value) !== Number(line.qty) && call("line", () => API.patch(`/supply/lines/${line.id}`, { qty: event.target.value }, { headers }))} aria-label={`${line.raw_name} quantity`} /></td>
                           <td><select value={line.unit} onChange={(event) => call("line", () => API.patch(`/supply/lines/${line.id}`, { unit: event.target.value }, { headers }))} aria-label={`${line.raw_name} unit`}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></td>
                           <td><button type="button" className="ds-x" onClick={() => call("line", () => API.delete(`/supply/lines/${line.id}`, { headers }))} aria-label="Remove line">✕</button></td>
@@ -986,8 +830,50 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers, version
             </div>
             {!detail.orders.length && <p className="audit-empty">No orders yet for this date.</p>}
           </Box>
+          {detail.orders.length > 0 && (
+            <div className="ds-next ds-span-12"><span>All orders in?</span><button type="button" className="audit-btn audit-btn-primary" onClick={() => setPage("buy")}>Next: 2 · Buy →</button></div>
+          )}
+        </div>
+      ))}
 
-          <Box id="ds-buying" icon="🛒" tone="purple" title="Buying & margin" sub="Vendor rates, what was bought, and the profit on this delivery" guide={GUIDES.buying} className="ds-span-12">
+      {/* ---- 2 · Buy ---- */}
+      {page === "buy" && (!round ? noDate : (
+        <div className="ds-grid">
+          <Box id="ds-control" icon="📲" tone="amber" title="Send the list to the buyer" sub={round.sent_at ? `Sent to ${round.sent_to} on ${new Date(round.sent_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : "Not sent yet"} className="ds-span-12">
+            <div className="ds-send">
+              <select value={buyerId} onChange={(event) => { setBuyerId(event.target.value); if (event.target.value) API.put("/supply/buyer", { buyer_id: event.target.value }, { headers }).catch(() => {}); }} aria-label="Stock buyer">
+                <option value="">Choose the stock buyer…</option>
+                {buyers.map((user) => <option key={user.id} value={String(user.id)}>{user.name}</option>)}
+              </select>
+              <button type="button" className="audit-btn audit-btn-primary" disabled={!buyerId || !detail.master.length || busy === "send"} onClick={() => call("send", () => API.post(`/supply/rounds/${round.id}/send`, { buyer_id: buyerId }, { headers }), (response) => (response.data.file_sent ? "Sent on WhatsApp with the Excel file" : "Summary sent on WhatsApp (the Excel file didn't go: download and share it)"))}>{busy === "send" ? "Sending…" : round.sent_at ? "Send again" : "Send to buyer"}</button>
+              <button type="button" className="audit-btn" onClick={downloadExcel} disabled={!detail.master.length}>⬇ Excel</button>
+            </div>
+            {!buyers.length && <p className="fnd-hint">To send on WhatsApp, add the buyer's WhatsApp number in Employees & Access.</p>}
+          </Box>
+
+          <Box id="ds-master" icon="📋" tone="green" title={`Total list (${detail.master.length} items)`} sub="Same items from all companies added together" className="ds-span-12"
+            actions={detail.master.length > 8 ? <input className="ds-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search items" /> : null}>
+            {detail.master.length ? (
+              <div className="ds-table-wrap is-tall">
+                <table className="ds-table ds-master">
+                  <thead>
+                    <tr><th>Item</th><th className="is-total">Total</th>{detail.companies.map((company) => <th key={company.id}>{company.name}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {master.map((row) => (
+                      <tr key={row.key}>
+                        <td>{row.name}</td>
+                        <td className="is-total">{qty(row.total)} {row.unit}</td>
+                        {detail.companies.map((company) => <td key={company.id}>{row.by_company[company.id] ? qty(row.by_company[company.id]) : ""}</td>)}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : <p className="audit-empty">No orders yet. Add them on page 1 · Orders.</p>}
+          </Box>
+
+          <Box id="ds-buying" icon="🛒" tone="purple" title="Buying" sub="Add vendor rates, then mark what was bought" className="ds-span-12">
             {detail.master.length ? (
               <BuyingTab
                 buying={detail.buying}
@@ -995,48 +881,62 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers, version
                 onBuy={(row) => setBuyForm({ kind: "purchase", row })}
                 onRemovePurchase={(item) => window.confirm(`Remove this purchase (${qty(item.qty)} at ${money(item.price)})?`) && call("purchase", () => API.delete(`/supply/purchases/${item.id}`, { headers }), "Purchase removed")}
               />
-            ) : <p className="audit-empty">Add orders first: buying works from the master sheet.</p>}
+            ) : <p className="audit-empty">Nothing to buy yet.</p>}
           </Box>
+          {detail.master.length > 0 && (
+            <div className="ds-next ds-span-12"><span>Everything bought?</span><button type="button" className="audit-btn audit-btn-primary" onClick={() => setPage("deliver")}>Next: 3 · Deliver →</button></div>
+          )}
+        </div>
+      ))}
 
-          <Box id="ds-delivery" icon="📦" tone="green" title="Delivery & billing" sub="Packing list, delivery steps with photo proof, and the invoice for each company" guide={GUIDES.delivery} className="ds-span-12">
+      {/* ---- 3 · Deliver ---- */}
+      {page === "deliver" && (!round ? noDate : (
+        <div className="ds-grid">
+          <Box id="ds-delivery" icon="📦" tone="green" title="Deliver and bill" sub="One card per company" className="ds-span-12">
             <DeliveryTab key={`${round.id}-${detail.orders.length}`} round={round} headers={headers} isAdmin={isAdmin} notify={notify} version={billingVersion + version} onSummary={onDeliverySummary} onChanged={billingChanged} />
           </Box>
+          <Box id="ds-status" icon="🚚" tone="slate" title="Status of this date" sub="Optional: helps everyone see where this date is" className="ds-span-12">
+            <div className="ds-status-steps">
+              {STATUSES.map((status, index) => (
+                <button type="button" key={status} className={`${index <= statusIndex ? "done" : ""} ${index === statusIndex ? "current" : ""}`} disabled={busy === "status"} onClick={() => index !== statusIndex && call("status", () => API.patch(`/supply/rounds/${round.id}`, { status }, { headers }), `${round.ref}: ${status}`)}>
+                  {index < statusIndex ? "✓ " : ""}{status}
+                </button>
+              ))}
+            </div>
+            {isAdmin && <button type="button" className="audit-link-danger ds-delete" onClick={() => window.confirm(`Delete ${round.ref} and all its orders?`) && call("delete", async () => { await API.delete(`/supply/rounds/${round.id}`, { headers }); setRoundId(null); }, `${round.ref} deleted`)}>Delete this delivery date</button>}
+          </Box>
         </div>
-      </>}
+      ))}
 
-      {/* ---- The business, across all delivery dates ---- */}
-      <div className="ds-section-title ds-section-business">
-        <h3>Business · all delivery dates</h3>
-        <span className="ds-section-sub">Money owed, who you supply, where you buy, prices and reports</span>
-      </div>
-      <div className="ds-grid">
-        <Box id="ds-accounts" icon="💰" tone="amber" title="Accounts" sub="Invoices, payments received and what each company still owes" guide={GUIDES.accounts} className="ds-span-12">
-          <Accounts headers={headers} isAdmin={isAdmin} version={billingVersion + version} onSummary={onAccountsSummary} onChanged={billingChanged} />
-        </Box>
-        <Companies headers={headers} companies={companies} onAdd={addCompany} onUpdate={(company, patch) => call("company", () => API.patch(`/supply/companies/${company.id}`, patch, { headers }))} className="ds-span-7" />
-        <Vendors vendors={overview.vendors || []} onAdd={addVendor} onUpdate={(vendor, patch) => call("vendor", () => API.patch(`/supply/vendors/${vendor.id}`, patch, { headers }))} className="ds-span-5" />
-        <Items
-          products={overview.products}
-          units={units}
-          onUpdate={(product, patch) => call("item", () => API.patch(`/supply/products/${product.id}`, patch, { headers }))}
-          onMerge={(product, intoId) => window.confirm(`Merge "${product.name}" into "${overview.products.find((item) => item.id === intoId)?.name}"? Their quantities will be added together from now on.`) && call("merge", () => API.post("/supply/products/merge", { from_id: product.id, into_id: intoId }, { headers }), "Items merged")}
-        />
-        <SellingPrices headers={headers} companies={companies} version={overview} onChanged={() => loadRound(roundId)} />
-        <Box id="ds-reports" icon="📊" tone="blue" title="Reports" sub="By delivery date · sales are invoiced amounts before GST" guide={GUIDES.reports} className="ds-span-12">
-          <SupplyReports headers={headers} products={overview.products} version={billingVersion + version} />
-        </Box>
-        <Box id="ds-settings" icon="⚙️" tone="slate" title="Invoice & link settings" sub="Snackit's details on every invoice, and the order-link address" guide={GUIDES.settings} className="ds-span-7">
-          <SellerSettings headers={headers} notify={notify} />
-        </Box>
-        <Box id="ds-channels" icon="📨" tone="green" title="How orders reach you" sub="Four ways in, one master sheet" guide={GUIDES.channels} className="ds-span-5">
-          <ul className="ds-channels">
-            <li><b>💬 Company admin on WhatsApp</b><span>They message the Snackit number from the number saved on their company. A reply confirms what was understood, and the stock buyer gets it forwarded.</span></li>
-            <li><b>👥 Employee forwards several companies</b><span>One message with company names as headings (“AERO / – Apple 6 kg / CRED One / …”) becomes each company's order.</span></li>
-            <li><b>🔗 Order link</b><span>A page for each company (Companies → Order link): they pick the date, type quantities and send. Sending again updates it.</span></li>
-            <li><b>📋 Paste or Excel</b><span>Anything else: paste it or upload the file in Add orders.</span></li>
-          </ul>
-        </Box>
-      </div>
+      {/* ---- 4 · Money ---- */}
+      {page === "money" && (
+        <div className="ds-grid">
+          <Box id="ds-accounts" icon="💰" tone="amber" title="Who owes money" sub="All invoices, all dates" className="ds-span-12">
+            <Accounts headers={headers} isAdmin={isAdmin} version={billingVersion + version} onSummary={onAccountsSummary} onChanged={billingChanged} />
+          </Box>
+          <Box id="ds-reports" icon="📊" tone="blue" title="Profit report" sub="Sales, cost and profit for a period" className="ds-span-12">
+            <SupplyReports headers={headers} products={overview.products} version={billingVersion + version} />
+          </Box>
+        </div>
+      )}
+
+      {/* ---- Setup ---- */}
+      {page === "setup" && (
+        <div className="ds-grid">
+          <Companies headers={headers} companies={companies} onAdd={addCompany} onUpdate={(company, patch) => call("company", () => API.patch(`/supply/companies/${company.id}`, patch, { headers }))} className="ds-span-7" />
+          <Vendors vendors={overview.vendors || []} onAdd={addVendor} onUpdate={(vendor, patch) => call("vendor", () => API.patch(`/supply/vendors/${vendor.id}`, patch, { headers }))} className="ds-span-5" />
+          <SellingPrices headers={headers} companies={companies} version={overview} onChanged={() => loadRound(roundId)} />
+          <Items
+            products={overview.products}
+            units={units}
+            onUpdate={(product, patch) => call("item", () => API.patch(`/supply/products/${product.id}`, patch, { headers }))}
+            onMerge={(product, intoId) => window.confirm(`Merge "${product.name}" into "${overview.products.find((item) => item.id === intoId)?.name}"? Their quantities will be added together from now on.`) && call("merge", () => API.post("/supply/products/merge", { from_id: product.id, into_id: intoId }, { headers }), "Items merged")}
+          />
+          <Box id="ds-settings" icon="🧾" tone="slate" title="Invoice details" sub="Snackit's details printed on every invoice" className="ds-span-12">
+            <SellerSettings headers={headers} notify={notify} />
+          </Box>
+        </div>
+      )}
 
       {buyForm && round && (
         <BuyForm
