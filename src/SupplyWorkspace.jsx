@@ -265,7 +265,7 @@ function Companies({ companies, onAdd, onUpdate, onClose, headers }) {
           <form className="ds-company-form" onSubmit={add}>
             <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Company name *" required />
             <input value={draft.contact_name} onChange={(event) => setDraft({ ...draft, contact_name: event.target.value })} placeholder="Admin's name" />
-            <input value={draft.contact_phone} onChange={(event) => setDraft({ ...draft, contact_phone: event.target.value })} placeholder="Admin's WhatsApp" inputMode="tel" />
+            <input value={draft.contact_phone} onChange={(event) => setDraft({ ...draft, contact_phone: event.target.value })} placeholder="Admin's WhatsApp (commas for more)" inputMode="tel" />
             <input value={draft.location} onChange={(event) => setDraft({ ...draft, location: event.target.value })} placeholder="Location" />
             <button type="submit" className="audit-btn audit-btn-primary">Add</button>
           </form>
@@ -284,6 +284,8 @@ function Companies({ companies, onAdd, onUpdate, onClose, headers }) {
                   <div className="ds-billing">
                     <label>Name on invoice<input defaultValue={company.billing_name || ""} placeholder={company.name} onBlur={(event) => event.target.value !== (company.billing_name || "") && onUpdate(company, { billing_name: event.target.value })} /></label>
                     <label>GSTIN<input defaultValue={company.gstin || ""} onBlur={(event) => event.target.value !== (company.gstin || "") && onUpdate(company, { gstin: event.target.value })} /></label>
+                    <label>Admin's WhatsApp<input defaultValue={company.contact_phone || ""} placeholder="98xxxxxxxx, 99xxxxxxxx" onBlur={(event) => event.target.value !== (company.contact_phone || "") && onUpdate(company, { contact_phone: event.target.value })} /></label>
+                    <label>Admin's name<input defaultValue={company.contact_name || ""} onBlur={(event) => event.target.value !== (company.contact_name || "") && onUpdate(company, { contact_name: event.target.value })} /></label>
                     <label>Pays within (days)<input type="number" min="0" defaultValue={company.payment_days ?? ""} placeholder="7" onBlur={(event) => String(event.target.value) !== String(company.payment_days ?? "") && onUpdate(company, { payment_days: event.target.value })} /></label>
                     <label className="ds-billing-wide">Billing address<textarea rows={2} defaultValue={company.address || ""} onBlur={(event) => event.target.value !== (company.address || "") && onUpdate(company, { address: event.target.value })} /></label>
                   </div>
@@ -737,7 +739,7 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers, version
             <button type="button" className="audit-btn audit-btn-primary" onClick={() => setModal("order")}>＋ Add company order</button>
             <button type="button" className="audit-btn" onClick={downloadExcel} disabled={!detail.master.length}>⬇ Excel</button>
             <div className="ds-send">
-              <select value={buyerId} onChange={(event) => setBuyerId(event.target.value)} aria-label="Stock buyer">
+              <select value={buyerId} onChange={(event) => { setBuyerId(event.target.value); if (event.target.value) API.put("/supply/buyer", { buyer_id: event.target.value }, { headers }).catch(() => {}); }} aria-label="Stock buyer" title="Gets the master sheet, and WhatsApp orders are forwarded to them">
                 <option value="">Stock buyer…</option>
                 {buyers.map((user) => <option key={user.id} value={String(user.id)}>{user.name}</option>)}
               </select>
@@ -816,7 +818,7 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers, version
                 <div key={order.id} className="ds-order">
                   <div className="ds-order-head">
                     <b>{order.company_name}</b>
-                    <small>{order.lines.length} items · {order.source === "link" ? "🔗 order link" : order.file_name ? `📄 ${order.file_name}` : "pasted"} · by {order.created_by}{order.source === "link" && order.raw_text ? ` · note: ${order.raw_text}` : ""}</small>
+                    <small>{order.lines.length} items · {order.source === "link" ? "🔗 order link" : order.source === "whatsapp" ? "💬 WhatsApp" : order.file_name ? `📄 ${order.file_name}` : "pasted"} · by {order.created_by}{order.source === "link" && order.raw_text ? ` · note: ${order.raw_text}` : ""}</small>
                     <button type="button" className="audit-link-danger" onClick={() => window.confirm(`Remove ${order.company_name}'s order from ${round.ref}?`) && call("order", () => API.delete(`/supply/orders/${order.id}`, { headers }), "Order removed")}>Remove order</button>
                   </div>
                   <table className="ds-table">
