@@ -4891,3 +4891,17 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 /* The bot handed this customer to the team (see attention.js) */
 .attention-badge { display: inline-flex; align-items: center; margin-top: 4px; padding: 2px 8px; border: 0; border-radius: 999px; background: #dc2626; color: #fff; font: inherit; font-size: 10.5px; font-weight: 800; white-space: nowrap; cursor: pointer; animation: attention-pulse 2s ease-in-out 3; }
 @keyframes attention-pulse { 50% { box-shadow: 0 0 0 4px rgba(220, 38, 38, .25); } }
+
+/* Call Log attachments */
+.cl-label { margin-bottom: 6px; font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.cl-files { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.cl-attach { cursor: pointer; }
+.cl-file-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 6px 4px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2, #f8fafc); font-size: 12px; overflow-wrap: anywhere; }
+.cl-file-chip small { color: var(--text-muted); }
+.cl-file-chip button { padding: 0 4px; border: 0; background: none; color: var(--text-muted); cursor: pointer; }
+.cl-file-error { flex-basis: 100%; color: #b91c1c; font-size: 12px; }
+.cl-attachments { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.cl-attach-photo { padding: 0; border: 1px solid var(--border); border-radius: 10px; background: none; cursor: zoom-in; overflow: hidden; }
+.cl-attach-photo img { display: block; width: 88px; height: 88px; object-fit: cover; }
+.cl-attach-file { display: inline-flex; align-items: center; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; color: #2563eb; font-size: 13px; font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
+.cl-attach-more { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

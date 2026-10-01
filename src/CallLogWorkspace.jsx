@@ -43,6 +43,58 @@ const DUE_PRESETS = [
   ["Tomorrow 11 am", () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(11, 0, 0, 0); return d; }],
 ];
 
+// Files to attach: read in the browser and sent with the task (each up to 10 MB, 5 at a time).
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const MAX_FILES = 5;
+const readFile = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve({ name: file.name, type: file.type || "application/octet-stream", data: reader.result });
+  reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
+  reader.readAsDataURL(file);
+});
+const fileSize = (bytes) => (bytes > 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
+
+// Picked files waiting to be sent (name, size, remove).
+function FilePicker({ files, onChange, room = MAX_FILES }) {
+  const [error, setError] = useState("");
+  const add = (event) => {
+    const picked = [...event.target.files];
+    event.target.value = "";
+    const tooBig = picked.filter((file) => file.size > MAX_FILE_BYTES);
+    const ok = picked.filter((file) => file.size <= MAX_FILE_BYTES);
+    const next = [...files, ...ok].slice(0, room);
+    setError(tooBig.length ? `${tooBig.map((file) => file.name).join(", ")} ${tooBig.length === 1 ? "is" : "are"} over 10 MB` : files.length + ok.length > room ? `Up to ${room} files` : "");
+    onChange(next);
+  };
+  return (
+    <div className="cl-files">
+      <label className="audit-btn cl-attach">📎 Attach photos or files<input type="file" multiple accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,video/*" onChange={add} hidden /></label>
+      {files.map((file, index) => (
+        <span key={`${file.name}-${index}`} className="cl-file-chip">
+          {file.type?.startsWith("image/") ? "🖼" : "📄"} {file.name} <small>{fileSize(file.size)}</small>
+          <button type="button" onClick={() => onChange(files.filter((_, i) => i !== index))} aria-label={`Remove ${file.name}`}>✕</button>
+        </span>
+      ))}
+      {error && <small className="cl-file-error">{error}</small>}
+    </div>
+  );
+}
+
+// Files already on the task: photos as thumbnails (open full screen), others as links.
+function Attachments({ task, onOpenPhoto }) {
+  const files = task.attachments || [];
+  if (!files.length) return null;
+  return (
+    <div className="cl-attachments">
+      {files.map((file, index) => file.kind === "image" ? (
+        <button type="button" key={`${file.url}-${index}`} className="cl-attach-photo" onClick={() => onOpenPhoto(file.url)} title={`${file.name} · ${file.by}`}><img src={file.url} alt={file.name} loading="lazy" /></button>
+      ) : (
+        <a key={`${file.url}-${index}`} className="cl-attach-file" href={file.url} target="_blank" rel="noreferrer" title={`Added by ${file.by}`}>📄 {file.name}</a>
+      ))}
+    </div>
+  );
+}
+
 // What WhatsApp said about the message to the employee.
 function deliveryOf(task) {
   if (task.whatsapp_status === "NO_PHONE") return { tone: "bad", label: "No WhatsApp number", title: task.whatsapp_error };
@@ -72,6 +124,7 @@ function EmployeeSelect({ value, onChange, employees, departments, exclude, requ
 /* ---------- Raise a task ---------- */
 function NewTask({ employees, departments, onSave, onClose }) {
   const [form, setForm] = useState({ title: "", details: "", source: "Phone call", caller_name: "", caller_phone: "", location: "", priority: "Normal", assignee_id: "", due: "" });
+  const [files, setFiles] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const set = (key) => (event) => setForm((prev) => ({ ...prev, [key]: event.target.value }));
@@ -83,7 +136,7 @@ function NewTask({ employees, departments, onSave, onClose }) {
     setError("");
     try {
       const { due, ...rest } = form;
-      await onSave({ ...rest, due_at: due ? new Date(due).toISOString() : null });
+      await onSave({ ...rest, due_at: due ? new Date(due).toISOString() : null, files: await Promise.all(files.map(readFile)) });
     } catch (err) {
       setError(err.response?.data?.error || "Could not save. Check your connection and try again.");
       setSaving(false);
@@ -120,6 +173,10 @@ function NewTask({ employees, departments, onSave, onClose }) {
               <EmployeeSelect value={form.assignee_id} onChange={(value) => setForm((prev) => ({ ...prev, assignee_id: value }))} employees={employees} departments={departments} required />
             </label>
           </div>
+          <div>
+            <div className="cl-label">Photos or files to point out the issue</div>
+            <FilePicker files={files} onChange={setFiles} />
+          </div>
           <label>Due by
             <input type="datetime-local" value={form.due} onChange={set("due")} />
           </label>
@@ -144,7 +201,8 @@ function NewTask({ employees, departments, onSave, onClose }) {
 }
 
 /* ---------- One task: timeline, forward, notes ---------- */
-function TaskDetails({ task, employees, departments, canChange, isAdmin, onUpdate, onResend, onDelete, onClose, now }) {
+function TaskDetails({ task, employees, departments, canChange, isAdmin, onUpdate, onResend, onAttach, onDelete, onClose, now }) {
+  const [moreFiles, setMoreFiles] = useState([]);
   const [forwardTo, setForwardTo] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState("");
@@ -152,7 +210,10 @@ function TaskDetails({ task, employees, departments, canChange, isAdmin, onUpdat
   const [photo, setPhoto] = useState(null);
   const delivery = deliveryOf(task);
   const history = [...(task.history || [])].reverse();
-  const photos = (task.notes || []).filter((item) => item.photo).map((item) => ({ url: item.photo, caption: `${task.ref} · ${item.by}` }));
+  const photos = [
+    ...(task.attachments || []).filter((file) => file.kind === "image").map((file) => ({ url: file.url, caption: `${task.ref} · ${file.name}` })),
+    ...(task.notes || []).filter((item) => item.photo).map((item) => ({ url: item.photo, caption: `${task.ref} · ${item.by}` })),
+  ];
 
   const run = async (label, action) => {
     setBusy(label);
@@ -225,6 +286,17 @@ function TaskDetails({ task, employees, departments, canChange, isAdmin, onUpdat
             </div>
           )}
           {error && <div className="audit-error">{error}</div>}
+
+          {((task.attachments || []).length > 0 || canChange) && <>
+            <h4 className="fnd-timeline-title">Attached files{(task.attachments || []).length ? ` (${task.attachments.length})` : ""}</h4>
+            <Attachments task={task} onOpenPhoto={(url) => setPhoto(photos.findIndex((item) => item.url === url))} />
+            {canChange && (task.attachments || []).length < 10 && (
+              <div className="cl-attach-more">
+                <FilePicker files={moreFiles} onChange={setMoreFiles} room={Math.min(MAX_FILES, 10 - (task.attachments || []).length)} />
+                {moreFiles.length > 0 && <button type="button" className="audit-btn audit-btn-primary" disabled={Boolean(busy)} onClick={() => run("attach", async () => { await onAttach(task, await Promise.all(moreFiles.map(readFile))); setMoreFiles([]); })}>{busy === "attach" ? "Uploading…" : `Add ${moreFiles.length} file${moreFiles.length === 1 ? "" : "s"}`}</button>}
+              </div>
+            )}
+          </>}
 
           {(task.notes || []).length > 0 && <>
             <h4 className="fnd-timeline-title">Notes from WhatsApp</h4>
@@ -342,7 +414,14 @@ export default function CallLogWorkspace({ token, isAdmin, currentUserId, curren
     replace(response.data);
     setRaising(false);
     const task = response.data;
-    notify(task.whatsapp_status === "SENT" ? `${task.ref} sent to ${task.assignee_name} on WhatsApp` : `${task.ref} raised for ${task.assignee_name}${task.whatsapp_error ? ` · ${task.whatsapp_error}` : ""}`, task.whatsapp_status !== "SENT");
+    if (task.file_errors?.length) notify(`${task.ref} raised, but some files weren't attached: ${task.file_errors.join("; ")}`, true);
+    else notify(task.whatsapp_status === "SENT" ? `${task.ref} sent to ${task.assignee_name} on WhatsApp` : `${task.ref} raised for ${task.assignee_name}${task.whatsapp_error ? ` · ${task.whatsapp_error}` : ""}`, task.whatsapp_status !== "SENT");
+  };
+  const attach = async (task, files) => {
+    const response = await API.post(`/internal/call-log/${task.id}/attachments`, { files }, { headers });
+    replace(response.data.task);
+    notify(response.data.file_errors?.length ? `Some files weren't attached: ${response.data.file_errors.join("; ")}`
+      : response.data.sent ? `Files added and sent to ${task.assignee_name} on WhatsApp` : `Files added. ${task.assignee_name} gets them on WhatsApp when they next tap a button or message us.`, Boolean(response.data.file_errors?.length));
   };
   const update = async (task, payload) => {
     const response = await API.patch(`/internal/call-log/${task.id}`, payload, { headers });
@@ -428,6 +507,7 @@ export default function CallLogWorkspace({ token, isAdmin, currentUserId, curren
                         {task.priority !== "Normal" && <span className={`audit-pill fnd-tone-${PRIORITY_TONE[task.priority]}`}>{task.priority}</span>}
                         {overdue && <span className="audit-pill fnd-tone-bad">Overdue</span>}
                         {task.forward_count > 0 && <span className="audit-pill fnd-tone-purple">↪ Forwarded {task.forward_count}×</span>}
+                        {(task.attachments || []).length > 0 && <span className="audit-pill fnd-tone-muted" title="Attached files">📎 {task.attachments.length}</span>}
                         {delivery && <span className={`cl-wa fnd-tone-${delivery.tone}`} title={delivery.title || ""}>{delivery.label}</span>}
                       </div>
                       <button type="button" className="fnd-title" onClick={() => setOpenId(task.id)}>{task.title}</button>
@@ -504,6 +584,7 @@ export default function CallLogWorkspace({ token, isAdmin, currentUserId, curren
           isAdmin={isAdmin}
           onUpdate={update}
           onResend={resend}
+          onAttach={attach}
           onDelete={remove}
           onClose={() => setOpenId(null)}
           now={now}
