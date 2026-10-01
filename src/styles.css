@@ -4986,3 +4986,19 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 .ds-single-company { display: grid; gap: 6px; margin-bottom: 10px; }
 .ds-single-company .ds-group-company { margin-left: 0; }
 .ds-note { margin-bottom: 10px; padding: 8px 12px; border-radius: 10px; background: #fef3c7; color: #92400e; font-size: 13px; }
+/* Direct Supply · buying & margin */
+.ds-kpis { margin-bottom: 12px; }
+.ds-buying td { white-space: nowrap; }
+.ds-sub { display: block; color: var(--text-muted); font-size: 11.5px; }
+.ds-bought { display: inline-flex; align-items: center; gap: 4px; margin: 0 4px 4px 0; padding: 2px 4px 2px 8px; border-radius: 999px; background: #ede9fe; color: #5b21b6; font-size: 12px; }
+.ds-bought button { padding: 0 4px; border: 0; background: none; color: inherit; cursor: pointer; }
+.ds-short { color: #b45309; font-weight: 700; }
+.ds-done { color: #15803d; font-weight: 800; }
+.ds-plus { color: #15803d; font-weight: 700; }
+.ds-minus { color: #b91c1c; font-weight: 700; }
+.ds-row-actions { display: flex; gap: 6px; }
+.ds-history { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.ds-history li { display: grid; grid-template-columns: 90px 1fr auto; gap: 8px; padding: 6px 10px; border-radius: 8px; background: var(--surface-2, #f8fafc); font-size: 13px; }
+.ds-history small { color: var(--text-muted); }
+.ds-prices td:first-child, .ds-prices th:first-child { position: sticky; left: 0; background: var(--surface); min-width: 180px; }
+.fnd-modal label .ds-group-company { margin-left: 0; }

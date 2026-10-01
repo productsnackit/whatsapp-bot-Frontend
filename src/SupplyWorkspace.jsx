@@ -247,13 +247,15 @@ function Items({ products, units, onUpdate, onMerge, onClose }) {
         <div className="fnd-modal-body">
           <input className="ds-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search items" />
           <table className="ds-table">
-            <thead><tr><th>Item</th><th>Unit</th><th>Category</th><th>Other spellings</th><th /></tr></thead>
+            <thead><tr><th>Item</th><th>Unit</th><th>Category</th><th title="So '2 box' adds to pieces">Pcs per box</th><th>Sell price (₹)</th><th>Other spellings</th><th /></tr></thead>
             <tbody>
               {shown.map((product) => (
                 <tr key={product.id}>
                   <td><input defaultValue={product.name} onBlur={(event) => event.target.value.trim() !== product.name && onUpdate(product, { name: event.target.value })} /></td>
                   <td><select value={product.unit} onChange={(event) => onUpdate(product, { unit: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></td>
                   <td><input defaultValue={product.category || ""} placeholder="e.g. Chips, Fruit" onBlur={(event) => event.target.value !== (product.category || "") && onUpdate(product, { category: event.target.value })} /></td>
+                  <td><input type="number" min="0" step="1" className="ds-qty" defaultValue={product.pack_size ?? ""} placeholder="—" onBlur={(event) => String(event.target.value) !== String(product.pack_size ?? "") && onUpdate(product, { pack_size: event.target.value })} /></td>
+                  <td><input type="number" min="0" step="any" className="ds-qty" defaultValue={product.sell_price ?? ""} placeholder={`per ${product.unit}`} onBlur={(event) => String(event.target.value) !== String(product.sell_price ?? "") && onUpdate(product, { sell_price: event.target.value })} /></td>
                   <td><small>{(product.aliases || []).join(", ") || "—"}</small></td>
                   <td>
                     {merging === product.id ? (
@@ -274,6 +276,230 @@ function Items({ products, units, onUpdate, onMerge, onClose }) {
   );
 }
 
+/* ---------- Phase 2: vendors, rates, purchases, selling prices ---------- */
+const money = (value) => (value == null ? "—" : `₹${Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`);
+const when = (value) => (value ? new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "");
+
+function Vendors({ vendors, onAdd, onUpdate, onClose }) {
+  const [draft, setDraft] = useState({ name: "", contact_name: "", phone: "", location: "" });
+  const [error, setError] = useState("");
+  const add = async (event) => {
+    event.preventDefault();
+    setError("");
+    try {
+      await onAdd(draft);
+      setDraft({ name: "", contact_name: "", phone: "", location: "" });
+    } catch (err) {
+      setError(err.response?.data?.error || "Could not add");
+    }
+  };
+  return (
+    <div className="fnd-backdrop" onClick={onClose}>
+      <div className="fnd-modal" onClick={(event) => event.stopPropagation()}>
+        <div className="fnd-modal-head"><div><h3>Vendors</h3><p className="fnd-sub">Where stock and fruit are bought</p></div><button type="button" className="fnd-close" onClick={onClose} aria-label="Close">×</button></div>
+        <div className="fnd-modal-body">
+          <form className="ds-company-form" onSubmit={add}>
+            <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Vendor name *" required />
+            <input value={draft.contact_name} onChange={(event) => setDraft({ ...draft, contact_name: event.target.value })} placeholder="Contact person" />
+            <input value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} placeholder="Phone" inputMode="tel" />
+            <input value={draft.location} onChange={(event) => setDraft({ ...draft, location: event.target.value })} placeholder="Market / area" />
+            <button type="submit" className="audit-btn audit-btn-primary">Add</button>
+          </form>
+          {error && <div className="audit-error">{error}</div>}
+          <ul className="ds-companies">
+            {vendors.map((vendor) => (
+              <li key={vendor.id} className={vendor.active ? "" : "is-off"}>
+                <div><b>{vendor.name}</b><small>{[vendor.contact_name, vendor.phone, vendor.location].filter(Boolean).join(" · ") || "No contact details"}</small></div>
+                <button type="button" className="audit-btn" onClick={() => onUpdate(vendor, { active: !vendor.active })}>{vendor.active ? "Hide" : "Show again"}</button>
+              </li>
+            ))}
+            {!vendors.length && <p className="audit-empty">No vendors yet. Add the first one above.</p>}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Choose a vendor, or type a new one (added on save).
+function VendorPicker({ vendors, value, onChange, newName, onNewName }) {
+  return (
+    <div className="ds-group-company">
+      <select value={value} onChange={(event) => onChange(event.target.value)} aria-label="Vendor">
+        <option value="">Choose vendor</option>
+        {vendors.filter((vendor) => vendor.active).map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}
+        <option value="new">➕ New vendor…</option>
+      </select>
+      {value === "new" && <input value={newName} onChange={(event) => onNewName(event.target.value)} placeholder="Vendor name" autoFocus />}
+    </div>
+  );
+}
+
+/* Record a rate or a purchase for one item of the round. kind: "rate" | "purchase". */
+function BuyForm({ kind, row, round, vendors, headers, onAddVendor, onSaved, onClose }) {
+  const [vendor, setVendor] = useState(String(row.best?.vendor_id || ""));
+  const [newVendor, setNewVendor] = useState("");
+  const [price, setPrice] = useState(row.best ? String(row.best.price) : "");
+  const [amount, setAmount] = useState(String(row.short > 0 ? row.short : row.need));
+  const [notes, setNotes] = useState("");
+  const [history, setHistory] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let alive = true;
+    if (row.product_id) API.get(`/supply/products/${row.product_id}/prices`, { headers }).then((response) => alive && setHistory(response.data.filter((item) => item.unit === row.unit))).catch(() => alive && setHistory([]));
+    return () => { alive = false; };
+  }, [row.product_id, row.unit, headers]);
+
+  const save = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      let vendorId = vendor;
+      if (vendor === "new") vendorId = (await onAddVendor({ name: newVendor })).id;
+      if (!vendorId) throw new Error("Choose the vendor");
+      if (kind === "rate") await API.post("/supply/prices", { product_id: row.product_id, vendor_id: vendorId, unit: row.unit, price, round_id: round.id }, { headers });
+      else await API.post(`/supply/rounds/${round.id}/purchases`, { product_id: row.product_id, vendor_id: vendorId, unit: row.unit, qty: amount, price, notes }, { headers });
+      onSaved(kind === "rate" ? "Rate saved" : `Bought ${amount} ${row.unit} of ${row.name}`);
+    } catch (err) {
+      setError(err.response?.data?.error || err.message || "Could not save");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fnd-backdrop" onClick={onClose}>
+      <div className="fnd-modal" onClick={(event) => event.stopPropagation()}>
+        <div className="fnd-modal-head">
+          <div><h3>{kind === "rate" ? "Add a vendor's rate" : "Record what was bought"}</h3><p className="fnd-sub">{row.name} · need {qty(row.need)} {row.unit}{row.bought_qty ? ` · bought ${qty(row.bought_qty)}` : ""}</p></div>
+          <button type="button" className="fnd-close" onClick={onClose} aria-label="Close">×</button>
+        </div>
+        <div className="fnd-modal-body">
+          <label>Vendor *<VendorPicker vendors={vendors} value={vendor} onChange={setVendor} newName={newVendor} onNewName={setNewVendor} /></label>
+          <div className="fnd-grid fnd-grid-3">
+            {kind === "purchase" && <label>Quantity bought ({row.unit}) *<input type="number" min="0" step="any" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>}
+            <label>{kind === "rate" ? "Rate" : "Price paid"} per {row.unit} (₹) *<input type="number" min="0" step="any" value={price} onChange={(event) => setPrice(event.target.value)} autoFocus /></label>
+            {kind === "purchase" && <label>Total<input value={Number(amount) > 0 && price !== "" ? money(Number(amount) * Number(price)) : ""} readOnly /></label>}
+          </div>
+          {kind === "purchase" && <label>Note (optional)<input value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="e.g. quality, bill number" /></label>}
+          {kind === "purchase" && <p className="fnd-hint">The price paid is also saved as this vendor's latest rate.</p>}
+          <h4 className="fnd-timeline-title">Rate history ({row.unit})</h4>
+          {history === null ? <p className="audit-empty">Loading…</p> : history.length ? (
+            <ul className="ds-history">
+              {history.slice(0, 15).map((item) => <li key={item.id}><b>{money(item.price)}</b><span>{item.vendor_name}</span><small>{when(item.recorded_at)} · {item.recorded_by}</small></li>)}
+            </ul>
+          ) : <p className="audit-empty">No rates yet for this item.</p>}
+          {error && <div className="audit-error">{error}</div>}
+        </div>
+        <div className="fnd-modal-foot">
+          <button type="button" className="audit-btn" onClick={onClose}>Cancel</button>
+          <button type="button" className="audit-btn audit-btn-primary" disabled={busy || price === "" || !vendor || (vendor === "new" && !newVendor.trim()) || (kind === "purchase" && !(Number(amount) > 0))} onClick={save}>{busy ? "Saving…" : kind === "rate" ? "Save rate" : "Save purchase"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Selling prices: a default per item, and any company that pays a different price.
+function SellingPrices({ headers, companies, onClose, onChanged }) {
+  const [data, setData] = useState(null);
+  const [query, setQuery] = useState("");
+  const [error, setError] = useState("");
+  const load = useCallback(() => API.get("/supply/selling-prices", { headers }).then((response) => setData(response.data)).catch(() => setError("Could not load prices")), [headers]);
+  useEffect(() => { const timer = setTimeout(load, 0); return () => clearTimeout(timer); }, [load]);
+  const active = companies.filter((company) => company.active);
+  const special = (companyId, item) => data.company_prices.find((price) => price.company_id === companyId && price.product_id === item.id && price.unit === item.unit)?.price;
+  const save = async (request) => {
+    try {
+      await request();
+      await load();
+      onChanged();
+    } catch (err) {
+      setError(err.response?.data?.error || "Could not save");
+    }
+  };
+  const q = query.trim().toLowerCase();
+  return (
+    <div className="fnd-backdrop" onClick={onClose}>
+      <div className="fnd-modal ds-modal" onClick={(event) => event.stopPropagation()}>
+        <div className="fnd-modal-head"><div><h3>Selling prices</h3><p className="fnd-sub">Price per unit charged to companies. Fill a company's box only if they pay differently from the default.</p></div><button type="button" className="fnd-close" onClick={onClose} aria-label="Close">×</button></div>
+        <div className="fnd-modal-body">
+          {error && <div className="audit-error">{error}</div>}
+          <input className="ds-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search items" />
+          {!data ? <p className="audit-empty">Loading…</p> : (
+            <div className="ds-table-wrap">
+              <table className="ds-table ds-prices">
+                <thead><tr><th>Item</th><th>Unit</th><th>Default (₹)</th>{active.map((company) => <th key={company.id}>{company.name}</th>)}</tr></thead>
+                <tbody>
+                  {data.items.filter((item) => !q || item.name.toLowerCase().includes(q)).map((item) => (
+                    <tr key={item.id}>
+                      <td>{item.name}</td>
+                      <td>{item.unit}</td>
+                      <td><input type="number" min="0" step="any" className="ds-qty" defaultValue={item.sell_price ?? ""} onBlur={(event) => String(event.target.value) !== String(item.sell_price ?? "") && save(() => API.patch(`/supply/products/${item.id}`, { sell_price: event.target.value }, { headers }))} /></td>
+                      {active.map((company) => (
+                        <td key={company.id}><input type="number" min="0" step="any" className="ds-qty" placeholder={item.sell_price ?? ""} defaultValue={special(company.id, item) ?? ""} onBlur={(event) => String(event.target.value) !== String(special(company.id, item) ?? "") && save(() => API.put("/supply/company-prices", { company_id: company.id, product_id: item.id, unit: item.unit, price: event.target.value }, { headers }))} /></td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BuyingTab({ buying, onRate, onBuy, onRemovePurchase }) {
+  const { rows, totals } = buying;
+  return (
+    <>
+      <div className="fnd-kpis ds-kpis">
+        <div className="fnd-kpi-blue"><span>Estimated cost</span><b>{money(totals.estimate)}</b><small>All items at the best rate</small></div>
+        <div className="fnd-kpi-purple"><span>Spent so far</span><b>{money(totals.spent)}</b><small>{totals.short_items ? `${totals.short_items} item${totals.short_items === 1 ? "" : "s"} still to buy` : "Everything bought"}</small></div>
+        <div className="fnd-kpi-warn"><span>Selling value</span><b>{money(totals.selling)}</b><small>{totals.missing_prices ? `${totals.missing_prices} item${totals.missing_prices === 1 ? " has" : "s have"} no selling price` : "All items priced"}</small></div>
+        <div className={totals.margin >= 0 ? "fnd-kpi-good" : "fnd-kpi-bad"}><span>Margin</span><b>{money(totals.margin)}</b><small>{totals.margin_percent != null ? `${totals.margin_percent}% of selling value` : "Add rates and selling prices"}</small></div>
+      </div>
+      {totals.missing_rates > 0 && <p className="fnd-hint">{totals.missing_rates} item{totals.missing_rates === 1 ? " has" : "s have"} no vendor rate yet: tap "+ Rate" to add one.</p>}
+      <div className="ds-table-wrap">
+        <table className="ds-table ds-buying">
+          <thead><tr><th>Item</th><th>Need</th><th>Best rate</th><th>Est. cost</th><th>Bought</th><th>Short</th><th>Selling</th><th>Margin</th><th /></tr></thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.key} className={row.short > 0 && row.bought_qty > 0 ? "is-check" : ""}>
+                <td>{row.name}</td>
+                <td>{qty(row.need)} {row.unit}</td>
+                <td>{row.best ? <><b>{money(row.best.price)}</b>/{row.unit}<small className="ds-sub">{row.best.vendor_name} · {when(row.best.recorded_at)}{row.rates.length > 1 ? ` · ${row.rates.length} vendors` : ""}</small></> : <span className="na">—</span>}</td>
+                <td>{money(row.estimate)}</td>
+                <td>
+                  {row.bought.length ? row.bought.map((item) => (
+                    <span key={item.id} className="ds-bought" title={`${item.bought_by} · ${when(item.bought_at)}${item.notes ? ` · ${item.notes}` : ""}`}>
+                      {qty(item.qty)} @ {money(item.price)} · {item.vendor_name}
+                      <button type="button" onClick={() => onRemovePurchase(item)} aria-label="Remove purchase">✕</button>
+                    </span>
+                  )) : <span className="na">—</span>}
+                  {row.bought.length > 0 && <small className="ds-sub">Spent {money(row.spent)}</small>}
+                </td>
+                <td className={row.short > 0 ? "ds-short" : "ds-done"}>{row.short > 0 ? `${qty(row.short)} ${row.unit}` : "✓"}</td>
+                <td>{money(row.selling)}</td>
+                <td className={row.margin == null ? "" : row.margin >= 0 ? "ds-plus" : "ds-minus"}>{money(row.margin)}</td>
+                <td className="ds-row-actions">
+                  {row.product_id ? <>
+                    <button type="button" className="audit-btn" onClick={() => onRate(row)}>+ Rate</button>
+                    <button type="button" className="audit-btn audit-btn-primary" onClick={() => onBuy(row)}>Bought</button>
+                  </> : <small className="na">Check name first</small>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="fnd-hint">Cost = what was spent, plus the best rate for anything still short. Margin = selling value − cost.</p>
+    </>
+  );
+}
+
 /* ---------- Page ---------- */
 export default function SupplyWorkspace({ token, isAdmin, internalUsers }) {
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
@@ -290,6 +516,7 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers }) {
   const [buyerId, setBuyerId] = useState("");
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState("");
+  const [buyForm, setBuyForm] = useState(null);
 
   const notify = useCallback((message, isError = false) => {
     setToast({ message, isError });
@@ -362,6 +589,12 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers }) {
     }
   };
 
+  const addVendor = async (draft) => {
+    const response = await API.post("/supply/vendors", draft, { headers });
+    await loadOverview();
+    return response.data;
+  };
+
   const addCompany = async (draft) => {
     const response = await API.post("/supply/companies", draft, { headers });
     await loadOverview();
@@ -410,6 +643,8 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers }) {
         <div className="ds-top-actions">
           <button type="button" className="audit-btn" onClick={() => setModal("companies")}>Companies ({companies.length})</button>
           <button type="button" className="audit-btn" onClick={() => setModal("items")}>Items ({overview.products.length})</button>
+          <button type="button" className="audit-btn" onClick={() => setModal("vendors")}>Vendors ({(overview.vendors || []).length})</button>
+          <button type="button" className="audit-btn" onClick={() => setModal("selling")}>Selling prices</button>
         </div>
       </section>
 
@@ -471,10 +706,20 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers }) {
           <div className="ds-tabs">
             <button type="button" className={tab === "master" ? "active" : ""} onClick={() => setTab("master")}>Master sheet</button>
             <button type="button" className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}>Orders by company ({detail.orders.length})</button>
+            <button type="button" className={tab === "buying" ? "active" : ""} onClick={() => setTab("buying")}>Buying & margin</button>
             {tab === "master" && <input className="ds-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search items" />}
           </div>
 
-          {tab === "master" ? (
+          {tab === "buying" ? (
+            detail.master.length ? (
+              <BuyingTab
+                buying={detail.buying}
+                onRate={(row) => setBuyForm({ kind: "rate", row })}
+                onBuy={(row) => setBuyForm({ kind: "purchase", row })}
+                onRemovePurchase={(item) => window.confirm(`Remove this purchase (${qty(item.qty)} at ${money(item.price)})?`) && call("purchase", () => API.delete(`/supply/purchases/${item.id}`, { headers }), "Purchase removed")}
+              />
+            ) : <p className="audit-empty">Add orders first: buying works from the master sheet.</p>
+          ) : tab === "master" ? (
             detail.master.length ? (
               <div className="ds-table-wrap">
                 <table className="ds-table ds-master">
@@ -484,7 +729,7 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers }) {
                   <tbody>
                     {master.map((row) => (
                       <tr key={row.key} className={row.to_check ? "is-check" : ""}>
-                        <td title={row.spellings.length > 1 ? `Written as: ${row.spellings.join(", ")}` : ""}>{row.name}{row.to_check && <span className="ds-chip is-check">check name</span>}{row.spellings.length > 1 && <small className="ds-spellings"> · {row.spellings.length} spellings combined</small>}</td>
+                        <td title={row.spellings.length > 1 ? `Written as: ${row.spellings.join(", ")}` : ""}>{row.name}{row.to_check && <span className="ds-chip is-check">check name</span>}{row.spellings.length > 1 && <small className="ds-spellings"> · {row.spellings.length} spellings combined</small>}{row.from_boxes > 0 && <small className="ds-spellings"> · incl. {qty(row.from_boxes)} box</small>}</td>
                         <td>{row.unit}</td>
                         <td className="is-total">{qty(row.total)}</td>
                         {detail.companies.map((company) => <td key={company.id}>{row.by_company[company.id] ? qty(row.by_company[company.id]) : ""}</td>)}
@@ -557,6 +802,21 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers }) {
         />
       )}
       {modal === "companies" && <Companies companies={companies} onAdd={addCompany} onUpdate={(company, patch) => call("company", () => API.patch(`/supply/companies/${company.id}`, patch, { headers }))} onClose={() => setModal(null)} />}
+      {modal === "vendors" && <Vendors vendors={overview.vendors || []} onAdd={addVendor} onUpdate={(vendor, patch) => call("vendor", () => API.patch(`/supply/vendors/${vendor.id}`, patch, { headers }))} onClose={() => setModal(null)} />}
+      {modal === "selling" && <SellingPrices headers={headers} companies={companies} onChanged={() => loadRound(roundId)} onClose={() => setModal(null)} />}
+      {buyForm && round && (
+        <BuyForm
+          key={`${buyForm.kind}-${buyForm.row.key}`}
+          kind={buyForm.kind}
+          row={buyForm.row}
+          round={round}
+          vendors={overview.vendors || []}
+          headers={headers}
+          onAddVendor={addVendor}
+          onSaved={async (message) => { setBuyForm(null); notify(message); await refresh(); }}
+          onClose={() => setBuyForm(null)}
+        />
+      )}
       {modal === "items" && (
         <Items
           products={overview.products}
