@@ -20,24 +20,54 @@ const readFile = (file) => new Promise((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
-/* ---------- Add one company's order ---------- */
-function AddOrder({ headers, round, companies, units, onAddCompany, onSaved, onClose }) {
-  const [companyId, setCompanyId] = useState("");
-  const [newCompany, setNewCompany] = useState("");
+/* ---------- Add orders: one company's, or a message with several companies ---------- */
+function LinesTable({ lines, units, onChange }) {
+  const update = (index, patch) => onChange(lines.map((line, i) => (i === index ? { ...line, ...patch } : line)));
+  return (
+    <table className="ds-table">
+      <thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Matches</th><th /></tr></thead>
+      <tbody>
+        {lines.map((line, index) => line.removed ? null : (
+          <tr key={index} className={Number(line.qty) > 0 ? "" : "is-problem"}>
+            <td><input value={line.name} onChange={(event) => update(index, { name: event.target.value })} /></td>
+            <td><input type="number" min="0" step="any" value={line.qty} onChange={(event) => update(index, { qty: event.target.value })} className="ds-qty" /></td>
+            <td><select value={line.unit} onChange={(event) => update(index, { unit: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></td>
+            <td>{line.product_id ? <span className="ds-chip is-known">✓ {line.product_name}</span>
+              : line.suggestion_id ? <span className="ds-chip is-check" title="You'll confirm this in Check names">? Same as {line.suggestion_name}?</span>
+                : <span className="ds-chip is-new">✚ New item</span>}</td>
+            <td><button type="button" className="ds-x" onClick={() => update(index, { removed: true })} aria-label="Remove">✕</button></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function AddOrder({ headers, round, companies, units, onAddCompany, onSaved, onClose, initialText = "" }) {
   const [mode, setMode] = useState("paste");
-  const [text, setText] = useState("");
+  const [text, setText] = useState(initialText);
   const [file, setFile] = useState(null);
-  const [lines, setLines] = useState(null);
+  // groups: [{ heading, company: id | "new" | "", newName, lines }]; one group without a heading = one company's order.
+  const [groups, setGroups] = useState(null);
+  const [found, setFound] = useState(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const active = companies.filter((company) => company.active);
+  const already = new Set(round.orderCompanyIds || []);
 
-  const read = async () => {
+  const read = async (source = text) => {
     setBusy("read");
     setError("");
     try {
-      const payload = mode === "file" ? { file: await readFile(file) } : { text };
+      const payload = mode === "file" ? { file: await readFile(file) } : { text: source };
       const response = await API.post("/supply/parse", payload, { headers });
-      setLines(response.data.lines);
+      setFound({ date: response.data.date, title: response.data.title });
+      setGroups(response.data.groups.map((group) => ({
+        heading: group.heading,
+        company: group.company_id ? String(group.company_id) : group.heading ? "new" : "",
+        newName: group.heading || "",
+        lines: group.lines,
+      })));
     } catch (err) {
       setError(err.response?.data?.error || err.message || "Could not read the order");
     } finally {
@@ -45,61 +75,77 @@ function AddOrder({ headers, round, companies, units, onAddCompany, onSaved, onC
     }
   };
 
+  // Pasted from "New delivery date": read straight away.
+  const [autoRead] = useState(Boolean(initialText));
+  useEffect(() => {
+    if (!autoRead) return undefined;
+    const timer = setTimeout(() => read(initialText), 0);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoRead]);
+
+  const setGroup = (index, patch) => setGroups((list) => list.map((group, i) => (i === index ? { ...group, ...patch } : group)));
+  const kept = (group) => group.lines.filter((line) => !line.removed);
+  const ready = groups && groups.every((group) => !kept(group).length || (group.company && (group.company !== "new" || group.newName.trim())));
+  const itemCount = groups ? groups.reduce((sum, group) => sum + kept(group).length, 0) : 0;
+  const several = groups && (groups.length > 1 || groups[0]?.heading);
+
   const save = async () => {
     setBusy("save");
     setError("");
     try {
-      let company = companyId;
-      if (company === "new") {
-        const created = await onAddCompany({ name: newCompany });
-        company = created.id;
+      let saved = 0;
+      for (const group of groups) {
+        const lines = kept(group);
+        if (!lines.length) continue;
+        let companyId = group.company;
+        if (companyId === "new") {
+          const existing = companies.find((company) => company.name.toLowerCase() === group.newName.trim().toLowerCase());
+          companyId = existing ? existing.id : (await onAddCompany({ name: group.newName.trim() })).id;
+        }
+        await API.post(`/supply/rounds/${round.id}/orders`, {
+          company_id: companyId,
+          source: mode === "file" ? "file" : "text",
+          raw_text: mode === "file" ? "" : text,
+          file_name: mode === "file" ? file?.name : null,
+          lines: lines.map(({ name, qty: amount, unit }) => ({ name, qty: amount, unit })),
+        }, { headers });
+        saved += 1;
       }
-      if (!company) throw new Error("Choose the company");
-      await API.post(`/supply/rounds/${round.id}/orders`, {
-        company_id: company,
-        source: mode === "file" ? "file" : "text",
-        raw_text: mode === "file" ? "" : text,
-        file_name: mode === "file" ? file?.name : null,
-        lines: lines.filter((line) => !line.removed).map(({ name, qty: amount, unit }) => ({ name, qty: amount, unit })),
-      }, { headers });
-      onSaved();
+      onSaved(saved);
     } catch (err) {
       setError(err.response?.data?.error || err.message || "Could not save");
       setBusy("");
     }
   };
 
-  const update = (index, patch) => setLines((list) => list.map((line, i) => (i === index ? { ...line, ...patch } : line)));
-  const kept = (lines || []).filter((line) => !line.removed);
-  const ordered = companies.filter((company) => company.active);
-  const already = new Set(round.orderCompanyIds || []);
+  const companyPicker = (group, index) => (
+    <div className="ds-group-company">
+      <select value={group.company} onChange={(event) => setGroup(index, { company: event.target.value })} aria-label="Company">
+        <option value="">Choose company</option>
+        {active.map((company) => <option key={company.id} value={company.id}>{company.name}{already.has(company.id) ? " (already has an order)" : ""}</option>)}
+        <option value="new">➕ New company…</option>
+      </select>
+      {group.company === "new" && <input value={group.newName} onChange={(event) => setGroup(index, { newName: event.target.value })} placeholder="New company name" />}
+    </div>
+  );
 
   return (
     <div className="fnd-backdrop" onClick={onClose}>
       <div className="fnd-modal ds-modal" onClick={(event) => event.stopPropagation()}>
         <div className="fnd-modal-head">
-          <div><h3>Add a company's order</h3><p className="fnd-sub">{round.ref} · delivery {dayLabel(round.delivery_date)}</p></div>
+          <div><h3>Add orders</h3><p className="fnd-sub">{round.ref} · delivery {dayLabel(round.delivery_date)} · paste one company's order, or a message with several companies</p></div>
           <button type="button" className="fnd-close" onClick={onClose} aria-label="Close">×</button>
         </div>
         <div className="fnd-modal-body">
-          <div className="fnd-grid fnd-grid-3">
-            <label>Company *
-              <select value={companyId} onChange={(event) => setCompanyId(event.target.value)}>
-                <option value="">Choose company</option>
-                {ordered.map((company) => <option key={company.id} value={company.id}>{company.name}{already.has(company.id) ? " (already has an order)" : ""}</option>)}
-                <option value="new">➕ New company…</option>
-              </select>
-            </label>
-            {companyId === "new" && <label>New company name *<input value={newCompany} onChange={(event) => setNewCompany(event.target.value)} placeholder="e.g. Infosys Pune" autoFocus /></label>}
-          </div>
-          {!lines && <>
+          {!groups && <>
             <div className="ds-mode">
               <button type="button" className={mode === "paste" ? "active" : ""} onClick={() => setMode("paste")}>Paste from WhatsApp</button>
               <button type="button" className={mode === "file" ? "active" : ""} onClick={() => setMode("file")}>Upload Excel / CSV</button>
             </div>
             {mode === "paste" ? (
-              <label>The order (one item per line)
-                <textarea rows={10} value={text} onChange={(event) => setText(event.target.value)} placeholder={"Lays Classic 52g - 20\nKurkure Masala Munch 90g 2 dozen\n24 x Coke 300ml\nBanana 5 kg"} />
+              <label>The order message
+                <textarea rows={12} value={text} onChange={(event) => setText(event.target.value)} placeholder={"AERO\n- Apple - 6 kg\n- Banana - 7 kg\n\nCRED One\n- Apple - 12 kg\n\n(or one company's list: Lays Classic 52g - 20 …)"} />
               </label>
             ) : (
               <label className="ds-file">{file ? `📄 ${file.name}` : "Choose the Excel or CSV file the admin sent"}
@@ -107,38 +153,39 @@ function AddOrder({ headers, round, companies, units, onAddCompany, onSaved, onC
               </label>
             )}
           </>}
-          {lines && (
+          {groups && (
             <div className="ds-preview">
               <div className="ds-preview-head">
-                <b>{kept.length} item{kept.length === 1 ? "" : "s"} read</b>
-                <button type="button" className="audit-link-danger" onClick={() => setLines(null)}>Read again</button>
+                <b>{itemCount} item{itemCount === 1 ? "" : "s"}{several ? ` from ${groups.length} compan${groups.length === 1 ? "y" : "ies"}` : ""}</b>
+                <button type="button" className="audit-link-danger" onClick={() => setGroups(null)}>Read again</button>
               </div>
-              <table className="ds-table">
-                <thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th>Matches</th><th /></tr></thead>
-                <tbody>
-                  {lines.map((line, index) => line.removed ? null : (
-                    <tr key={index} className={line.qty > 0 ? "" : "is-problem"}>
-                      <td><input value={line.name} onChange={(event) => update(index, { name: event.target.value })} /></td>
-                      <td><input type="number" min="0" step="any" value={line.qty} onChange={(event) => update(index, { qty: event.target.value })} className="ds-qty" /></td>
-                      <td><select value={line.unit} onChange={(event) => update(index, { unit: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></td>
-                      <td>{line.product_id ? <span className="ds-chip is-known">✓ {line.product_name}</span>
-                        : line.suggestion_id ? <span className="ds-chip is-check" title="You'll confirm this in Check names">? Same as {line.suggestion_name}?</span>
-                          : <span className="ds-chip is-new">✚ New item</span>}</td>
-                      <td><button type="button" className="ds-x" onClick={() => update(index, { removed: true })} aria-label="Remove">✕</button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {lines.some((line) => !line.removed && !(Number(line.qty) > 0)) && <p className="fnd-hint">Rows in red have no quantity. Fill it in, or remove the row.</p>}
+              {found?.date && found.date !== round.delivery_date && (
+                <div className="ds-note">📅 The message says <b>{dayLabel(found.date)}</b>, but this delivery date is <b>{dayLabel(round.delivery_date)}</b>. Check you're adding it to the right date.</div>
+              )}
+              {groups.map((group, index) => (
+                <div key={index} className={several ? "ds-group" : ""}>
+                  {several ? (
+                    <div className="ds-group-head">
+                      <b>{group.heading || "Company"}</b>
+                      {group.company && group.company !== "new" ? <span className="ds-chip is-known">✓ saved company</span> : group.company === "new" ? <span className="ds-chip is-new">✚ new company</span> : null}
+                      {companyPicker(group, index)}
+                    </div>
+                  ) : (
+                    <label className="ds-single-company">Company *{companyPicker(group, index)}</label>
+                  )}
+                  <LinesTable lines={group.lines} units={units} onChange={(lines) => setGroup(index, { lines })} />
+                </div>
+              ))}
+              {groups.some((group) => kept(group).some((line) => !(Number(line.qty) > 0))) && <p className="fnd-hint">Rows in red have no quantity. Fill it in, or remove the row.</p>}
             </div>
           )}
           {error && <div className="audit-error">{error}</div>}
         </div>
         <div className="fnd-modal-foot">
           <button type="button" className="audit-btn" onClick={onClose}>Cancel</button>
-          {!lines
-            ? <button type="button" className="audit-btn audit-btn-primary" disabled={busy === "read" || (mode === "paste" ? !text.trim() : !file)} onClick={read}>{busy === "read" ? "Reading…" : "Read order"}</button>
-            : <button type="button" className="audit-btn audit-btn-primary" disabled={busy === "save" || !kept.length || (!companyId || (companyId === "new" && !newCompany.trim()))} onClick={save}>{busy === "save" ? "Saving…" : `Add ${kept.length} items to ${round.ref}`}</button>}
+          {!groups
+            ? <button type="button" className="audit-btn audit-btn-primary" disabled={busy === "read" || (mode === "paste" ? !text.trim() : !file)} onClick={() => read()}>{busy === "read" ? "Reading…" : "Read order"}</button>
+            : <button type="button" className="audit-btn audit-btn-primary" disabled={busy === "save" || !itemCount || !ready} onClick={save}>{busy === "save" ? "Saving…" : several ? `Add ${groups.filter((group) => kept(group).length).length} companies' orders` : `Add ${itemCount} items to ${round.ref}`}</button>}
         </div>
       </div>
     </div>
@@ -238,6 +285,8 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers }) {
   const [toast, setToast] = useState(null);
   const [newDate, setNewDate] = useState(tomorrow);
   const [newTitle, setNewTitle] = useState("");
+  const [newMessage, setNewMessage] = useState("");
+  const [orderText, setOrderText] = useState("");
   const [buyerId, setBuyerId] = useState("");
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState("");
@@ -291,9 +340,27 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers }) {
     const response = await API.post("/supply/rounds", { delivery_date: newDate, title: newTitle }, { headers });
     setRoundId(response.data.id);
     setNewTitle("");
-    setModal(null);
+    // A pasted message goes straight into "Add orders" for the new date.
+    if (newMessage.trim()) {
+      setOrderText(newMessage);
+      setNewMessage("");
+      setModal("order");
+    } else setModal(null);
     return response.data;
   }, (round) => `${round.ref} started for ${dayLabel(round.delivery_date)}`);
+
+  // The date and title in a pasted message ("Fruits requirements for 1/10/26") fill the form.
+  const readMessage = async (value) => {
+    setNewMessage(value);
+    if (!value.trim()) return;
+    try {
+      const response = await API.post("/supply/parse", { text: value }, { headers });
+      if (response.data.date) setNewDate(response.data.date);
+      if (response.data.title) setNewTitle((current) => current || response.data.title);
+    } catch {
+      // nothing readable yet: the form stays as it is
+    }
+  };
 
   const addCompany = async (draft) => {
     const response = await API.post("/supply/companies", draft, { headers });
@@ -465,7 +532,10 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers }) {
                 <label>Delivery date *<input type="date" value={newDate} onChange={(event) => setNewDate(event.target.value)} /></label>
                 <label>Name (optional)<input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="e.g. Weekly order, Fruits" /></label>
               </div>
-              <p className="fnd-hint">All companies' orders for this delivery go into one master sheet.</p>
+              <label>Or paste the order message (optional)
+                <textarea rows={6} value={newMessage} onChange={(event) => setNewMessage(event.target.value)} onBlur={(event) => readMessage(event.target.value)} onPaste={(event) => { const value = event.clipboardData.getData("text"); setTimeout(() => readMessage(value), 0); }} placeholder={"Fruits requirements for\n1/10/26\n\nAERO\n- Apple - 6 kg …"} />
+              </label>
+              <p className="fnd-hint">All companies' orders for this delivery go into one master sheet. A pasted message fills in the date and name, and its orders are added next.</p>
             </div>
             <div className="fnd-modal-foot">
               <button type="button" className="audit-btn" onClick={() => setModal(null)}>Cancel</button>
@@ -481,8 +551,9 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers }) {
           companies={companies}
           units={units}
           onAddCompany={addCompany}
-          onSaved={async () => { setModal(null); notify("Order added to the master sheet"); await refresh(); }}
-          onClose={() => setModal(null)}
+          initialText={orderText}
+          onSaved={async (count) => { setModal(null); setOrderText(""); notify(count > 1 ? `${count} companies' orders added to the master sheet` : "Order added to the master sheet"); await refresh(); }}
+          onClose={() => { setModal(null); setOrderText(""); }}
         />
       )}
       {modal === "companies" && <Companies companies={companies} onAdd={addCompany} onUpdate={(company, patch) => call("company", () => API.patch(`/supply/companies/${company.id}`, patch, { headers }))} onClose={() => setModal(null)} />}
