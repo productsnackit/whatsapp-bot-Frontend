@@ -2691,7 +2691,7 @@ export default function App() {
                           <RiskBadge ticket={t} onOpen={() => { setActiveChat(t); setMessages([]); }} />
                         </td>
                         <td className="cell-phone"><span className="phone-tag">{t.phone}</span></td>
-                        <td data-label="Issue">{t.main_issue || <span className="na">{t.attention_at ? "Not chosen yet" : "—"}</span>}</td>
+                        <td data-label="Issue">{t.main_issue || <span className="na">Not chosen yet</span>}</td>
                         <td data-label="Sub issue">{t.sub_issue || <span className="na">—</span>}</td>
                         <td data-label="Location"><SiteCell ticket={t} sites={sites} onSet={setTicketSite} /></td>
                         <td data-label="Transaction ID"><TxnIdCell ticket={t} /></td>
