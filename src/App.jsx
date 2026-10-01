@@ -285,7 +285,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [ticketDraft, setTicketDraft] = useState({ priority: "normal", assigned_to: "", admin_notes: "" });
 
-  const departments = ["Accounts", "HR", "Operations", "Product", "Audit", "Technical", "Orders", "Logistics"];
+  const departments = ["Management", "Accounts", "HR", "Operations", "Product", "Audit", "Technical", "Orders", "Logistics"];
   const [internalUsers, setInternalUsers] = useState([]);
   const [internalChats, setInternalChats] = useState([]);
   const [selectedDepartment, setSelectedDepartment] = useState(LAUNCH_CHAT?.department || localStorage.getItem("userDepartment") || "Accounts");

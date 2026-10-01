@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 /* Admin page: each person's login, role and the pages they can open.
    Passwords are never shown; "Reset password" gives a new one once. */
 
-const ROLE_TONES = { admin: "red", support: "blue", quality: "green", operations: "amber", staff: "grey", viewer: "purple" };
+const ROLE_TONES = { director: "red", admin: "red", support: "blue", quality: "green", operations: "amber", staff: "grey", viewer: "purple" };
 
 function timeAgo(value) {
   if (!value) return "Never logged in";
@@ -50,7 +50,7 @@ function AccessEditor({ person, options, departments, onSave, onCancel }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const isNew = !person;
-  const isAdminRole = draft.accessRole === "admin";
+  const isAdminRole = draft.accessRole === "admin" || draft.accessRole === "director";
 
   const pickRole = (accessRole) => setDraft((current) => ({ ...current, accessRole, pages: options.roles[accessRole].pages }));
   const togglePage = (page) => setDraft((current) => ({
@@ -92,7 +92,7 @@ function AccessEditor({ person, options, departments, onSave, onCancel }) {
         {Object.entries(options.roles).map(([key, role]) => (
           <button type="button" key={key} className={`ea-role ea-tone-${ROLE_TONES[key]} ${draft.accessRole === key ? "selected" : ""}`} onClick={() => pickRole(key)}>
             <b>{role.label}</b>
-            <small>{key === "admin" ? "Everything, incl. employees" : role.readOnly ? "Can look at pages, can't change anything" : role.pages.map((page) => options.pages[page]).join(", ")}</small>
+            <small>{key === "director" ? "Everything, incl. employees · shown as Director" : key === "admin" ? "Everything, incl. employees" : role.readOnly ? "Can look at pages, can't change anything" : role.pages.map((page) => options.pages[page]).join(", ")}</small>
           </button>
         ))}
       </div>
