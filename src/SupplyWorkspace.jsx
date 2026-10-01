@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { DeliveryTab, Accounts, SellerSettings } from "./SupplyBilling.jsx";
 
 /* Direct Supply (phase 1): each company's order for a delivery date is pasted or uploaded,
    and the master sheet adds the same items up across companies for the stock buyer.
@@ -195,6 +196,7 @@ function AddOrder({ headers, round, companies, units, onAddCompany, onSaved, onC
 /* ---------- Companies ---------- */
 function Companies({ companies, onAdd, onUpdate, onClose }) {
   const [draft, setDraft] = useState({ name: "", contact_name: "", contact_phone: "", location: "" });
+  const [billing, setBilling] = useState(null);
   const [error, setError] = useState("");
   const add = async (event) => {
     event.preventDefault();
@@ -221,9 +223,20 @@ function Companies({ companies, onAdd, onUpdate, onClose }) {
           {error && <div className="audit-error">{error}</div>}
           <ul className="ds-companies">
             {companies.map((company) => (
-              <li key={company.id} className={company.active ? "" : "is-off"}>
-                <div><b>{company.name}</b><small>{[company.contact_name, company.contact_phone, company.location].filter(Boolean).join(" · ") || "No contact details"}</small></div>
-                <button type="button" className="audit-btn" onClick={() => onUpdate(company, { active: !company.active })}>{company.active ? "Hide" : "Show again"}</button>
+              <li key={company.id} className={`${company.active ? "" : "is-off"} ${billing === company.id ? "is-open" : ""}`}>
+                <div><b>{company.name}</b><small>{[company.contact_name, company.contact_phone, company.location].filter(Boolean).join(" · ") || "No contact details"}{company.gstin ? ` · GSTIN ${company.gstin}` : ""}</small></div>
+                <div className="ds-company-actions">
+                  <button type="button" className="audit-btn" onClick={() => setBilling(billing === company.id ? null : company.id)}>Billing</button>
+                  <button type="button" className="audit-btn" onClick={() => onUpdate(company, { active: !company.active })}>{company.active ? "Hide" : "Show again"}</button>
+                </div>
+                {billing === company.id && (
+                  <div className="ds-billing">
+                    <label>Name on invoice<input defaultValue={company.billing_name || ""} placeholder={company.name} onBlur={(event) => event.target.value !== (company.billing_name || "") && onUpdate(company, { billing_name: event.target.value })} /></label>
+                    <label>GSTIN<input defaultValue={company.gstin || ""} onBlur={(event) => event.target.value !== (company.gstin || "") && onUpdate(company, { gstin: event.target.value })} /></label>
+                    <label>Pays within (days)<input type="number" min="0" defaultValue={company.payment_days ?? ""} placeholder="7" onBlur={(event) => String(event.target.value) !== String(company.payment_days ?? "") && onUpdate(company, { payment_days: event.target.value })} /></label>
+                    <label className="ds-billing-wide">Billing address<textarea rows={2} defaultValue={company.address || ""} onBlur={(event) => event.target.value !== (company.address || "") && onUpdate(company, { address: event.target.value })} /></label>
+                  </div>
+                )}
               </li>
             ))}
             {!companies.length && <p className="audit-empty">No companies yet. Add the first one above.</p>}
@@ -645,6 +658,8 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers }) {
           <button type="button" className="audit-btn" onClick={() => setModal("items")}>Items ({overview.products.length})</button>
           <button type="button" className="audit-btn" onClick={() => setModal("vendors")}>Vendors ({(overview.vendors || []).length})</button>
           <button type="button" className="audit-btn" onClick={() => setModal("selling")}>Selling prices</button>
+          <button type="button" className="audit-btn" onClick={() => setModal("accounts")}>💰 Accounts</button>
+          <button type="button" className="audit-btn" onClick={() => setModal("seller")}>Invoice settings</button>
         </div>
       </section>
 
@@ -707,10 +722,13 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers }) {
             <button type="button" className={tab === "master" ? "active" : ""} onClick={() => setTab("master")}>Master sheet</button>
             <button type="button" className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}>Orders by company ({detail.orders.length})</button>
             <button type="button" className={tab === "buying" ? "active" : ""} onClick={() => setTab("buying")}>Buying & margin</button>
+            <button type="button" className={tab === "delivery" ? "active" : ""} onClick={() => setTab("delivery")}>Delivery & billing</button>
             {tab === "master" && <input className="ds-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search items" />}
           </div>
 
-          {tab === "buying" ? (
+          {tab === "delivery" ? (
+            <DeliveryTab key={`${round.id}-${detail.orders.length}`} round={round} headers={headers} isAdmin={isAdmin} notify={notify} />
+          ) : tab === "buying" ? (
             detail.master.length ? (
               <BuyingTab
                 buying={detail.buying}
@@ -802,6 +820,8 @@ export default function SupplyWorkspace({ token, isAdmin, internalUsers }) {
         />
       )}
       {modal === "companies" && <Companies companies={companies} onAdd={addCompany} onUpdate={(company, patch) => call("company", () => API.patch(`/supply/companies/${company.id}`, patch, { headers }))} onClose={() => setModal(null)} />}
+      {modal === "accounts" && <Accounts headers={headers} isAdmin={isAdmin} onClose={() => setModal(null)} />}
+      {modal === "seller" && <SellerSettings headers={headers} notify={notify} onClose={() => setModal(null)} />}
       {modal === "vendors" && <Vendors vendors={overview.vendors || []} onAdd={addVendor} onUpdate={(vendor, patch) => call("vendor", () => API.patch(`/supply/vendors/${vendor.id}`, patch, { headers }))} onClose={() => setModal(null)} />}
       {modal === "selling" && <SellingPrices headers={headers} companies={companies} onChanged={() => loadRound(roundId)} onClose={() => setModal(null)} />}
       {buyForm && round && (

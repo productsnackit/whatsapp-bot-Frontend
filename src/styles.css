@@ -5002,3 +5002,33 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 .ds-history small { color: var(--text-muted); }
 .ds-prices td:first-child, .ds-prices th:first-child { position: sticky; left: 0; background: var(--surface); min-width: 180px; }
 .fnd-modal label .ds-group-company { margin-left: 0; }
+/* Direct Supply · delivery & billing */
+.ds-delivery { display: grid; gap: 8px; }
+.ds-steps { display: flex; flex-wrap: wrap; gap: 4px; }
+.ds-steps button { padding: 6px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-muted); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.ds-steps button.done { border-color: #86efac; background: #f0fdf4; color: #166534; }
+.ds-steps button.current { border-color: #166534; background: #166534; color: #fff; }
+.ds-delivery-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ds-delivery-tools label.audit-btn { cursor: pointer; }
+.ds-proof img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); display: block; }
+.ds-received { width: auto !important; flex: 1 1 200px; max-width: 320px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 13px; min-width: 180px; }
+.ds-inv-chip { margin-left: auto; padding: 5px 12px; border: 0; border-radius: 999px; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.ds-order-head .audit-btn-primary { margin-left: auto; }
+.ds-invoice-total { margin: 10px 0 0 auto; width: min(300px, 100%); display: grid; gap: 4px; font-size: 13px; }
+.ds-invoice-total div { display: flex; justify-content: space-between; }
+.ds-invoice-total .is-grand { border-top: 2px solid var(--text-primary); padding-top: 6px; font-size: 15px; }
+.ds-invoice-status { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 10px; font-size: 13px; }
+.ds-invoice-status .audit-btn { margin-left: auto; }
+.ds-pay { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.ds-pay input, .ds-pay select { padding: 7px 10px; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 13px; width: auto; min-width: 0; }
+.ds-pay input[type="number"] { width: 120px; }
+.ds-pay input:not([type]) { flex: 1 1 180px; }
+.ds-click { cursor: pointer; }
+.ds-click:hover td { background: var(--surface-2, #f8fafc); }
+.ds-companies li { flex-wrap: wrap; }
+.ds-company-actions { display: flex; gap: 6px; }
+.ds-billing { flex-basis: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding-top: 8px; }
+.ds-billing label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; }
+.ds-billing input, .ds-billing textarea { padding: 7px 10px; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 13px; font-weight: 400; }
+.ds-billing-wide { grid-column: 1 / -1; }
+@media (max-width: 700px) { .ds-billing { grid-template-columns: 1fr; } }
