@@ -25,12 +25,12 @@ const readFile = (file) => new Promise((resolve, reject) => {
 
 /* The five simple pages of Direct Supply, each with two "how to use" points and an example. */
 const PAGES = [
-  { key: "orders", num: "1", label: "Orders", how: ["Pick the delivery date.", "Paste a company's WhatsApp message, press Read order, then Add."], example: "AERO sends “Apple 6 kg, Banana 7 kg”: paste it and it's saved as AERO's order. Orders sent to the Snackit WhatsApp number or through an order link appear here by themselves." },
-  { key: "buy", num: "2", label: "Buy", how: ["Check the total list and press Send to buyer.", "After buying, press Bought next to each item."], example: "AERO wants 6 kg apples and CRED 12 kg: the list shows Apple 18 kg." },
-  { key: "deliver", num: "3", label: "Deliver", how: ["Tap Packed → Out for delivery → Delivered for each company.", "When it's delivered, press Create invoice."], example: "Only 5 of the 6 kg apples went? Change it to 5 before making the invoice." },
-  { key: "money", num: "4", label: "Money", how: ["See who owes money and what is overdue.", "Click an invoice to add a payment or print it."], example: "Every Monday, check Overdue and call those companies." },
-  { key: "setup", num: "⚙", label: "Setup", how: ["Add your companies (with the admin's WhatsApp number) and vendors once.", "Set selling prices and Snackit's invoice details."], example: "Save AERO's admin number and every list they WhatsApp becomes an order." },
+  { key: "orders", label: "📋 Orders", how: ["Each row is one delivery date: who ordered, how much, what the buyer has done, and the margin.", "Click a row to see every item, what was bought and where, and each company's order."], example: "Admins send orders on WhatsApp → a row appears for that date → the buyer gets the list → you watch his progress and the margin here." },
+  { key: "money", label: "💰 Money", how: ["See who owes money and what is overdue.", "Click an invoice to add a payment or print it."], example: "Every Monday, check Overdue and call those companies." },
+  { key: "setup", label: "⚙ Setup", how: ["Add your companies (with the admin's WhatsApp number) and vendors once.", "Set selling prices and Snackit's invoice details."], example: "Save AERO's admin number and every list they WhatsApp becomes an order." },
 ];
+const STEP_TONE = { Received: "blue", Processing: "warn", Ordered: "purple", "Goods received": "good", Sent: "good" };
+const STATUS_TONE_ROUND = { Collecting: "warn", "Sent to buyer": "blue", Bought: "purple", Delivered: "good" };
 
 /* ---------- Add orders: one company's, or a message with several companies ---------- */
 function LinesTable({ lines, units, onChange }) {
@@ -350,6 +350,7 @@ function Items({ products, units, onUpdate, onMerge }) {
 
 /* ---------- Vendors, rates, purchases, selling prices ---------- */
 const money = (value) => (value == null ? "—" : `₹${Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`);
+const rupees = (value) => `₹${Math.round(Number(value)).toLocaleString("en-IN")}`;
 const when = (value) => (value ? new Date(value).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "");
 
 function Vendors({ vendors, onAdd, onUpdate, className }) {
@@ -514,59 +515,10 @@ function SellingPrices({ headers, companies, onChanged, version }) {
   );
 }
 
-function BuyingTab({ buying, onRate, onBuy, onRemovePurchase }) {
-  const { rows, totals } = buying;
-  return (
-    <>
-      <div className="fnd-kpis ds-kpis">
-        <div className="fnd-kpi-blue"><span>Estimated cost</span><b>{money(totals.estimate)}</b><small>All items at the best rate</small></div>
-        <div className="fnd-kpi-purple"><span>Spent so far</span><b>{money(totals.spent)}</b><small>{totals.short_items ? `${totals.short_items} item${totals.short_items === 1 ? "" : "s"} still to buy` : "Everything bought"}</small></div>
-        <div className="fnd-kpi-warn"><span>Selling value</span><b>{money(totals.selling)}</b><small>{totals.missing_prices ? `${totals.missing_prices} item${totals.missing_prices === 1 ? " has" : "s have"} no selling price` : "All items priced"}</small></div>
-        <div className={totals.margin >= 0 ? "fnd-kpi-good" : "fnd-kpi-bad"}><span>Margin</span><b>{money(totals.margin)}</b><small>{totals.margin_percent != null ? `${totals.margin_percent}% of selling value` : "Add rates and selling prices"}</small></div>
-      </div>
-      {totals.missing_rates > 0 && <p className="fnd-hint">{totals.missing_rates} item{totals.missing_rates === 1 ? " has" : "s have"} no vendor rate yet: tap "+ Rate" to add one.</p>}
-      <div className="ds-table-wrap is-tall">
-        <table className="ds-table ds-buying">
-          <thead><tr><th>Item</th><th>Need</th><th>Best rate</th><th>Est. cost</th><th>Bought</th><th>Short</th><th>Selling</th><th>Margin</th><th /></tr></thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.key} className={row.short > 0 && row.bought_qty > 0 ? "is-check" : ""}>
-                <td>{row.name}</td>
-                <td>{qty(row.need)} {row.unit}</td>
-                <td>{row.best ? <><b>{money(row.best.price)}</b>/{row.unit}<small className="ds-sub">{row.best.vendor_name} · {when(row.best.recorded_at)}{row.rates.length > 1 ? ` · ${row.rates.length} vendors` : ""}</small></> : <span className="na">—</span>}</td>
-                <td>{money(row.estimate)}</td>
-                <td>
-                  {row.bought.length ? row.bought.map((item) => (
-                    <span key={item.id} className="ds-bought" title={`${item.bought_by} · ${when(item.bought_at)}${item.notes ? ` · ${item.notes}` : ""}`}>
-                      {qty(item.qty)} @ {money(item.price)} · {item.vendor_name}
-                      <button type="button" onClick={() => onRemovePurchase(item)} aria-label="Remove purchase">✕</button>
-                    </span>
-                  )) : <span className="na">—</span>}
-                  {row.bought.length > 0 && <small className="ds-sub">Spent {money(row.spent)}</small>}
-                </td>
-                <td className={row.short > 0 ? "ds-short" : "ds-done"}>{row.short > 0 ? `${qty(row.short)} ${row.unit}` : "✓"}</td>
-                <td>{money(row.selling)}</td>
-                <td className={row.margin == null ? "" : row.margin >= 0 ? "ds-plus" : "ds-minus"}>{money(row.margin)}</td>
-                <td className="ds-row-actions">
-                  {row.product_id ? <>
-                    <button type="button" className="audit-btn" onClick={() => onRate(row)}>+ Rate</button>
-                    <button type="button" className="audit-btn audit-btn-primary" onClick={() => onBuy(row)}>Bought</button>
-                  </> : <small className="na">Check name first</small>}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="fnd-hint">Cost = what was spent, plus the best rate for anything still short. Margin = selling value − cost.</p>
-    </>
-  );
-}
-
-/* ---------- Page ---------- */
 export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
   const [overview, setOverview] = useState(null);
+  const [list, setList] = useState(null);
   const [roundId, setRoundId] = useState(null);
   const [detail, setDetail] = useState(null);
   const [toast, setToast] = useState(null);
@@ -575,15 +527,16 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
   const [orderText, setOrderText] = useState("");
   const [orderKey, setOrderKey] = useState(0);
   const [buyerInfo, setBuyerInfo] = useState(null);
+  const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState("");
   const [buyForm, setBuyForm] = useState(null);
   const [billingVersion, setBillingVersion] = useState(0);
-  const [deliverySummary, setDeliverySummary] = useState(null);
-  const [accountsSummary, setAccountsSummary] = useState(null);
-  const [page, setPageState] = useState(() => { try { return localStorage.getItem("supplyPage") || "orders"; } catch { return "orders"; } });
+  const [page, setPageState] = useState(() => { try { const saved = localStorage.getItem("supplyPage"); return ["orders", "money", "setup"].includes(saved) ? saved : "orders"; } catch { return "orders"; } });
   const [newOpen, setNewOpen] = useState(false);
-  const setPage = (key) => { setPageState(key); try { localStorage.setItem("supplyPage", key); } catch { /* private browsing */ } window.scrollTo({ top: 0 }); };
+  const [addOpen, setAddOpen] = useState(false);
+  const setPage = (key) => { setPageState(key); setRoundId(null); try { localStorage.setItem("supplyPage", key); } catch { /* private browsing */ } window.scrollTo({ top: 0 }); };
+  const openRound = (id) => { setRoundId(id); setAddOpen(false); window.scrollTo({ top: 0 }); };
 
   const notify = useCallback((message, isError = false) => {
     setToast({ message, isError });
@@ -592,11 +545,10 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
 
   const loadOverview = useCallback(async () => {
     try {
-      const response = await API.get("/supply/overview", { headers });
+      const [response, orders] = await Promise.all([API.get("/supply/overview", { headers }), API.get("/supply/orders-list", { headers })]);
       setOverview(response.data);
-      setRoundId((current) => current ?? response.data.rounds[0]?.id ?? null);
+      setList(orders.data);
       API.get("/supply/buyer-info", { headers }).then((info) => setBuyerInfo(info.data)).catch(() => {});
-      API.get("/supply/accounts", { headers }).then((accounts) => setAccountsSummary(accounts.data.totals)).catch(() => {});
     } catch (err) {
       notify(err.response?.data?.error || "Could not load Direct Supply", true);
     }
@@ -607,18 +559,13 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
     try {
       const response = await API.get(`/supply/rounds/${id}`, { headers });
       setDetail(response.data);
-      API.get(`/supply/rounds/${id}/delivery`, { headers }).then((delivery) => {
-        const list = delivery.data.companies;
-        setDeliverySummary({ roundId: id, total: list.length, delivered: list.filter((entry) => entry.delivery.status === "Delivered").length, invoiced: list.filter((entry) => entry.invoice).length, billed: list.reduce((sum, entry) => sum + (entry.invoice?.total || 0), 0), received: list.reduce((sum, entry) => sum + (entry.invoice?.paid || 0), 0) });
-      }).catch(() => {});
     } catch (err) {
-      notify(err.response?.data?.error || "Could not load this round", true);
+      notify(err.response?.data?.error || "Could not load this date", true);
     }
   }, [headers, notify]);
 
-  useEffect(() => { const timer = setTimeout(loadOverview, 0); return () => clearTimeout(timer); }, [loadOverview]);
+  useEffect(() => { const timer = setTimeout(loadOverview, 0); return () => clearTimeout(timer); }, [loadOverview, version, billingVersion]);
   useEffect(() => { const timer = setTimeout(() => loadRound(roundId), 0); return () => clearTimeout(timer); }, [loadRound, roundId, version]);
-  useEffect(() => { if (!version) return undefined; const timer = setTimeout(loadOverview, 0); return () => clearTimeout(timer); }, [loadOverview, version]);
 
   const refresh = async () => { await Promise.all([loadOverview(), loadRound(roundId)]); };
   const call = async (label, action, success) => {
@@ -643,9 +590,10 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
 
   const createRound = () => call("round", async () => {
     const created = await startRound(newDate, newTitle);
-    setRoundId(created.id);
     setNewTitle("");
     setNewOpen(false);
+    openRound(created.id);
+    setAddOpen(true);
     return created;
   }, (round) => `${round.ref} started for ${dayLabel(round.delivery_date)}`);
 
@@ -671,7 +619,7 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
     return response.data;
   };
 
-  const round = detail?.round || null;
+  const round = roundId && detail?.round?.id === roundId ? detail.round : null;
 
   const downloadExcel = async () => {
     try {
@@ -687,103 +635,71 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
     }
   };
 
-  const onDeliverySummary = useCallback((summary) => setDeliverySummary(summary), []);
-  const onAccountsSummary = useCallback((summary) => setAccountsSummary(summary), []);
   const billingChanged = useCallback(() => setBillingVersion((value) => value + 1), []);
 
-  const companies = overview?.companies || [];
-  const units = overview?.units || ["pcs", "kg", "box", "pkt"];
-  const q = search.trim().toLowerCase();
-  const master = (detail?.master || []).filter((row) => !q || `${row.name} ${row.spellings.join(" ")}`.toLowerCase().includes(q));
-  const checks = round ? detail.checks || [] : [];
+  if (!overview || !list) return <div className="audit-workspace"><p className="audit-empty">Loading Direct Supply…</p></div>;
 
-  if (!overview) return <div className="audit-workspace"><p className="audit-empty">Loading Direct Supply…</p></div>;
-
-  const ordered = new Set((round ? detail.orders : []).map((order) => order.company_id));
-  const waiting = companies.filter((company) => company.active && !ordered.has(company.id));
-  const totals = round ? detail.buying?.totals : null;
-  const delivery = deliverySummary?.roundId === round?.id ? deliverySummary : null;
-  const statusIndex = round ? STATUSES.indexOf(round.status) : -1;
+  const companies = overview.companies || [];
+  const units = overview.units || ["pcs", "kg", "box", "pkt"];
   const activeCount = companies.filter((company) => company.active).length;
   const info = PAGES.find((item) => item.key === page) || PAGES[0];
-  // A short live number under each step.
-  const badge = {
-    orders: round ? `${detail.orders.length} of ${activeCount} companies` : "",
-    buy: totals && detail.master.length ? (totals.short_items ? `${totals.short_items} to buy` : "All bought ✓") : "",
-    deliver: delivery?.total ? (delivery.delivered === delivery.total ? "All delivered ✓" : `${delivery.delivered} of ${delivery.total} delivered`) : "",
-    money: accountsSummary ? (accountsSummary.outstanding > 0 ? `${money(accountsSummary.outstanding)} due` : "Nothing due ✓") : "",
-    setup: `${activeCount} companies`,
-  };
-  const needsDate = ["orders", "buy", "deliver"].includes(page);
+  const today = isoDay(new Date());
+  const q = search.trim().toLowerCase();
+  const rows = list.rounds.filter((row) => {
+    if (filter === "open" && (row.status === "Delivered" || row.delivery_date < today)) return false;
+    if (filter === "done" && !(row.status === "Delivered" || row.delivery_date < today)) return false;
+    return !q || `${row.ref} ${row.title || ""} ${row.companies.join(" ")} ${dayLabel(row.delivery_date)}`.toLowerCase().includes(q);
+  });
 
-  const dateBar = (
-    <section className="audit-card ds-datebar">
-      <label htmlFor="ds-date">Delivery date</label>
-      {overview.rounds.length ? (
-        <select id="ds-date" value={roundId ?? ""} onChange={(event) => setRoundId(Number(event.target.value))}>
-          {overview.rounds.map((item) => (
-            <option key={item.id} value={item.id}>{dayLabel(item.delivery_date)}{item.title ? ` · ${item.title}` : ""} · {item.company_count} compan{item.company_count === 1 ? "y" : "ies"} · {item.status}</option>
-          ))}
-        </select>
-      ) : <span className="na">No dates yet</span>}
-      <button type="button" className="audit-btn" onClick={() => setNewOpen((open) => !open)}>{newOpen ? "Cancel" : "＋ New date"}</button>
-      {newOpen && (
-        <div className="ds-newdate">
-          <input type="date" value={newDate} onChange={(event) => setNewDate(event.target.value)} aria-label="New delivery date" />
-          <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="Name (optional), e.g. Fruits" aria-label="Name" />
-          <button type="button" className="audit-btn audit-btn-primary" disabled={!newDate || busy === "round"} onClick={createRound}>Start</button>
-        </div>
-      )}
-    </section>
-  );
-
-  const noDate = (
-    <div className="audit-empty fnd-empty">
-      <b>No delivery date yet</b>
-      <span>Press “＋ New date” above, pick the date and press Start.</span>
-    </div>
-  );
-
-  return (
-    <div className="audit-workspace ds-workspace ds-simple">
-      {toast && <div className={`audit-toast ${toast.isError ? "is-error" : ""}`}>{toast.message}</div>}
-
-      <nav className="ds-steps-nav" aria-label="Direct Supply">
-        {PAGES.map((item) => (
-          <button type="button" key={item.key} className={`${page === item.key ? "active" : ""} ${item.key === "setup" ? "is-setup" : ""}`} onClick={() => setPage(item.key)}>
-            <span className="ds-step-num">{item.num}</span>
-            <span className="ds-step-text"><b>{item.label}</b>{badge[item.key] && <small>{badge[item.key]}</small>}</span>
-          </button>
-        ))}
-      </nav>
-
-      <div className="ds-help">
-        <div><b>How to use</b><ol>{info.how.map((point) => <li key={point}>{point}</li>)}</ol></div>
-        <div><b>Example</b><p>{info.example}</p></div>
+  /* ---------- One delivery date, opened from the list ---------- */
+  const detailView = () => {
+    if (!round) return <p className="audit-empty">Loading…</p>;
+    const summary = list.rounds.find((row) => row.id === round.id);
+    const totals = detail.buying?.totals || {};
+    const checks = detail.checks || [];
+    const ordered = new Set(detail.orders.map((order) => order.company_id));
+    const waiting = companies.filter((company) => company.active && !ordered.has(company.id));
+    const statusIndex = STATUSES.indexOf(round.status);
+    const steps = buyerInfo?.steps || list.steps || [];
+    const stepIndex = steps.indexOf(round.buyer_status);
+    const companyName = new Map(detail.companies.map((company) => [String(company.id), company.name]));
+    return <>
+      <div className="ds-detail-head">
+        <button type="button" className="audit-btn" onClick={() => setRoundId(null)}>← All orders</button>
+        <h2>{dayLabel(round.delivery_date)}<span>{round.ref}{round.title ? ` · ${round.title}` : ""}</span></h2>
+        <span className={`audit-pill fnd-tone-${STATUS_TONE_ROUND[round.status] || "muted"}`}>{round.status}</span>
       </div>
 
-      {needsDate && dateBar}
+      <div className="fnd-kpis ds-kpis ds-detail-kpis">
+        <div className="fnd-kpi-blue"><span>Companies</span><b>{detail.orders.length} / {activeCount}</b><small>{waiting.length ? `Not ordered: ${waiting.map((company) => company.name).join(", ")}` : "Everyone ordered ✓"}</small></div>
+        <div><span>Items</span><b>{detail.master.filter((row) => row.total > 0).length}</b><small>{summary?.amounts.join(" · ") || "—"}</small></div>
+        <div className="fnd-kpi-purple"><span>Spent by buyer</span><b>{money(totals.spent || 0)}</b><small>{totals.short_items ? `${totals.short_items} item${totals.short_items === 1 ? "" : "s"} still to buy` : detail.master.length ? "Everything bought ✓" : "—"}</small></div>
+        <div className="fnd-kpi-warn"><span>Selling value</span><b>{totals.priced_items ? money(totals.selling) : "—"}</b><small>{totals.missing_prices ? `${totals.missing_prices} without a price` : "All priced"}</small></div>
+        <div className={totals.margin >= 0 ? "fnd-kpi-good" : "fnd-kpi-bad"}><span>Margin</span><b>{totals.margin_selling ? money(totals.margin) : "—"}</b><small>{totals.margin_percent != null ? `${totals.margin_percent}% of selling value` : "Needs prices"}</small></div>
+      </div>
 
-      {/* ---- 1 · Orders ---- */}
-      {page === "orders" && (!round ? noDate : (
-        <div className="ds-grid">
-          <AddOrder
-            key={`${round.id}-${orderKey}`}
-            headers={headers}
-            round={{ ...round, orderCompanyIds: detail.orders.map((order) => order.company_id) }}
-            companies={companies}
-            units={units}
-            onAddCompany={addCompany}
-            initialText={orderText}
-            onMoveToDate={moveToDate}
-            onSaved={async (count) => { setOrderText(""); notify(count > 1 ? `${count} companies' orders added` : "Order added"); await refresh(); }}
-          />
-          <Box id="ds-waiting" icon="⏳" tone={waiting.length ? "amber" : "green"} title="Not ordered yet" sub={waiting.length ? `${waiting.length} compan${waiting.length === 1 ? "y" : "ies"} still to order` : "Every company has ordered ✓"} className="ds-span-5">
-            {waiting.length ? <div className="ds-waiting-list">{waiting.map((company) => <span key={company.id}>{company.name}</span>)}</div> : <p className="ds-ok">Nothing to chase.</p>}
-          </Box>
+      <div className="ds-grid">
+        {/* Buyer */}
+        <Box id="ds-control" icon="🛒" tone="amber" title={buyerInfo?.name ? `Buyer: ${buyerInfo.name}` : "Buyer"} sub={round.sent_at ? `List sent ${new Date(round.sent_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : buyerInfo?.has_phone && buyerInfo.auto ? `List goes by itself when all ${activeCount} companies have ordered, or at ${buyerInfo.cutoff} the day before` : "List not sent yet"} className="ds-span-12">
+          {buyerInfo && !buyerInfo.has_phone && <p className="fnd-hint">Add the buyer's name and WhatsApp number in <b>Admin Settings → Direct Supply buyer</b>.</p>}
+          <div className="ds-buyer-steps">
+            {steps.map((step, index) => {
+              const at = round.buyer_steps?.[step];
+              return <div key={step} className={stepIndex >= index ? "done" : ""}><span>{stepIndex >= index ? "✓" : index + 1}</span><b>{step}</b><small>{at ? new Date(at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—"}</small></div>;
+            })}
+          </div>
+          <div className="ds-send">
+            <button type="button" className="audit-btn audit-btn-primary" disabled={!buyerInfo?.has_phone || !detail.master.length || busy === "send"} onClick={() => call("send", () => API.post(`/supply/rounds/${round.id}/send`, {}, { headers }), (response) => (response.data.via_template ? "Sent with the WhatsApp template and the Excel file" : "Sent on WhatsApp with the Excel file"))}>{busy === "send" ? "Sending…" : round.sent_at ? "Send list again" : "Send list now"}</button>
+            <button type="button" className="audit-btn" onClick={downloadExcel} disabled={!detail.master.length}>⬇ Excel</button>
+            <button type="button" className="audit-btn" disabled={!detail.master.length} onClick={async () => { try { const response = await API.get(`/supply/rounds/${round.id}/buyer-link`, { headers }); window.open(`${window.location.origin}/?buy=${response.data.token}`, "_blank", "noopener"); } catch { notify("Could not open the buyer's page", true); } }}>Open buyer's page</button>
+          </div>
+        </Box>
 
+        {/* Items: ordered, bought, prices, margin */}
+        <Box id="ds-items-detail" icon="📦" tone="green" title={`Items (${detail.master.filter((row) => row.total > 0).length})`} sub="What was ordered, what the buyer bought, and the margin on each" className="ds-span-12">
           {checks.length > 0 && (
-            <Box id="ds-checks" icon="🔎" tone="amber" title={`Same item? (${checks.length})`} sub="These names look like an item you already have. Answer once, it remembers." className="ds-span-12 ds-checks">
+            <div className="ds-checks-inline">
+              <b>🔎 Same item? Answer once, it remembers:</b>
               {checks.map((line) => (
                 <div key={line.id} className="ds-check">
                   <div><b>"{line.raw_name}"</b><small>{line.company_name} · {qty(line.qty)} {line.unit}</small></div>
@@ -797,125 +713,166 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
                   </div>
                 </div>
               ))}
-            </Box>
+            </div>
           )}
-          {(detail.problems || []).length > 0 && (
-            <div className="audit-error ds-problems ds-span-12">⚠ No quantity for: {detail.problems.map((line) => `${line.raw_name} (${line.company_name})`).join(", ")}. Fix it below.</div>
-          )}
+          {detail.buying?.rows.length ? (
+            <div className="ds-table-wrap is-tall">
+              <table className="ds-table ds-items-table">
+                <thead><tr><th>Item</th><th>Ordered</th><th>Bought</th><th>Where</th><th>Buy price</th><th>Sell value</th><th>Margin</th><th /></tr></thead>
+                <tbody>
+                  {detail.buying.rows.filter((row) => row.need > 0).map((row) => {
+                    const sheet = detail.master.find((item) => item.key === row.key);
+                    const places = [...new Set(row.bought.map((item) => item.vendor_name).filter(Boolean))];
+                    const avg = row.bought_qty ? row.spent / row.bought_qty : null;
+                    return (
+                      <tr key={row.key} className={row.short > 0 && row.bought_qty > 0 ? "is-check" : ""}>
+                        <td><b>{row.name}</b><small className="ds-sub">{Object.entries(sheet?.by_company || {}).map(([id, amount]) => `${companyName.get(id) || ""} ${qty(amount)}`).join(" · ")}</small></td>
+                        <td><b>{qty(row.need)}</b> {row.unit}</td>
+                        <td>{row.bought_qty ? <><b>{qty(row.bought_qty)}</b> {row.unit}{row.short > 0 && <small className="ds-sub ds-short">short {qty(row.short)}</small>}</> : <span className="na">Not yet</span>}</td>
+                        <td>{places.length ? places.join(", ") : row.best ? <small className="na">last: {row.best.vendor_name}</small> : <span className="na">—</span>}</td>
+                        <td>{avg != null ? `${money(Math.round(avg * 100) / 100)}/${row.unit}` : row.best ? <small className="na">est. {money(row.best.price)}</small> : <span className="na">—</span>}</td>
+                        <td>{money(row.selling)}</td>
+                        <td className={row.margin == null ? "" : row.margin >= 0 ? "ds-plus" : "ds-minus"}>{money(row.margin)}{row.margin != null && row.selling ? <small className="ds-sub">{Math.round((row.margin / row.selling) * 1000) / 10}%</small> : null}</td>
+                        <td className="ds-row-actions">{row.product_id ? <button type="button" className="audit-btn" title="Record a purchase yourself" onClick={() => setBuyForm({ kind: "purchase", row })}>+ Bought</button> : <small className="na">check name</small>}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : <p className="audit-empty">No orders yet for this date.</p>}
+        </Box>
 
-          <Box id="ds-orders" icon="🧾" tone="blue" title={`Orders received (${detail.orders.length})`} sub="Change a quantity here if a company asks" className="ds-span-12">
-            <div className="ds-orders is-grid">
-              {detail.orders.map((order) => (
-                <div key={order.id} className="ds-order">
-                  <div className="ds-order-head">
-                    <b>{order.company_name}</b>
-                    <span className="ds-chip is-new">{order.source === "link" ? "🔗 link" : order.source === "whatsapp" ? "💬 WhatsApp" : order.file_name ? "📄 Excel" : "📋 pasted"}</span>
-                    <button type="button" className="audit-link-danger" onClick={() => window.confirm(`Remove ${order.company_name}'s order?`) && call("order", () => API.delete(`/supply/orders/${order.id}`, { headers }), "Order removed")}>Remove</button>
-                  </div>
-                  <div className="ds-table-wrap"><table className="ds-table">
-                    <tbody>
-                      {order.lines.map((line) => (
-                        <tr key={line.id} className={Number(line.qty) > 0 ? "" : "is-problem"}>
-                          <td>{line.raw_name}</td>
-                          <td><input type="number" min="0" step="any" defaultValue={qty(line.qty)} className="ds-qty" onBlur={(event) => Number(event.target.value) !== Number(line.qty) && call("line", () => API.patch(`/supply/lines/${line.id}`, { qty: event.target.value }, { headers }))} aria-label={`${line.raw_name} quantity`} /></td>
-                          <td><select value={line.unit} onChange={(event) => call("line", () => API.patch(`/supply/lines/${line.id}`, { unit: event.target.value }, { headers }))} aria-label={`${line.raw_name} unit`}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></td>
-                          <td><button type="button" className="ds-x" onClick={() => call("line", () => API.delete(`/supply/lines/${line.id}`, { headers }))} aria-label="Remove line">✕</button></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table></div>
+        {/* Companies' orders */}
+        <Box id="ds-orders" icon="🧾" tone="blue" title={`Orders from companies (${detail.orders.length})`} sub="Change a quantity here if a company asks" className="ds-span-12"
+          actions={<button type="button" className={`audit-btn ${addOpen ? "" : "audit-btn-primary"}`} onClick={() => setAddOpen((open) => !open)}>{addOpen ? "Close" : "＋ Add order"}</button>}>
+          {waiting.length > 0 && <div className="ds-waiting"><b>Not ordered yet:</b>{waiting.map((company) => <span key={company.id} className="ds-chip is-check">{company.name}</span>)}</div>}
+          {(detail.problems || []).length > 0 && <div className="audit-error ds-problems">⚠ No quantity for: {detail.problems.map((line) => `${line.raw_name} (${line.company_name})`).join(", ")}.</div>}
+          {addOpen && (
+            <AddOrder
+              key={`${round.id}-${orderKey}`}
+              headers={headers}
+              round={{ ...round, orderCompanyIds: detail.orders.map((order) => order.company_id) }}
+              companies={companies}
+              units={units}
+              onAddCompany={addCompany}
+              initialText={orderText}
+              onMoveToDate={moveToDate}
+              onSaved={async (count) => { setOrderText(""); setAddOpen(false); notify(count > 1 ? `${count} companies' orders added` : "Order added"); await refresh(); }}
+            />
+          )}
+          <div className="ds-orders is-grid">
+            {detail.orders.map((order) => (
+              <div key={order.id} className="ds-order">
+                <div className="ds-order-head">
+                  <b>{order.company_name}</b>
+                  <span className="ds-chip is-new">{order.source === "link" ? "🔗 link" : order.source === "whatsapp" ? "💬 WhatsApp" : order.file_name ? "📄 Excel" : "📋 pasted"}</span>
+                  <button type="button" className="audit-link-danger" onClick={() => window.confirm(`Remove ${order.company_name}'s order?`) && call("order", () => API.delete(`/supply/orders/${order.id}`, { headers }), "Order removed")}>Remove</button>
                 </div>
-              ))}
-            </div>
-            {!detail.orders.length && <p className="audit-empty">No orders yet for this date.</p>}
-          </Box>
-          {detail.orders.length > 0 && (
-            <div className="ds-next ds-span-12"><span>All orders in?</span><button type="button" className="audit-btn audit-btn-primary" onClick={() => setPage("buy")}>Next: 2 · Buy →</button></div>
-          )}
-        </div>
-      ))}
-
-      {/* ---- 2 · Buy ---- */}
-      {page === "buy" && (!round ? noDate : (
-        <div className="ds-grid">
-          <Box id="ds-control" icon="📲" tone="amber" title={buyerInfo?.name ? `Buyer: ${buyerInfo.name}` : "Buyer"} sub={round.sent_at ? `List sent ${new Date(round.sent_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : buyerInfo?.has_phone && buyerInfo.auto ? `Goes by itself when all ${activeCount} companies have ordered, or at ${buyerInfo.cutoff} the day before delivery` : "Not sent yet"} className="ds-span-12">
-            {buyerInfo && !buyerInfo.has_phone && <p className="fnd-hint">Add the buyer's name and WhatsApp number in <b>Admin Settings → Direct Supply buyer</b>.</p>}
-            <div className="ds-buyer-steps">
-              {(buyerInfo?.steps || []).map((step, index) => {
-                const at = round.buyer_steps?.[step];
-                const reached = (buyerInfo.steps.indexOf(round.buyer_status)) >= index;
-                return <div key={step} className={reached ? "done" : ""}><span>{reached ? "✓" : index + 1}</span><b>{step}</b><small>{at ? new Date(at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—"}</small></div>;
-              })}
-            </div>
-            <div className="ds-send">
-              <button type="button" className="audit-btn audit-btn-primary" disabled={!buyerInfo?.has_phone || !detail.master.length || busy === "send"} onClick={() => call("send", () => API.post(`/supply/rounds/${round.id}/send`, {}, { headers }), (response) => (response.data.via_template ? "Sent with the WhatsApp template (link to the list)" : response.data.file_sent ? "Sent on WhatsApp with the Excel file" : "Sent on WhatsApp"))}>{busy === "send" ? "Sending…" : round.sent_at ? "Send again" : "Send now"}</button>
-              <button type="button" className="audit-btn" onClick={downloadExcel} disabled={!detail.master.length}>⬇ Excel</button>
-              <button type="button" className="audit-btn" disabled={!detail.master.length} onClick={async () => { try { const response = await API.get(`/supply/rounds/${round.id}/buyer-link`, { headers }); window.open(`${window.location.origin}/?buy=${response.data.token}`, "_blank", "noopener"); } catch { notify("Could not open the buyer's page", true); } }}>Open buyer's page</button>
-            </div>
-          </Box>
-
-          <Box id="ds-master" icon="📋" tone="green" title={`Total list (${detail.master.length} items)`} sub="Same items from all companies added together" className="ds-span-12"
-            actions={detail.master.length > 8 ? <input className="ds-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search items" /> : null}>
-            {detail.master.length ? (
-              <div className="ds-table-wrap is-tall">
-                <table className="ds-table ds-master">
-                  <thead>
-                    <tr><th>Item</th><th className="is-total">Total</th>{detail.companies.map((company) => <th key={company.id}>{company.name}</th>)}</tr>
-                  </thead>
+                <div className="ds-table-wrap"><table className="ds-table">
                   <tbody>
-                    {master.map((row) => (
-                      <tr key={row.key}>
-                        <td>{row.name}</td>
-                        <td className="is-total">{qty(row.total)} {row.unit}</td>
-                        {detail.companies.map((company) => <td key={company.id}>{row.by_company[company.id] ? qty(row.by_company[company.id]) : ""}</td>)}
+                    {order.lines.map((line) => (
+                      <tr key={line.id} className={Number(line.qty) > 0 ? "" : "is-problem"}>
+                        <td>{line.raw_name}</td>
+                        <td><input type="number" min="0" step="any" defaultValue={qty(line.qty)} className="ds-qty" onBlur={(event) => Number(event.target.value) !== Number(line.qty) && call("line", () => API.patch(`/supply/lines/${line.id}`, { qty: event.target.value }, { headers }))} aria-label={`${line.raw_name} quantity`} /></td>
+                        <td><select value={line.unit} onChange={(event) => call("line", () => API.patch(`/supply/lines/${line.id}`, { unit: event.target.value }, { headers }))} aria-label={`${line.raw_name} unit`}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></td>
+                        <td><button type="button" className="ds-x" onClick={() => call("line", () => API.delete(`/supply/lines/${line.id}`, { headers }))} aria-label="Remove line">✕</button></td>
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></div>
               </div>
-            ) : <p className="audit-empty">No orders yet. Add them on page 1 · Orders.</p>}
-          </Box>
+            ))}
+          </div>
+          {!detail.orders.length && !addOpen && <p className="audit-empty">No orders yet. Orders sent on WhatsApp appear here by themselves, or press “＋ Add order”.</p>}
+        </Box>
 
-          <Box id="ds-buying" icon="🛒" tone="purple" title="Buying" sub="Add vendor rates, then mark what was bought" className="ds-span-12">
-            {detail.master.length ? (
-              <BuyingTab
-                buying={detail.buying}
-                onRate={(row) => setBuyForm({ kind: "rate", row })}
-                onBuy={(row) => setBuyForm({ kind: "purchase", row })}
-                onRemovePurchase={(item) => window.confirm(`Remove this purchase (${qty(item.qty)} at ${money(item.price)})?`) && call("purchase", () => API.delete(`/supply/purchases/${item.id}`, { headers }), "Purchase removed")}
-              />
-            ) : <p className="audit-empty">Nothing to buy yet.</p>}
-          </Box>
-          {detail.master.length > 0 && (
-            <div className="ds-next ds-span-12"><span>Everything bought?</span><button type="button" className="audit-btn audit-btn-primary" onClick={() => setPage("deliver")}>Next: 3 · Deliver →</button></div>
-          )}
+        {/* Delivery & bills */}
+        <Box id="ds-delivery" icon="🚚" tone="green" title="Delivery & bills" sub="One card per company: delivery steps, packing list, invoice" className="ds-span-12">
+          {detail.orders.length
+            ? <DeliveryTab key={`${round.id}-${detail.orders.length}`} round={round} headers={headers} isAdmin={isAdmin} notify={notify} version={billingVersion + version} onChanged={billingChanged} />
+            : <p className="audit-empty">Nothing to deliver yet.</p>}
+        </Box>
+
+        <Box id="ds-status" icon="📌" tone="slate" title="Status of this date" className="ds-span-12">
+          <div className="ds-status-steps">
+            {STATUSES.map((status, index) => (
+              <button type="button" key={status} className={`${index <= statusIndex ? "done" : ""} ${index === statusIndex ? "current" : ""}`} disabled={busy === "status"} onClick={() => index !== statusIndex && call("status", () => API.patch(`/supply/rounds/${round.id}`, { status }, { headers }), `${round.ref}: ${status}`)}>
+                {index < statusIndex ? "✓ " : ""}{status}
+              </button>
+            ))}
+          </div>
+          {isAdmin && <button type="button" className="audit-link-danger ds-delete" onClick={() => window.confirm(`Delete ${round.ref} and all its orders?`) && call("delete", async () => { await API.delete(`/supply/rounds/${round.id}`, { headers }); setRoundId(null); }, `${round.ref} deleted`)}>Delete this delivery date</button>}
+        </Box>
+      </div>
+    </>;
+  };
+
+  /* ---------- All delivery dates, like the Tickets list ---------- */
+  const listView = () => (
+    <section className="audit-card ds-list">
+      <div className="ds-list-tools">
+        <div className="ds-filter-chips">
+          {[["all", "All"], ["open", "Upcoming"], ["done", "Done"]].map(([key, label]) => <button type="button" key={key} className={filter === key ? "active" : ""} onClick={() => setFilter(key)}>{label}</button>)}
         </div>
-      ))}
-
-      {/* ---- 3 · Deliver ---- */}
-      {page === "deliver" && (!round ? noDate : (
-        <div className="ds-grid">
-          <Box id="ds-delivery" icon="📦" tone="green" title="Deliver and bill" sub="One card per company" className="ds-span-12">
-            <DeliveryTab key={`${round.id}-${detail.orders.length}`} round={round} headers={headers} isAdmin={isAdmin} notify={notify} version={billingVersion + version} onSummary={onDeliverySummary} onChanged={billingChanged} />
-          </Box>
-          <Box id="ds-status" icon="🚚" tone="slate" title="Status of this date" sub="Optional: helps everyone see where this date is" className="ds-span-12">
-            <div className="ds-status-steps">
-              {STATUSES.map((status, index) => (
-                <button type="button" key={status} className={`${index <= statusIndex ? "done" : ""} ${index === statusIndex ? "current" : ""}`} disabled={busy === "status"} onClick={() => index !== statusIndex && call("status", () => API.patch(`/supply/rounds/${round.id}`, { status }, { headers }), `${round.ref}: ${status}`)}>
-                  {index < statusIndex ? "✓ " : ""}{status}
-                </button>
-              ))}
-            </div>
-            {isAdmin && <button type="button" className="audit-link-danger ds-delete" onClick={() => window.confirm(`Delete ${round.ref} and all its orders?`) && call("delete", async () => { await API.delete(`/supply/rounds/${round.id}`, { headers }); setRoundId(null); }, `${round.ref} deleted`)}>Delete this delivery date</button>}
-          </Box>
+        <input className="ds-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search date, company…" aria-label="Search orders" />
+        <button type="button" className="audit-btn audit-btn-primary" onClick={() => setNewOpen((open) => !open)}>{newOpen ? "Cancel" : "＋ New date"}</button>
+      </div>
+      {newOpen && (
+        <div className="ds-newdate">
+          <input type="date" value={newDate} onChange={(event) => setNewDate(event.target.value)} aria-label="New delivery date" />
+          <input value={newTitle} onChange={(event) => setNewTitle(event.target.value)} placeholder="Name (optional), e.g. Fruits" aria-label="Name" />
+          <button type="button" className="audit-btn audit-btn-primary" disabled={!newDate || busy === "round"} onClick={createRound}>Start</button>
         </div>
-      ))}
+      )}
+      <div className="table-wrapper ds-orders-table">
+        <table>
+          <thead>
+            <tr><th>Delivery date</th><th>Companies</th><th>Items</th><th>Buyer</th><th>Spent</th><th>Selling</th><th>Margin</th><th>Delivery & payment</th></tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              return (
+                <tr key={row.id} className="ds-order-row" onClick={() => openRound(row.id)} tabIndex={0} onKeyDown={(event) => event.key === "Enter" && openRound(row.id)}>
+                  <td data-label="Date"><b>{dayLabel(row.delivery_date)}</b><small className="ds-sub">{row.ref}{row.title ? ` · ${row.title}` : ""}</small></td>
+                  <td data-label="Companies"><b>{row.companies.length}</b> / {row.companies_total}<small className="ds-sub ds-ellipsis" title={row.companies.join(", ")}>{row.companies.join(", ") || "None yet"}</small></td>
+                  <td data-label="Items"><b>{row.items}</b><small className="ds-sub">{row.amounts.join(" · ") || "—"}</small>{row.to_check > 0 && <span className="ds-chip is-check">{row.to_check} to check</span>}</td>
+                  <td data-label="Buyer">{row.buyer_status ? <span className={`audit-pill fnd-tone-${STEP_TONE[row.buyer_status] || "muted"}`}>{row.buyer_status}</span> : row.sent_at ? <span className="audit-pill fnd-tone-blue">List sent</span> : <span className="na">Not sent</span>}{row.short_items > 0 && row.spent > 0 && <small className="ds-sub ds-short">{row.short_items} short</small>}</td>
+                  <td data-label="Spent">{row.spent ? rupees(row.spent) : <span className="na">—</span>}</td>
+                  <td data-label="Selling">{row.selling != null ? rupees(row.selling) : <span className="na">—</span>}</td>
+                  <td data-label="Margin" className={row.margin == null ? "" : row.margin >= 0 ? "ds-plus" : "ds-minus"}>{row.margin != null ? <>{rupees(row.margin)}<small className="ds-sub">{row.margin_percent}%</small></> : <span className="na">—</span>}</td>
+                  <td data-label="Delivery & payment">{row.companies.length ? <><b>{row.delivered} / {row.companies.length}</b> delivered</> : <span className="na">—</span>}<small className="ds-sub">{row.billed ? `${rupees(row.paid)} paid of ${rupees(row.billed)}` : "Not billed"}</small></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {!rows.length && <p className="audit-empty">{list.rounds.length ? "Nothing matches." : "No orders yet. When company admins send their orders on WhatsApp, a row appears here for that delivery date."}</p>}
+      </div>
+    </section>
+  );
 
-      {/* ---- 4 · Money ---- */}
+  return (
+    <div className="audit-workspace ds-workspace ds-simple">
+      {toast && <div className={`audit-toast ${toast.isError ? "is-error" : ""}`}>{toast.message}</div>}
+
+      <nav className="ds-tabs-nav" aria-label="Direct Supply">
+        {PAGES.map((item) => <button type="button" key={item.key} className={page === item.key ? "active" : ""} onClick={() => setPage(item.key)}>{item.label}</button>)}
+      </nav>
+
+      {!(page === "orders" && roundId) && (
+        <div className="ds-help">
+          <div><b>How to use</b><ol>{info.how.map((point) => <li key={point}>{point}</li>)}</ol></div>
+          <div><b>Example</b><p>{info.example}</p></div>
+        </div>
+      )}
+
+      {page === "orders" && (roundId ? detailView() : listView())}
+
       {page === "money" && (
         <div className="ds-grid">
           <Box id="ds-accounts" icon="💰" tone="amber" title="Who owes money" sub="All invoices, all dates" className="ds-span-12">
-            <Accounts headers={headers} isAdmin={isAdmin} version={billingVersion + version} onSummary={onAccountsSummary} onChanged={billingChanged} />
+            <Accounts headers={headers} isAdmin={isAdmin} version={billingVersion + version} onChanged={billingChanged} />
           </Box>
           <Box id="ds-reports" icon="📊" tone="blue" title="Profit report" sub="Sales, cost and profit for a period" className="ds-span-12">
             <SupplyReports headers={headers} products={overview.products} version={billingVersion + version} />
@@ -923,7 +880,6 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
         </div>
       )}
 
-      {/* ---- Setup ---- */}
       {page === "setup" && (
         <div className="ds-grid">
           <Companies headers={headers} companies={companies} onAdd={addCompany} onUpdate={(company, patch) => call("company", () => API.patch(`/supply/companies/${company.id}`, patch, { headers }))} className="ds-span-7" />

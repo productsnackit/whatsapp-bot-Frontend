@@ -5334,3 +5334,42 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 .ds-buyer-steps .done { border-color: #86efac; background: #f0fdf4; }
 .ds-buyer-steps .done span { background: #16a34a; color: #fff; }
 @media (max-width: 700px) { .ds-buyer-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Direct Supply · orders list (like Tickets) and one date's details */
+.ds-tabs-nav { display: flex; gap: 6px; }
+.ds-tabs-nav button { padding: 10px 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); font: inherit; font-size: 14px; font-weight: 800; cursor: pointer; }
+.ds-tabs-nav button.active { border-color: #0f172a; background: #0f172a; color: #fff; }
+.ds-list { display: grid; gap: 12px; padding: 14px; }
+.ds-list-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ds-list-tools .ds-search { margin-left: auto; width: 260px !important; flex: 0 1 260px; }
+.ds-filter-chips { display: flex; gap: 6px; }
+.ds-filter-chips button { padding: 7px 14px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.ds-filter-chips button.active { border-color: #0f172a; background: #0f172a; color: #fff; }
+.ds-orders-table td { vertical-align: top; }
+.ds-orders-table .ds-sub { margin-top: 2px; }
+.ds-order-row { cursor: pointer; }
+.ds-order-row:hover td { background: #f8fafc; }
+.ds-order-row:focus-visible { outline: 2px solid #2563eb; outline-offset: -2px; }
+.ds-ellipsis { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-orders-table .ds-chip { margin: 4px 0 0; }
+.ds-detail-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.ds-detail-head h2 { display: grid; margin: 0; font-size: 20px; font-weight: 850; letter-spacing: -0.3px; }
+.ds-detail-head h2 span { color: var(--text-muted); font-size: 12.5px; font-weight: 600; letter-spacing: 0; }
+.ds-detail-kpis { margin: 0; }
+.ds-detail-kpis small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-checks-inline { display: grid; gap: 4px; padding: 10px 12px; border: 1px solid #fcd34d; border-radius: 12px; background: #fffbeb; font-size: 13px; }
+.ds-items-table td { vertical-align: top; }
+.ds-items-table .ds-short { color: #b45309; font-weight: 700; }
+@media (max-width: 700px) {
+  .ds-tabs-nav button { flex: 1 1 0; padding: 10px 6px; font-size: 13px; }
+  .ds-list-tools .ds-search { width: 100% !important; flex-basis: 100%; margin-left: 0; order: 3; }
+  .ds-list-tools > .audit-btn { margin-left: auto; }
+  .ds-orders-table thead { display: none; }
+  .ds-orders-table table, .ds-orders-table tbody, .ds-orders-table tr { display: block; }
+  .ds-orders-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin-bottom: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 14px; }
+  .ds-orders-table td { display: block; padding: 0 !important; border: 0 !important; font-size: 13px; }
+  .ds-orders-table td::before { content: attr(data-label); display: block; color: var(--text-muted); font-size: 10.5px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+  .ds-orders-table td:first-child { grid-column: 1 / -1; font-size: 15px; }
+  .ds-orders-table td:first-child::before { display: none; }
+  .ds-ellipsis { max-width: 150px; }
+}
