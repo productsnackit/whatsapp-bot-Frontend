@@ -850,6 +850,83 @@ function PerformanceTab({ headers, today }) {
 
 /* ---------- Settings ---------- */
 
+/* One message to all (or chosen) refillers on WhatsApp. */
+function MessageTab({ data, headers, notify }) {
+  const refillers = data.refillers || [];
+  const [message, setMessage] = useState("");
+  const [chosen, setChosen] = useState(() => new Set(refillers.filter((refiller) => refiller.phone).map((refiller) => refiller.id)));
+  const [busy, setBusy] = useState(false);
+  const [history, setHistory] = useState(null);
+  const config = useMemo(() => ({ headers }), [headers]);
+  const loadHistory = useCallback(() => API.get("/refills/broadcasts", config).then((response) => setHistory(response.data)).catch(() => setHistory({ broadcasts: [] })), [config]);
+  useEffect(() => { const timer = setTimeout(loadHistory, 0); return () => clearTimeout(timer); }, [loadHistory]);
+
+  const withPhone = refillers.filter((refiller) => refiller.phone);
+  const allOn = withPhone.length > 0 && withPhone.every((refiller) => chosen.has(refiller.id));
+  const toggle = (id) => setChosen((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const send = async () => {
+    if (!window.confirm(`Send this message to ${chosen.size} refiller${chosen.size === 1 ? "" : "s"} on WhatsApp?`)) return;
+    setBusy(true);
+    try {
+      const response = await API.post("/refills/broadcast", { message, refiller_ids: [...chosen] }, config);
+      const ok = response.data.results.filter((item) => item.ok).length;
+      notify(`Sent to ${ok} of ${response.data.results.length} refillers${ok < response.data.results.length ? " (see below for the rest)" : ""}`, ok < response.data.results.length);
+      setMessage("");
+      loadHistory();
+    } catch (err) {
+      notify(err.response?.data?.error || "Could not send", true);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="rf-message">
+      <section className="audit-card">
+        <div className="audit-card-head"><div><h3>Message refillers</h3><p>One WhatsApp message to everyone, or only the refillers you tick.</p></div></div>
+        <label className="rf-msg-label" htmlFor="rf-msg">Message</label>
+        <textarea id="rf-msg" className="rf-msg-box" rows={5} maxLength={1000} value={message} onChange={(event) => setMessage(event.target.value)} placeholder={"e.g. Tomorrow is a holiday: refill all machines by 6 PM today.\nSend a photo after each refill."} />
+        <small className="rf-msg-count">{message.length}/1000</small>
+        <div className="rf-msg-head">
+          <label className="rf-msg-all"><input type="checkbox" checked={allOn} onChange={(event) => setChosen(event.target.checked ? new Set(withPhone.map((refiller) => refiller.id)) : new Set())} /> <b>Send to all refillers</b> <span className="na">({withPhone.length})</span></label>
+          <span className="na">{chosen.size} selected</span>
+        </div>
+        <div className="rf-msg-people">
+          {refillers.map((refiller) => (
+            <label key={refiller.id} className={`rf-msg-person ${refiller.phone ? "" : "is-off"}`} title={refiller.phone ? refiller.phone : "No WhatsApp number (add it in Refill Audit → Refillers)"}>
+              <input type="checkbox" disabled={!refiller.phone} checked={chosen.has(refiller.id)} onChange={() => toggle(refiller.id)} />
+              <span><b>{refiller.name}</b><small>{refiller.phone || "No number"}</small></span>
+            </label>
+          ))}
+          {!refillers.length && <p className="audit-empty">No refillers yet.</p>}
+        </div>
+        <div className="rf-msg-foot">
+          <small className="na">Refillers who haven't messaged the Snackit number in 24 hours get it through your approved "{history?.template || "refiller_message"}" template.</small>
+          <button type="button" className="audit-btn audit-btn-primary" disabled={busy || !message.trim() || !chosen.size} onClick={send}>{busy ? "Sending…" : `Send to ${chosen.size} refiller${chosen.size === 1 ? "" : "s"}`}</button>
+        </div>
+      </section>
+
+      <section className="audit-card">
+        <div className="audit-card-head"><div><h3>Sent messages</h3><p>Who got each message</p></div></div>
+        {!history ? <p className="audit-empty">Loading…</p> : !history.broadcasts.length ? <p className="audit-empty">No messages sent yet.</p> : (
+          <div className="rf-msg-history">
+            {history.broadcasts.map((item) => {
+              const failed = item.results.filter((result) => !result.ok);
+              return (
+                <div key={item.id} className="rf-msg-item">
+                  <div className="rf-msg-item-head"><b>{new Date(item.created_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</b><span className="na">by {item.created_by}</span><span className={`audit-pill ${failed.length ? "fnd-tone-warn" : "fnd-tone-good"}`}>Sent {item.results.length - failed.length} / {item.results.length}</span></div>
+                  <p>{item.message}</p>
+                  {failed.length > 0 && <small className="rf-msg-failed">Not sent: {failed.map((result) => `${result.name} (${result.error})`).join(", ")}</small>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 function SettingsTab({ data, headers, onChanged, notify }) {
   const [draft, setDraft] = useState(() => ({ ...data.settings, reminders_enabled: data.settings.reminders_enabled !== "false" }));
   const [sendTo, setSendTo] = useState("");
@@ -995,6 +1072,7 @@ export default function RefillWorkspace({ token }) {
     ["verify", `Verify${data?.awaitingVerification ? ` (${data.awaitingVerification})` : ""}`],
     ["schedules", "Schedules"],
     ["performance", "Performance"],
+    ["message", "Message refillers"],
     ["settings", "Settings"],
   ];
   const grace = Number(data?.settings?.grace_minutes) || 120;
@@ -1014,6 +1092,7 @@ export default function RefillWorkspace({ token }) {
           {tab === "verify" && <VerifyTab headers={headers} grace={grace} onPhotos={(photos, index) => setLightbox({ photos, index })} onChanged={load} notify={notify} />}
           {tab === "schedules" && <SchedulesTab data={data} headers={headers} onChanged={load} notify={notify} />}
           {tab === "performance" && <PerformanceTab headers={headers} today={data.today} />}
+          {tab === "message" && <MessageTab data={data} headers={headers} notify={notify} />}
           {tab === "settings" && <SettingsTab key={JSON.stringify(data.settings)} data={data} headers={headers} onChanged={load} notify={notify} />}
         </>}
       {addingVisit && data && <OneOffForm locations={data.locations} date={date || data.today} onSave={addVisit} onClose={() => setAddingVisit(false)} />}
