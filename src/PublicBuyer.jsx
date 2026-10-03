@@ -129,7 +129,7 @@ export default function PublicBuyer({ token }) {
                     {value.qty === "" && <button type="button" onClick={() => set(item.key, { qty: qtyText(item.need) })}>All</button>}
                   </div>
                 </label>
-                <label>Purchase price / {item.unit} (₹)<input inputMode="decimal" value={value.price} placeholder="0" onChange={(event) => set(item.key, { price: number(event.target.value) })} /></label>
+                <label>Purchase price / {item.unit} (₹)<input inputMode="decimal" value={value.price} placeholder="0" onChange={(event) => set(item.key, { price: number(event.target.value), ...(value.qty === "" ? { qty: qtyText(item.need) } : {}) })} /></label>
                 <label>Selling price / {item.unit} (₹)<input inputMode="decimal" value={value.sell} placeholder="0" onChange={(event) => set(item.key, { sell: number(event.target.value) })} /></label>
                 <div className={`pb-margin ${perUnit != null && perUnit < 0 ? "is-loss" : ""}`}>
                   <span>Margin</span>
