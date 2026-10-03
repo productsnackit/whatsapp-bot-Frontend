@@ -461,6 +461,75 @@ function Locations({ rows, selected, onSelect }) {
   );
 }
 
+/* Complaints per machine (machine ID read from the payment screenshot): today, this month and
+   all time, whatever period the page shows. */
+function Machines({ headers }) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState("");
+  const [sort, setSort] = useState("month");
+  const [query, setQuery] = useState("");
+  const [showAll, setShowAll] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    API.get("/analytics/machines", { headers }).then((response) => alive && setData(response.data)).catch(() => alive && setError("Could not load machines"));
+    return () => { alive = false; };
+  }, [headers]);
+  if (error) return <p className="ax-empty">{error}</p>;
+  if (!data) return <p className="ax-empty">Loading…</p>;
+  const q = query.trim().toLowerCase();
+  const rows = data.machines
+    .filter((row) => !q || `${row.code} ${row.location || ""}`.toLowerCase().includes(q))
+    .sort((a, b) => b[sort] - a[sort] || b.all_time - a.all_time);
+  const total = (key) => data.machines.reduce((sum, row) => sum + row[key], 0);
+  const max = Math.max(1, ...rows.map((row) => row.all_time));
+  const shown = showAll || q ? rows : rows.slice(0, 10);
+  const label = { today: "Today", month: "This month", all_time: "All time" };
+  return (
+    <div className="ax-machines">
+      <div className="ax-machine-stats">
+        {[["today", "Today"], ["month", "This month"], ["all_time", "All time"]].map(([key, title]) => (
+          <button type="button" key={key} className={sort === key ? "on" : ""} onClick={() => setSort(key)}>
+            <span>{title}</span>
+            <b>{formatInt(total(key))}</b>
+            <small>{data.machines.filter((row) => row[key] > 0).length} machine{data.machines.filter((row) => row[key] > 0).length === 1 ? "" : "s"} with complaints</small>
+          </button>
+        ))}
+      </div>
+      <div className="ax-machine-tools">
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search machine ID or location" aria-label="Search machines" />
+        <span className="ax-muted">Sorted by {label[sort].toLowerCase()} · {data.machine_count} machines in the list</span>
+      </div>
+      {!rows.length ? <p className="ax-empty">{data.machines.length ? "Nothing matches." : "No machine IDs read from payment screenshots yet."}</p> : (
+        <div className="ax-table-wrap">
+          <table className="ax-table ax-loc-table">
+            <thead><tr><th>Machine ID</th><th>Location</th><th className="is-num">Today</th><th className="is-num">This month</th><th>All time</th><th className="is-num">Refunded</th><th>Most common issue</th><th className="is-num">Last complaint</th></tr></thead>
+            <tbody>
+              {shown.map((row) => (
+                <tr key={row.code}>
+                  <td><b className={row.location ? "ax-machine-code" : "ax-machine-code is-unknown"}>{row.code.toUpperCase()}</b></td>
+                  <td title={row.address || ""}>{row.location || <span className="ax-muted">Not in machine list</span>}</td>
+                  <td className={`is-num ${sort === "today" ? "is-sorted" : ""}`}>{row.today || <span className="ax-muted">0</span>}</td>
+                  <td className={`is-num ${sort === "month" ? "is-sorted" : ""}`}>{row.month || <span className="ax-muted">0</span>}</td>
+                  <td>
+                    <span className="ax-loc-bar">
+                      <i style={{ width: `calc((100% - 40px) * ${row.all_time / max})` }} />
+                      <b>{formatInt(row.all_time)}</b>
+                    </span>
+                  </td>
+                  <td className="is-num">{formatInt(row.refunded)}</td>
+                  <td>{row.top_issue || <span className="ax-muted">—</span>}</td>
+                  <td className="is-num ax-muted">{relativeDays(row.last_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {!q && rows.length > 10 && <button type="button" className="ax-link" onClick={() => setShowAll((value) => !value)}>{showAll ? "Show top 10" : `Show all ${rows.length} machines`}</button>}
+    </div>
+  );
+}
+
 /* ---------- Page ---------- */
 
 export default function AnalyticsWorkspace({ token }) {
@@ -766,6 +835,10 @@ export default function AnalyticsWorkspace({ token }) {
               table={{ columns: [{ key: "stars", label: "Rating" }, { key: "count", label: "Customers", numeric: true, format: formatInt }], rows: [5, 4, 3, 2, 1].map((stars) => ({ id: stars, stars: `${stars} ★`, count: view.ratingCounts[stars - 1] })) }}
             >
               <Ratings counts={view.ratingCounts} average={s.avgRating || 0} total={s.ratingCount} previousAverage={p?.avgRating ?? null} compare={showCompare} compareLabel={compareLabel} />
+            </ChartCard>
+
+            <ChartCard span={12} title="Complaints by machine" subtitle="Machine ID read from the customer's payment screenshot · today, this month and all time (not limited to the period above)">
+              <Machines headers={headers} />
             </ChartCard>
 
             <ChartCard span={7} title="Top problem locations" subtitle="Click a location to filter the whole page">

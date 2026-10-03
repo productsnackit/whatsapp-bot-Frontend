@@ -5410,3 +5410,18 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 .machine-id b { color: #1d4ed8; font-size: 12.5px; letter-spacing: .02em; }
 .machine-id small { color: var(--text-muted); font-size: 11px; }
 .machine-id.is-unknown b { color: #b45309; }
+.ax-machines { display: grid; gap: 12px; }
+.ax-machine-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ax-machine-stats button { display: grid; gap: 2px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); font: inherit; text-align: left; cursor: pointer; }
+.ax-machine-stats button span { color: var(--text-muted); font-size: 12px; font-weight: 700; }
+.ax-machine-stats button b { font-size: 24px; letter-spacing: -0.5px; }
+.ax-machine-stats button small { color: var(--text-muted); font-size: 11.5px; }
+.ax-machine-stats button.on { border-color: #2a78d6; box-shadow: 0 0 0 2px rgba(42, 120, 214, .18); }
+.ax-machine-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.ax-machine-tools input { flex: 0 1 280px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 13px; }
+.ax-machine-code { color: #1d4ed8; letter-spacing: .02em; }
+.ax-machine-code.is-unknown { color: #b45309; }
+.ax-table td.is-sorted { font-weight: 800; }
+@media (max-width: 700px) { .ax-machine-stats { grid-template-columns: 1fr; } }
+.ax-span-12 { grid-column: 1 / -1; }
+.ax-machine-tools .ax-muted { font-size: 12.5px; }
