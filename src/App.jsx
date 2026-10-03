@@ -37,6 +37,7 @@ const PAGE_LOADERS = {
   CallLogWorkspace: () => import("./CallLogWorkspace.jsx"),
   SupplyWorkspace: () => import("./SupplyWorkspace.jsx"),
   AnalyticsWorkspace: () => import("./AnalyticsWorkspace.jsx"),
+  SupplyAnalytics: () => import("./SupplyAnalytics.jsx"),
 };
 const OperationsWorkspace = lazy(PAGE_LOADERS.OperationsWorkspace);
 const AuditWorkspace = lazy(PAGE_LOADERS.AuditWorkspace);
@@ -49,6 +50,7 @@ const TasksWorkspace = lazy(PAGE_LOADERS.TasksWorkspace);
 const CallLogWorkspace = lazy(PAGE_LOADERS.CallLogWorkspace);
 const SupplyWorkspace = lazy(PAGE_LOADERS.SupplyWorkspace);
 const AnalyticsWorkspace = lazy(PAGE_LOADERS.AnalyticsWorkspace);
+const SupplyAnalytics = lazy(PAGE_LOADERS.SupplyAnalytics);
 
 
 const API = axios.create({
@@ -89,7 +91,7 @@ const DEFAULT_LOGO = "/brand-mark.png";
 // Ticket filters: issue text as shown (trimmed), and the choice for tickets without one.
 const NO_VALUE = "__none__";
 const TICKETS_CACHE = "ticketsCache";
-const KEEP_ALIVE_PAGES = ["expiry", "refills", "supply", "packaged-supply", "tasks", "call-log", "findings", "audit", "analytics"];
+const KEEP_ALIVE_PAGES = ["expiry", "refills", "supply", "packaged-supply", "supply-analytics", "tasks", "call-log", "findings", "audit", "analytics"];
 // Table thumbnails: a small Cloudinary copy (a few KB) instead of the full photo; the viewer opens the full one.
 const thumbUrl = (url) => (typeof url === "string" && url.includes("res.cloudinary.com/") && url.includes("/image/upload/")
   ? url.replace("/image/upload/", "/image/upload/c_fill,w_120,h_120,q_auto,f_auto/")
@@ -237,6 +239,7 @@ export default function App() {
     if (["employees", "admin-settings"].includes(name)) return isAdmin;
     if (["internal-chat", "tasks", "call-log"].includes(name)) return true;
     if (name === "packaged-supply") return can("supply");
+    if (name === "supply-analytics") return can("supply") || can("analytics");
     return ALL_PAGE_KEYS.includes(name) ? can(name) : false;
   };
   const view = viewAllowed(requestedView) ? requestedView : can("tickets") ? "tickets" : "internal-chat";
@@ -1880,7 +1883,14 @@ export default function App() {
             onClick={() => setView("analytics")}
           >
             {Icon.analytics}
-            <span>Analytics</span>
+            <span>Refund Analytics</span>
+          </button>}
+          {(can("supply") || can("analytics")) && <button
+            className={`nav-item ${view === "supply-analytics" ? "active" : ""}`}
+            onClick={() => setView("supply-analytics")}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><rect x="7" y="12" width="3" height="6" rx="1" /><rect x="12" y="8" width="3" height="10" rx="1" /><rect x="17" y="5" width="3" height="13" rx="1" /></svg>
+            <span>Supply Analytics</span>
           </button>}
           <button
             className={`nav-item ${view === "tasks" ? "active" : ""}`}
@@ -1989,7 +1999,8 @@ export default function App() {
               {view === "call-log" && "Call Log"}
               {view === "supply" && "Direct Supply · Fruits"}
               {view === "packaged-supply" && "Packaged Supply"}
-              {view === "analytics" && "Analytics"}
+              {view === "analytics" && "Refund Analytics"}
+              {view === "supply-analytics" && "Supply Analytics"}
               {view === "internal-chat" && "Internal Chat"}
               {view === "employees" && "Employees & Access"}
               {view === "activity" && "Activity Log"}
@@ -2016,6 +2027,7 @@ export default function App() {
               {view === "packaged-supply" && "Dairy, snacks, drinks and pantry orders from companies, combined for the stock buyer"}
               {view === "call-log" && "Tasks and concerns sent to employees on WhatsApp · who has it and how long it takes"}
               {view === "analytics" && "Complaints, refunds and resolution · India time"}
+              {view === "supply-analytics" && "Direct Supply (fruits) and Packaged Supply · by delivery date, India time"}
               {view === "internal-chat" && `${departmentChats.length} active ${selectedDepartment} conversations`}
               {view === "employees" && `${internalUsers.length} people with their own login`}
               {view === "activity" && "Who changed what, and when"}
@@ -2937,6 +2949,7 @@ export default function App() {
 
         {/* ── ANALYTICS VIEW ──────────────────────────────────────────────── */}
         {keepPage("analytics") && <div className="kept-page" hidden={view !== "analytics"}><AnalyticsWorkspace token={token} /></div>}
+        {keepPage("supply-analytics") && (can("supply") || can("analytics")) && <div className="kept-page" hidden={view !== "supply-analytics"}><SupplyAnalytics token={token} version={supplyVersion} /></div>}
         </Suspense>
       </main>
 
