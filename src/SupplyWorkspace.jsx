@@ -297,7 +297,10 @@ function Companies({ companies, onAdd, onUpdate, headers, className }) {
                 <label>Admin's WhatsApp<input defaultValue={company.contact_phone || ""} placeholder="98xxxxxxxx, 99xxxxxxxx" onBlur={(event) => event.target.value !== (company.contact_phone || "") && onUpdate(company, { contact_phone: event.target.value })} /></label>
                 <label>Admin's name<input defaultValue={company.contact_name || ""} onBlur={(event) => event.target.value !== (company.contact_name || "") && onUpdate(company, { contact_name: event.target.value })} /></label>
                 <label>Pays within (days)<input type="number" min="0" defaultValue={company.payment_days ?? ""} placeholder="7" onBlur={(event) => String(event.target.value) !== String(company.payment_days ?? "") && onUpdate(company, { payment_days: event.target.value })} /></label>
-                <label className="ds-billing-wide">Billing address<textarea rows={2} defaultValue={company.address || ""} onBlur={(event) => event.target.value !== (company.address || "") && onUpdate(company, { address: event.target.value })} /></label>
+                <label className="ds-billing-wide">Billing address (Bill To)<textarea rows={2} defaultValue={company.address || ""} onBlur={(event) => event.target.value !== (company.address || "") && onUpdate(company, { address: event.target.value })} /></label>
+                <label>Contact no. (on DC)<input defaultValue={company.contact_no || ""} placeholder="e.g. 6364831771" inputMode="tel" onBlur={(event) => event.target.value !== (company.contact_no || "") && onUpdate(company, { contact_no: event.target.value })} /></label>
+                <label>State<input defaultValue={company.state || ""} placeholder="29-Karnataka" onBlur={(event) => event.target.value !== (company.state || "") && onUpdate(company, { state: event.target.value })} /></label>
+                <label>Ship to (delivery location)<input defaultValue={company.ship_to || ""} placeholder="e.g. Prestige TechPark" onBlur={(event) => event.target.value !== (company.ship_to || "") && onUpdate(company, { ship_to: event.target.value })} /></label>
               </div>
             )}
           </li>
@@ -320,13 +323,14 @@ function Items({ products, units, onUpdate, onMerge }) {
       actions={<input className="ds-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search items" />}>
       <div className="ds-table-wrap is-tall">
         <table className="ds-table">
-          <thead><tr><th>Item</th><th>Unit</th><th>Category</th><th title="So '2 box' adds to pieces">Pcs per box</th><th>Sell price (₹)</th><th>Other spellings</th><th /></tr></thead>
+          <thead><tr><th>Item</th><th>Unit</th><th>Category</th><th title="Printed on the delivery challan">HSN</th><th title="So '2 box' adds to pieces">Pcs per box</th><th>Sell price (₹)</th><th>Other spellings</th><th /></tr></thead>
           <tbody>
             {shown.map((product) => (
               <tr key={product.id}>
                 <td><input defaultValue={product.name} onBlur={(event) => event.target.value.trim() !== product.name && onUpdate(product, { name: event.target.value })} /></td>
                 <td><select value={product.unit} onChange={(event) => onUpdate(product, { unit: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></td>
                 <td><input defaultValue={product.category || ""} placeholder="e.g. Chips, Fruit" onBlur={(event) => event.target.value !== (product.category || "") && onUpdate(product, { category: event.target.value })} /></td>
+                <td><input className="ds-qty" defaultValue={product.hsn || ""} placeholder="—" onBlur={(event) => event.target.value.trim() !== (product.hsn || "") && onUpdate(product, { hsn: event.target.value.trim() })} aria-label={`${product.name} HSN`} /></td>
                 <td><input type="number" min="0" step="1" className="ds-qty" defaultValue={product.pack_size ?? ""} placeholder="—" onBlur={(event) => String(event.target.value) !== String(product.pack_size ?? "") && onUpdate(product, { pack_size: event.target.value })} /></td>
                 <td><input type="number" min="0" step="any" className="ds-qty" defaultValue={product.sell_price ?? ""} placeholder={`per ${product.unit}`} onBlur={(event) => String(event.target.value) !== String(product.sell_price ?? "") && onUpdate(product, { sell_price: event.target.value })} /></td>
                 <td><small>{(product.aliases || []).join(", ") || "—"}</small></td>
@@ -535,6 +539,7 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
   const [page, setPageState] = useState(() => { try { const saved = localStorage.getItem("supplyPage"); return ["orders", "money", "setup"].includes(saved) ? saved : "orders"; } catch { return "orders"; } });
   const [newOpen, setNewOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [challans, setChallans] = useState([]);
   const setPage = (key) => { setPageState(key); setRoundId(null); try { localStorage.setItem("supplyPage", key); } catch { /* private browsing */ } window.scrollTo({ top: 0 }); };
   const openRound = (id) => { setRoundId(id); setAddOpen(false); window.scrollTo({ top: 0 }); };
 
@@ -559,6 +564,7 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
     try {
       const response = await API.get(`/supply/rounds/${id}`, { headers });
       setDetail(response.data);
+      API.get(`/supply/rounds/${id}/challans`, { headers }).then((result) => setChallans(result.data)).catch(() => setChallans([]));
     } catch (err) {
       notify(err.response?.data?.error || "Could not load this date", true);
     }
@@ -693,6 +699,29 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
             <button type="button" className="audit-btn" onClick={downloadExcel} disabled={!detail.master.length}>⬇ Excel</button>
             <button type="button" className="audit-btn" disabled={!detail.master.length} onClick={async () => { try { const response = await API.get(`/supply/rounds/${round.id}/buyer-link`, { headers }); window.open(`${window.location.origin}/?buy=${response.data.token}`, "_blank", "noopener"); } catch { notify("Could not open the buyer's page", true); } }}>Open buyer's page</button>
           </div>
+        </Box>
+
+        {/* Delivery challans */}
+        <Box id="ds-challans" icon="📄" tone="blue" title={`Delivery challans${challans.length ? ` (${challans.length})` : ""}`} sub={challans.length ? `Made ${new Date(challans[0].made_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : "Made and sent to the buyer by themselves when he taps Goods received"} className="ds-span-12"
+          actions={<button type="button" className="audit-btn audit-btn-primary" disabled={!detail.orders.length || busy === "dc"} onClick={() => call("dc", async () => { const response = await API.post(`/supply/rounds/${round.id}/challans`, {}, { headers }); setChallans((await API.get(`/supply/rounds/${round.id}/challans`, { headers })).data); return response.data; }, (result) => result.error ? `${result.made} DC(s) made. ${result.error}` : `${result.made} DC(s) made and sent to the buyer`)}>{busy === "dc" ? "Making…" : challans.length ? "Make again & send" : "Make & send DCs"}</button>}>
+          {challans.length ? (
+            <div className="ds-table-wrap">
+              <table className="ds-table">
+                <thead><tr><th>Company</th><th>DC no.</th><th>Quantity</th><th>Sent to buyer</th><th /></tr></thead>
+                <tbody>
+                  {challans.map((challan) => (
+                    <tr key={challan.id}>
+                      <td><b>{challan.company_name}</b></td>
+                      <td>{challan.ref}</td>
+                      <td>{qty(challan.total_qty)}</td>
+                      <td>{challan.sent_at ? new Date(challan.sent_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : <span className="na">Not sent</span>}</td>
+                      <td><a className="audit-btn" href={challan.pdf_url} target="_blank" rel="noreferrer">📄 Open / print</a></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : <p className="audit-empty">No DCs yet. Bill To / Ship To come from Setup → Companies → Billing, HSN from Setup → Items, DC number and logo from Setup → Invoice details.</p>}
         </Box>
 
         {/* Items: ordered, bought, prices, margin */}

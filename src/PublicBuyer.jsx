@@ -15,9 +15,16 @@ const formOf = (items) => Object.fromEntries(items.map((item) => [item.key, {
   qty: item.bought ? qtyText(item.bought.qty) : "",
   price: item.bought ? String(item.bought.price) : "",
   place: item.bought?.place || "",
+  mfg: item.bought?.mfg || "",
+  exp: item.bought?.exp || "",
   sell: item.bought?.sell != null ? String(item.bought.sell) : item.sell_price != null ? String(item.sell_price) : "",
 }]));
 const number = (value) => value.replace(/[^\d.]/g, "");
+// "09072026" → "09/07/2026" as he types (the date as printed on the pack).
+const dateInput = (value) => {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  return [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4)].filter(Boolean).join("/");
+};
 
 export default function PublicBuyer({ token }) {
   const [data, setData] = useState(null);
@@ -131,6 +138,8 @@ export default function PublicBuyer({ token }) {
                     {marginTotal != null && <small>{money(Math.round(marginTotal))} on {qtyText(value.qty)} {item.unit}</small>}
                   </> : <b>—</b>}
                 </div>
+                <label>Mfg. date<input value={value.mfg} placeholder="dd/mm/yyyy" inputMode="numeric" onChange={(event) => set(item.key, { mfg: dateInput(event.target.value) })} /></label>
+                <label>Exp. date<input value={value.exp} placeholder="dd/mm/yyyy" inputMode="numeric" onChange={(event) => set(item.key, { exp: dateInput(event.target.value) })} /></label>
                 <label className="pb-wide">Where you bought it (optional)<input list="pb-places" value={value.place} placeholder="e.g. KR Market" onChange={(event) => set(item.key, { place: event.target.value })} /></label>
               </div>
               {Number(value.qty) > 0 && Number(value.qty) < item.need && <small className="pb-short">Short by {qtyText(item.need - Number(value.qty))} {item.unit}</small>}

@@ -5379,3 +5379,6 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 .pb-margin small { color: #15803d; font-size: 12.5px; }
 .pb-margin.is-loss { background: #fef2f2; color: #b91c1c; }
 .pb-margin.is-loss small { color: #b91c1c; }
+.ds-dc-images { display: flex; flex-wrap: wrap; gap: 12px; }
+.ds-dc-image { display: grid; justify-items: start; gap: 6px; cursor: pointer; }
+.ds-dc-image img { width: 90px; height: 64px; object-fit: contain; border: 1px solid var(--border); border-radius: 8px; background: #fff; }

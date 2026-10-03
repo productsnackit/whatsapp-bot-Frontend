@@ -390,7 +390,7 @@ export function SellerSettings({ headers, notify }) {
     let alive = true;
     API.get("/supply/seller", { headers }).then((response) => {
       if (!alive) return;
-      const value = { name: "", address: "", gstin: "", phone: "", email: "", upi: "", bank: "", terms: "", public_url: "", ...response.data };
+      const value = { name: "", address: "", gstin: "", phone: "", email: "", upi: "", bank: "", terms: "", public_url: "", state: "", dc_prefix: "", dc_next: "", ...response.data };
       setForm(value);
       setSaved(value);
     }).catch(() => alive && setForm({}));
@@ -398,6 +398,17 @@ export function SellerSettings({ headers, notify }) {
   }, [headers]);
   const set = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
   const dirty = form && saved && JSON.stringify(form) !== JSON.stringify(saved);
+  const upload = async (kind, file) => {
+    if (!file) return;
+    try {
+      const response = await API.post("/supply/seller/image", { kind, file: await readFile(file) }, { headers });
+      setForm((current) => ({ ...current, [`${kind}_url`]: response.data[`${kind}_url`] }));
+      setSaved((current) => ({ ...current, [`${kind}_url`]: response.data[`${kind}_url`] }));
+      notify(kind === "logo" ? "Logo saved" : "Stamp saved");
+    } catch (err) {
+      notify(err.response?.data?.error || "Could not upload", true);
+    }
+  };
   const save = async () => {
     try {
       await API.put("/supply/seller", form, { headers });
@@ -422,6 +433,22 @@ export function SellerSettings({ headers, notify }) {
         <label>Dashboard address for order links<input value={form.public_url} onChange={set("public_url")} placeholder={window.location.origin} /></label>
       </div>
       <label>Bank details<textarea rows={2} value={form.bank} onChange={set("bank")} placeholder="Account name, number, IFSC" /></label>
+      <h4 className="fnd-timeline-title">Delivery challan (DC)</h4>
+      <div className="fnd-grid fnd-grid-3">
+        <label>State / place of supply<input value={form.state} onChange={set("state")} placeholder="29-Karnataka" /></label>
+        <label>DC number starts with<input value={form.dc_prefix} onChange={set("dc_prefix")} placeholder="DIR26" /></label>
+        <label>Next DC number<input value={form.dc_next} onChange={set("dc_next")} placeholder="00488" inputMode="numeric" /></label>
+      </div>
+      <p className="fnd-hint">Next DC: <b>{`${form.dc_prefix ?? ""}${form.dc_next || "1"}`}</b>. Each new DC takes the next number.</p>
+      <div className="ds-dc-images">
+        {[["logo", "Logo"], ["stamp", "Stamp / signature"]].map(([kind, label]) => (
+          <label key={kind} className="ds-dc-image">
+            {form[`${kind}_url`] ? <img src={form[`${kind}_url`]} alt={label} /> : <span className="na">No {label.toLowerCase()}</span>}
+            <span className="audit-btn">{form[`${kind}_url`] ? `Change ${label.toLowerCase()}` : `Upload ${label.toLowerCase()}`}</span>
+            <input type="file" accept="image/png,image/jpeg" hidden onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; upload(kind, file); }} />
+          </label>
+        ))}
+      </div>
       <label>Terms (optional)<textarea rows={2} value={form.terms} onChange={set("terms")} placeholder="e.g. Payment within 7 days" /></label>
       <div className="ds-settings-foot">
         <small className="na">The dashboard address is the main one people open (not a preview link).</small>
