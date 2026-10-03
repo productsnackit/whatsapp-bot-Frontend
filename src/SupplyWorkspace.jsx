@@ -293,7 +293,7 @@ function Companies({ companies, onAdd, onUpdate, headers, className }) {
       <div className="ds-table-wrap is-tall">
         <table className="ds-table ds-company-table">
           <thead>
-            <tr><th>Location</th><th>Bill to (name on DC)</th><th>Address</th><th>GSTIN</th><th>Contact no.</th><th>State</th><th>Ship to</th><th>Admin's WhatsApp</th><th>Pays in (days)</th><th /></tr>
+            <tr><th>Location</th><th title="Which supplies this company orders from">Supplies</th><th>Bill to (name on DC)</th><th>Address</th><th>GSTIN</th><th>Contact no.</th><th>State</th><th>Ship to</th><th>Admin's WhatsApp</th><th>Pays in (days)</th><th /></tr>
           </thead>
           <tbody>
             {shown.map((company) => (
@@ -301,6 +301,17 @@ function Companies({ companies, onAdd, onUpdate, headers, className }) {
                 <td className="ds-cell-name">
                   <input defaultValue={company.name} aria-label="Location name" onBlur={(event) => event.target.value.trim() && event.target.value.trim() !== company.name && onUpdate(company, { name: event.target.value.trim() })} />
                   {company.contact_phone && <small className="ds-sub">💬 orders on WhatsApp</small>}
+                </td>
+                <td className="ds-supplies">
+                  {[["fruits", "🍎"], ["packaged", "📦"]].map(([value, icon]) => {
+                    const on = (company.segments || []).includes(value);
+                    return (
+                      <button type="button" key={value} className={on ? "on" : ""} title={`${on ? "Orders" : "Doesn't order"} ${value}`} aria-pressed={on}
+                        onClick={() => onUpdate(company, { segments: on ? (company.segments || []).filter((item) => item !== value) : [...(company.segments || []), value] })}>
+                        {icon} {value === "fruits" ? "Fruits" : "Packaged"}
+                      </button>
+                    );
+                  })}
                 </td>
                 {cell(company, "billing_name", "Billing name")}
                 {cell(company, "address", "Billing address", { area: true, wide: true })}
@@ -342,11 +353,12 @@ function Items({ products, units, onUpdate, onMerge }) {
       actions={<input className="ds-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search items" />}>
       <div className="ds-table-wrap is-tall">
         <table className="ds-table">
-          <thead><tr><th>Item</th><th>Unit</th><th>Category</th><th title="Printed on the delivery challan">HSN</th><th title="So '2 box' adds to pieces">Pcs per box</th><th>Sell price (₹)</th><th>Other spellings</th><th /></tr></thead>
+          <thead><tr><th>Item</th><th title="Fruits go to Direct Supply, packaged items to Packaged Supply">Supply</th><th>Unit</th><th>Category</th><th title="Printed on the delivery challan">HSN</th><th title="So '2 box' adds to pieces">Pcs per box</th><th>Sell price (₹)</th><th>Other spellings</th><th /></tr></thead>
           <tbody>
             {shown.map((product) => (
               <tr key={product.id}>
                 <td><input defaultValue={product.name} onBlur={(event) => event.target.value.trim() !== product.name && onUpdate(product, { name: event.target.value })} /></td>
+                <td><select value={product.segment || "packaged"} onChange={(event) => onUpdate(product, { segment: event.target.value })} aria-label={`${product.name} supply`}><option value="fruits">🍎 Fruits</option><option value="packaged">📦 Packaged</option></select></td>
                 <td><select value={product.unit} onChange={(event) => onUpdate(product, { unit: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></td>
                 <td><input defaultValue={product.category || ""} placeholder="e.g. Chips, Fruit" onBlur={(event) => event.target.value !== (product.category || "") && onUpdate(product, { category: event.target.value })} /></td>
                 <td><input className="ds-qty" defaultValue={product.hsn || ""} placeholder="—" onBlur={(event) => event.target.value.trim() !== (product.hsn || "") && onUpdate(product, { hsn: event.target.value.trim() })} aria-label={`${product.name} HSN`} /></td>
@@ -538,7 +550,7 @@ function SellingPrices({ headers, companies, onChanged, version }) {
   );
 }
 
-export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
+export default function SupplyWorkspace({ token, isAdmin, version = 0, segment = "fruits" }) {
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
   const [overview, setOverview] = useState(null);
   const [list, setList] = useState(null);
@@ -555,11 +567,11 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
   const [busy, setBusy] = useState("");
   const [buyForm, setBuyForm] = useState(null);
   const [billingVersion, setBillingVersion] = useState(0);
-  const [page, setPageState] = useState(() => { try { const saved = localStorage.getItem("supplyPage"); return ["orders", "money", "setup"].includes(saved) ? saved : "orders"; } catch { return "orders"; } });
+  const [page, setPageState] = useState(() => { try { const saved = localStorage.getItem(`supplyPage-${segment}`); return ["orders", "money", "setup"].includes(saved) ? saved : "orders"; } catch { return "orders"; } });
   const [newOpen, setNewOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [challans, setChallans] = useState([]);
-  const setPage = (key) => { setPageState(key); setRoundId(null); try { localStorage.setItem("supplyPage", key); } catch { /* private browsing */ } window.scrollTo({ top: 0 }); };
+  const setPage = (key) => { setPageState(key); setRoundId(null); try { localStorage.setItem(`supplyPage-${segment}`, key); } catch { /* private browsing */ } window.scrollTo({ top: 0 }); };
   const openRound = (id) => { setRoundId(id); setAddOpen(false); window.scrollTo({ top: 0 }); };
 
   const notify = useCallback((message, isError = false) => {
@@ -569,14 +581,14 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
 
   const loadOverview = useCallback(async () => {
     try {
-      const [response, orders] = await Promise.all([API.get("/supply/overview", { headers }), API.get("/supply/orders-list", { headers })]);
+      const [response, orders] = await Promise.all([API.get("/supply/overview", { headers, params: { segment } }), API.get("/supply/orders-list", { headers, params: { segment } })]);
       setOverview(response.data);
       setList(orders.data);
       API.get("/supply/buyer-info", { headers }).then((info) => setBuyerInfo(info.data)).catch(() => {});
     } catch (err) {
       notify(err.response?.data?.error || "Could not load Direct Supply", true);
     }
-  }, [headers, notify]);
+  }, [headers, notify, segment]);
 
   const loadRound = useCallback(async (id) => {
     if (!id) { setDetail(null); return; }
@@ -609,7 +621,7 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
   };
 
   const startRound = async (date, title) => {
-    const response = await API.post("/supply/rounds", { delivery_date: date, title }, { headers });
+    const response = await API.post("/supply/rounds", { delivery_date: date, title, segment }, { headers });
     return response.data;
   };
 
@@ -666,8 +678,13 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
 
   const companies = overview.companies || [];
   const units = overview.units || ["pcs", "kg", "box", "pkt"];
-  const activeCount = companies.filter((company) => company.active).length;
-  const info = PAGES.find((item) => item.key === page) || PAGES[0];
+  // Only the companies that order from this supply (fruits / packaged).
+  const ofSupply = (company) => company.active && (company.segments || []).includes(segment);
+  const activeCount = companies.filter(ofSupply).length;
+  const base = PAGES.find((item) => item.key === page) || PAGES[0];
+  const info = segment === "packaged" && base.key === "orders"
+    ? { ...base, how: ["Each row is one delivery date of packaged items (dairy, snacks, drinks, pantry): who ordered, how much, the buyer's progress and the margin.", "Click a row to see every item, what was bought and where, and each company's order."], example: "A company admin sends one list with fruits and Epigamia: the fruits go to Direct Supply, the Epigamia comes here, both for the same date." }
+    : base;
   const today = isoDay(new Date());
   const q = search.trim().toLowerCase();
   const rows = list.rounds.filter((row) => {
@@ -683,7 +700,7 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
     const totals = detail.buying?.totals || {};
     const checks = detail.checks || [];
     const ordered = new Set(detail.orders.map((order) => order.company_id));
-    const waiting = companies.filter((company) => company.active && !ordered.has(company.id));
+    const waiting = companies.filter((company) => ofSupply(company) && !ordered.has(company.id));
     const statusIndex = STATUSES.indexOf(round.status);
     const steps = buyerInfo?.steps || list.steps || [];
     const stepIndex = steps.indexOf(round.buyer_status);

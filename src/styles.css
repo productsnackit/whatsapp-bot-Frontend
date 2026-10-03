@@ -5425,3 +5425,17 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 @media (max-width: 700px) { .ax-machine-stats { grid-template-columns: 1fr; } }
 .ax-span-12 { grid-column: 1 / -1; }
 .ax-machine-tools .ax-muted { font-size: 12.5px; }
+.ds-supplies { white-space: nowrap; }
+.ds-supplies button { margin: 0 4px 4px 0; padding: 4px 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-muted); font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; }
+.ds-supplies button.on { border-color: #16a34a; background: #f0fdf4; color: #166534; }
+.ds-company-table { min-width: 1700px; }
+.ds-company-table th:nth-child(2) { width: 180px; }
+.ds-company-table th:nth-child(3) { width: 190px; }
+.ds-company-table th:nth-child(4) { width: 250px; }
+.ds-company-table th:nth-child(5) { width: 160px; }
+.ds-company-table th:nth-child(6) { width: 120px; }
+.ds-company-table th:nth-child(7) { width: 115px; }
+.ds-company-table th:nth-child(8) { width: 170px; }
+.ds-company-table th:nth-child(9) { width: 170px; }
+.ds-company-table th:nth-child(10) { width: 80px; }
+.ds-company-table th:nth-child(11) { width: 150px; }

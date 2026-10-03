@@ -89,7 +89,7 @@ const DEFAULT_LOGO = "/brand-mark.png";
 // Ticket filters: issue text as shown (trimmed), and the choice for tickets without one.
 const NO_VALUE = "__none__";
 const TICKETS_CACHE = "ticketsCache";
-const KEEP_ALIVE_PAGES = ["expiry", "refills", "supply", "tasks", "call-log", "findings", "audit", "analytics"];
+const KEEP_ALIVE_PAGES = ["expiry", "refills", "supply", "packaged-supply", "tasks", "call-log", "findings", "audit", "analytics"];
 // Table thumbnails: a small Cloudinary copy (a few KB) instead of the full photo; the viewer opens the full one.
 const thumbUrl = (url) => (typeof url === "string" && url.includes("res.cloudinary.com/") && url.includes("/image/upload/")
   ? url.replace("/image/upload/", "/image/upload/c_fill,w_120,h_120,q_auto,f_auto/")
@@ -236,6 +236,7 @@ export default function App() {
     if (OPERATIONS_VIEWS.includes(name)) return canAccessOperations;
     if (["employees", "admin-settings"].includes(name)) return isAdmin;
     if (["internal-chat", "tasks", "call-log"].includes(name)) return true;
+    if (name === "packaged-supply") return can("supply");
     return ALL_PAGE_KEYS.includes(name) ? can(name) : false;
   };
   const view = viewAllowed(requestedView) ? requestedView : can("tickets") ? "tickets" : "internal-chat";
@@ -1808,6 +1809,13 @@ export default function App() {
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z" /><path d="M3 7v10l9 4 9-4V7" /><path d="M12 11v10" /></svg>
             <span>Direct Supply</span>
           </button>}
+          {can("supply") && <button
+            className={`nav-item ${view === "packaged-supply" ? "active" : ""}`}
+            onClick={() => setView("packaged-supply")}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M3 12h18" /></svg>
+            <span>Packaged Supply</span>
+          </button>}
 
           {canAccessOperations && <>
             <div className="sidebar-divider" />
@@ -1979,7 +1987,8 @@ export default function App() {
               {view === "refills" && "Refill Schedule"}
               {view === "tasks" && "Tasks"}
               {view === "call-log" && "Call Log"}
-              {view === "supply" && "Direct Supply"}
+              {view === "supply" && "Direct Supply · Fruits"}
+              {view === "packaged-supply" && "Packaged Supply"}
               {view === "analytics" && "Analytics"}
               {view === "internal-chat" && "Internal Chat"}
               {view === "employees" && "Employees & Access"}
@@ -2003,7 +2012,8 @@ export default function App() {
               {view === "expiry" && "Batch expiry dates, expired stock and write-off value"}
               {view === "refills" && "Refill days per site (refillers go in their own order), WhatsApp reminders and photo proof"}
               {view === "tasks" && `${myTaskCounts.open} open for you${myTaskCounts.overdue ? ` · ${myTaskCounts.overdue} overdue` : ""} · from @tags in Internal Chat`}
-              {view === "supply" && "Company orders combined into one master sheet for the stock buyer"}
+              {view === "supply" && "Fruit orders from companies, combined for the stock buyer"}
+              {view === "packaged-supply" && "Dairy, snacks, drinks and pantry orders from companies, combined for the stock buyer"}
               {view === "call-log" && "Tasks and concerns sent to employees on WhatsApp · who has it and how long it takes"}
               {view === "analytics" && "Complaints, refunds and resolution · India time"}
               {view === "internal-chat" && `${departmentChats.length} active ${selectedDepartment} conversations`}
@@ -2123,7 +2133,10 @@ export default function App() {
         {keepPage("tasks") && <div className="kept-page" hidden={view !== "tasks"}><TasksWorkspace token={token} isAdmin={isAdmin} onOpenChat={(task) => openChatFromNotification({ chatId: String(task.chatId), department: task.department })} /></div>}
 
         {keepPage("supply") && can("supply") && (
-          <div className="kept-page" hidden={view !== "supply"}><SupplyWorkspace token={token} isAdmin={isAdmin} internalUsers={internalUsers} version={supplyVersion} /></div>
+          <div className="kept-page" hidden={view !== "supply"}><SupplyWorkspace token={token} isAdmin={isAdmin} internalUsers={internalUsers} version={supplyVersion} segment="fruits" /></div>
+        )}
+        {keepPage("packaged-supply") && can("supply") && (
+          <div className="kept-page" hidden={view !== "packaged-supply"}><SupplyWorkspace token={token} isAdmin={isAdmin} internalUsers={internalUsers} version={supplyVersion} segment="packaged" /></div>
         )}
 
         {keepPage("call-log") && (
