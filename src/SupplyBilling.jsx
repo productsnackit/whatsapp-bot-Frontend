@@ -264,7 +264,7 @@ export function DeliveryTab({ round, headers, isAdmin, notify, version = 0, onSu
         <div className="fnd-kpi-blue"><span>Invoiced</span><b>{money(billed)}</b><small>{data.companies.filter((entry) => entry.invoice).length} invoice(s)</small></div>
         <div className="fnd-kpi-purple"><span>Received</span><b>{money(received)}</b><small>Balance {money(billed - received)}</small></div>
       </div>
-      {!data.seller?.name && <p className="fnd-hint">Add Snackit's name, address and GSTIN for invoices under <b>Invoice & link settings</b> (further down this page).</p>}
+      {!data.seller?.name && <p className="fnd-hint">Add Snackit's name, address and GSTIN for invoices under <b>Setup → Master settings</b>.</p>}
       <div className="ds-orders is-grid is-wide">
         {data.companies.map((entry) => {
           const step = STEPS.indexOf(entry.delivery.status);
@@ -413,7 +413,7 @@ export function SellerSettings({ headers, notify }) {
     try {
       await API.put("/supply/seller", form, { headers });
       setSaved(form);
-      notify("Invoice details saved");
+      notify("Master settings saved");
     } catch {
       notify("Could not save", true);
     }
@@ -421,6 +421,18 @@ export function SellerSettings({ headers, notify }) {
   if (!form) return <p className="audit-empty">Loading…</p>;
   return (
     <div className="ds-settings">
+      <h4 className="fnd-timeline-title">Logo & stamp</h4>
+      <div className="ds-dc-images">
+        {[["logo", "Logo"], ["stamp", "Stamp / signature"]].map(([kind, label]) => (
+          <label key={kind} className="ds-dc-image">
+            {form[`${kind}_url`] ? <img src={form[`${kind}_url`]} alt={label} /> : <span className="na">No {label.toLowerCase()}</span>}
+            <span className="audit-btn">{form[`${kind}_url`] ? `Change ${label.toLowerCase()}` : `Upload ${label.toLowerCase()}`}</span>
+            <input type="file" accept="image/png,image/jpeg" hidden onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; upload(kind, file); }} />
+          </label>
+        ))}
+      </div>
+      <p className="fnd-hint">The logo prints at the top left of every DC, and the stamp / signature above "Authorized Signatory".</p>
+      <h4 className="fnd-timeline-title">Business details</h4>
       <div className="fnd-grid fnd-grid-3">
         <label>Business name<input value={form.name} onChange={set("name")} placeholder="Snackit … Pvt Ltd" /></label>
         <label>GSTIN<input value={form.gstin} onChange={set("gstin")} /></label>
@@ -440,15 +452,6 @@ export function SellerSettings({ headers, notify }) {
         <label>Next DC number<input value={form.dc_next} onChange={set("dc_next")} placeholder="00488" inputMode="numeric" /></label>
       </div>
       <p className="fnd-hint">Next DC: <b>{`${form.dc_prefix ?? ""}${form.dc_next || "1"}`}</b>. Each new DC takes the next number.</p>
-      <div className="ds-dc-images">
-        {[["logo", "Logo"], ["stamp", "Stamp / signature"]].map(([kind, label]) => (
-          <label key={kind} className="ds-dc-image">
-            {form[`${kind}_url`] ? <img src={form[`${kind}_url`]} alt={label} /> : <span className="na">No {label.toLowerCase()}</span>}
-            <span className="audit-btn">{form[`${kind}_url`] ? `Change ${label.toLowerCase()}` : `Upload ${label.toLowerCase()}`}</span>
-            <input type="file" accept="image/png,image/jpeg" hidden onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; upload(kind, file); }} />
-          </label>
-        ))}
-      </div>
       <label>Terms (optional)<textarea rows={2} value={form.terms} onChange={set("terms")} placeholder="e.g. Payment within 7 days" /></label>
       <div className="ds-settings-foot">
         <small className="na">The dashboard address is the main one people open (not a preview link).</small>

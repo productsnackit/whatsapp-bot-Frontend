@@ -244,69 +244,88 @@ function OrderLink({ company, headers, base }) {
 }
 
 function Companies({ companies, onAdd, onUpdate, headers, className }) {
-  const [draft, setDraft] = useState({ name: "", contact_name: "", contact_phone: "", location: "" });
-  const [billing, setBilling] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState("");
   const [linkFor, setLinkFor] = useState(null);
   const [base, setBase] = useState(window.location.origin);
+  const [showHidden, setShowHidden] = useState(false);
+  const [error, setError] = useState("");
   useEffect(() => {
     let alive = true;
     API.get("/supply/seller", { headers }).then((response) => { if (alive && response.data.public_url) setBase(response.data.public_url); }).catch(() => {});
     return () => { alive = false; };
   }, [headers]);
-  const [error, setError] = useState("");
   const add = async (event) => {
     event.preventDefault();
     setError("");
     try {
-      await onAdd(draft);
-      setDraft({ name: "", contact_name: "", contact_phone: "", location: "" });
+      await onAdd({ name: name.trim() });
+      setName("");
+      setAdding(false);
     } catch (err) {
       setError(err.response?.data?.error || "Could not add");
     }
   };
-  const live = companies.filter((company) => company.active).length;
+  // One box per detail: saved when you leave the box.
+  const cell = (company, key, placeholder, options = {}) => (
+    <td className={options.wide ? "ds-cell-wide" : ""}>
+      {options.area
+        ? <textarea rows={2} defaultValue={company[key] ?? ""} placeholder={placeholder} aria-label={`${company.name} ${placeholder}`} onBlur={(event) => event.target.value !== String(company[key] ?? "") && onUpdate(company, { [key]: event.target.value })} />
+        : <input defaultValue={company[key] ?? ""} placeholder={placeholder} inputMode={options.mode} aria-label={`${company.name} ${placeholder}`} onBlur={(event) => event.target.value !== String(company[key] ?? "") && onUpdate(company, { [key]: event.target.value })} />}
+    </td>
+  );
+  const live = companies.filter((company) => company.active);
+  const shown = showHidden ? companies : live;
   return (
-    <Box id="ds-companies" icon="🏢" tone="blue" title="Companies you supply" sub={`${live} companies`} className={className}>
-      <form className="ds-company-form" onSubmit={add}>
-        <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} placeholder="Company name *" required />
-        <input value={draft.contact_name} onChange={(event) => setDraft({ ...draft, contact_name: event.target.value })} placeholder="Admin's name" />
-        <input value={draft.contact_phone} onChange={(event) => setDraft({ ...draft, contact_phone: event.target.value })} placeholder="Admin's WhatsApp (commas for more)" inputMode="tel" />
-        <input value={draft.location} onChange={(event) => setDraft({ ...draft, location: event.target.value })} placeholder="Location" />
-        <button type="submit" className="audit-btn audit-btn-primary">Add</button>
-      </form>
+    <Box id="ds-companies" icon="🏢" tone="blue" title="Companies / locations" sub={`${live.length} locations · each row's details print on its delivery challan`} className={className}
+      actions={<>
+        {companies.length > live.length && <button type="button" className="audit-btn" onClick={() => setShowHidden((value) => !value)}>{showHidden ? "Hide hidden" : `Show hidden (${companies.length - live.length})`}</button>}
+        <button type="button" className="audit-btn audit-btn-primary" onClick={() => setAdding((value) => !value)}>{adding ? "Cancel" : "＋ Add location"}</button>
+      </>}>
+      {adding && (
+        <form className="ds-add-location" onSubmit={add}>
+          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Location / company name, e.g. Nutanix Prestige Tech Park" autoFocus required />
+          <button type="submit" className="audit-btn audit-btn-primary">Add</button>
+          <small className="na">Then fill its address and details in its row below.</small>
+        </form>
+      )}
       {error && <div className="audit-error">{error}</div>}
-      <ul className="ds-companies">
-        {companies.map((company) => (
-          <li key={company.id} className={`${company.active ? "" : "is-off"} ${billing === company.id ? "is-open" : ""}`}>
-            <div>
-              <b>{company.name}</b>
-              {company.contact_phone && <span className="ds-chip is-known" title="Messages from this number become orders">💬 WhatsApp orders</span>}
-              {company.gstin && <span className="ds-chip is-new">GST</span>}
-              <small>{[company.contact_name, company.contact_phone, company.location].filter(Boolean).join(" · ") || "No contact details"}{company.payment_days != null ? ` · pays in ${company.payment_days} days` : ""}</small>
-            </div>
-            <div className="ds-company-actions">
-              <button type="button" className="audit-btn" onClick={() => setLinkFor(linkFor === company.id ? null : company.id)}>🔗 Order link</button>
-              <button type="button" className="audit-btn" onClick={() => setBilling(billing === company.id ? null : company.id)}>Billing</button>
-              <button type="button" className="audit-btn" onClick={() => onUpdate(company, { active: !company.active })}>{company.active ? "Hide" : "Show again"}</button>
-            </div>
-            {linkFor === company.id && <OrderLink company={company} headers={headers} base={base} />}
-            {billing === company.id && (
-              <div className="ds-billing">
-                <label>Name on invoice<input defaultValue={company.billing_name || ""} placeholder={company.name} onBlur={(event) => event.target.value !== (company.billing_name || "") && onUpdate(company, { billing_name: event.target.value })} /></label>
-                <label>GSTIN<input defaultValue={company.gstin || ""} onBlur={(event) => event.target.value !== (company.gstin || "") && onUpdate(company, { gstin: event.target.value })} /></label>
-                <label>Admin's WhatsApp<input defaultValue={company.contact_phone || ""} placeholder="98xxxxxxxx, 99xxxxxxxx" onBlur={(event) => event.target.value !== (company.contact_phone || "") && onUpdate(company, { contact_phone: event.target.value })} /></label>
-                <label>Admin's name<input defaultValue={company.contact_name || ""} onBlur={(event) => event.target.value !== (company.contact_name || "") && onUpdate(company, { contact_name: event.target.value })} /></label>
-                <label>Pays within (days)<input type="number" min="0" defaultValue={company.payment_days ?? ""} placeholder="7" onBlur={(event) => String(event.target.value) !== String(company.payment_days ?? "") && onUpdate(company, { payment_days: event.target.value })} /></label>
-                <label className="ds-billing-wide">Billing address (Bill To)<textarea rows={2} defaultValue={company.address || ""} onBlur={(event) => event.target.value !== (company.address || "") && onUpdate(company, { address: event.target.value })} /></label>
-                <label>Contact no. (on DC)<input defaultValue={company.contact_no || ""} placeholder="e.g. 6364831771" inputMode="tel" onBlur={(event) => event.target.value !== (company.contact_no || "") && onUpdate(company, { contact_no: event.target.value })} /></label>
-                <label>State<input defaultValue={company.state || ""} placeholder="29-Karnataka" onBlur={(event) => event.target.value !== (company.state || "") && onUpdate(company, { state: event.target.value })} /></label>
-                <label>Ship to (delivery location)<input defaultValue={company.ship_to || ""} placeholder="e.g. Prestige TechPark" onBlur={(event) => event.target.value !== (company.ship_to || "") && onUpdate(company, { ship_to: event.target.value })} /></label>
-              </div>
-            )}
-          </li>
-        ))}
-        {!companies.length && <p className="audit-empty">No companies yet. Add the first one above.</p>}
-      </ul>
+      <div className="ds-table-wrap is-tall">
+        <table className="ds-table ds-company-table">
+          <thead>
+            <tr><th>Location</th><th>Bill to (name on DC)</th><th>Address</th><th>GSTIN</th><th>Contact no.</th><th>State</th><th>Ship to</th><th>Admin's WhatsApp</th><th>Pays in (days)</th><th /></tr>
+          </thead>
+          <tbody>
+            {shown.map((company) => (
+              <tr key={company.id} className={company.active ? "" : "is-off"}>
+                <td className="ds-cell-name">
+                  <input defaultValue={company.name} aria-label="Location name" onBlur={(event) => event.target.value.trim() && event.target.value.trim() !== company.name && onUpdate(company, { name: event.target.value.trim() })} />
+                  {company.contact_phone && <small className="ds-sub">💬 orders on WhatsApp</small>}
+                </td>
+                {cell(company, "billing_name", "Billing name")}
+                {cell(company, "address", "Billing address", { area: true, wide: true })}
+                {cell(company, "gstin", "GSTIN")}
+                {cell(company, "contact_no", "Contact no.", { mode: "tel" })}
+                {cell(company, "state", "29-Karnataka")}
+                {cell(company, "ship_to", "Delivery location")}
+                {cell(company, "contact_phone", "98xxxxxxxx, 99xxxxxxxx", { mode: "tel" })}
+                {cell(company, "payment_days", "7", { mode: "numeric" })}
+                <td className="ds-row-actions">
+                  <button type="button" className="audit-btn" onClick={() => setLinkFor(linkFor === company.id ? null : company.id)}>🔗 Link</button>
+                  <button type="button" className="audit-btn" onClick={() => onUpdate(company, { active: !company.active })}>{company.active ? "Hide" : "Show"}</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!shown.length && <p className="audit-empty">No locations yet. Press “＋ Add location”.</p>}
+      </div>
+      {linkFor && companies.find((company) => company.id === linkFor) && (
+        <div className="ds-link-panel">
+          <b>Order link · {companies.find((company) => company.id === linkFor).name}</b>
+          <OrderLink company={companies.find((company) => company.id === linkFor)} headers={headers} base={base} />
+        </div>
+      )}
     </Box>
   );
 }
@@ -721,7 +740,7 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
                 </tbody>
               </table>
             </div>
-          ) : <p className="audit-empty">No DCs yet. Bill To / Ship To come from Setup → Companies → Billing, HSN from Setup → Items, DC number and logo from Setup → Invoice details.</p>}
+          ) : <p className="audit-empty">No DCs yet. Bill To / Ship To come from each location's row in Setup → Companies, HSN from Setup → Items, DC number, logo and stamp from Setup → Master settings.</p>}
         </Box>
 
         {/* Items: ordered, bought, prices, margin */}
@@ -911,8 +930,8 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
 
       {page === "setup" && (
         <div className="ds-grid">
-          <Companies headers={headers} companies={companies} onAdd={addCompany} onUpdate={(company, patch) => call("company", () => API.patch(`/supply/companies/${company.id}`, patch, { headers }))} className="ds-span-7" />
-          <Vendors vendors={overview.vendors || []} onAdd={addVendor} onUpdate={(vendor, patch) => call("vendor", () => API.patch(`/supply/vendors/${vendor.id}`, patch, { headers }))} className="ds-span-5" />
+          <Companies headers={headers} companies={companies} onAdd={addCompany} onUpdate={(company, patch) => call("company", () => API.patch(`/supply/companies/${company.id}`, patch, { headers }))} className="ds-span-12" />
+          <Vendors vendors={overview.vendors || []} onAdd={addVendor} onUpdate={(vendor, patch) => call("vendor", () => API.patch(`/supply/vendors/${vendor.id}`, patch, { headers }))} className="ds-span-12" />
           <SellingPrices headers={headers} companies={companies} version={overview} onChanged={() => loadRound(roundId)} />
           <Items
             products={overview.products}
@@ -920,7 +939,7 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
             onUpdate={(product, patch) => call("item", () => API.patch(`/supply/products/${product.id}`, patch, { headers }))}
             onMerge={(product, intoId) => window.confirm(`Merge "${product.name}" into "${overview.products.find((item) => item.id === intoId)?.name}"? Their quantities will be added together from now on.`) && call("merge", () => API.post("/supply/products/merge", { from_id: product.id, into_id: intoId }, { headers }), "Items merged")}
           />
-          <Box id="ds-settings" icon="🧾" tone="slate" title="Invoice details" sub="Snackit's details printed on every invoice" className="ds-span-12">
+          <Box id="ds-settings" icon="⚙️" tone="slate" title="Master settings" sub="Your logo, stamp, business details and DC number, used on every delivery challan and invoice" className="ds-span-12">
             <SellerSettings headers={headers} notify={notify} />
           </Box>
         </div>
