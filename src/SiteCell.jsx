@@ -39,10 +39,11 @@ export default function SiteCell({ ticket, sites, onSet }) {
   return (
     <div className="site-cell">
       {ticket.site_name ? (
-        <span className={`site-name is-${ticket.site_match || "site"}`} title={ticket.site_match === "group" ? "Company matched, but not which of its sites" : ticket.site_match === "manual" ? "Set by hand" : "Matched from what the customer typed"}>
+        <span className={`site-name is-${ticket.site_match || "site"}`} title={ticket.site_match === "group" ? "Company matched, but not which of its sites" : ticket.site_match === "manual" ? "Set by hand" : ticket.site_match === "machine" ? `Read from the payment screenshot: paid to machine ${String(ticket.paid_machine || "").toUpperCase()}` : "Matched from what the customer typed"}>
           📍 {ticket.site_name}{ticket.site_match === "group" ? " · which site?" : ""}
         </span>
       ) : <span className="site-name is-none">⚠ Not matched</span>}
+      {ticket.paid_machine && <small className="site-machine" title="Machine ID from the payment screenshot">🔢 {String(ticket.paid_machine).toUpperCase()}{ticket.site_match === "machine" ? " · from payment" : ""}</small>}
       {typed && !sameAsTyped && <small className="site-typed">“{typed}”</small>}
       {!editing && <button type="button" className="site-edit" onClick={open}>{ticket.site_name ? "Change" : "Set site"}</button>}
       {editing && (

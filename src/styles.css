@@ -5403,3 +5403,6 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 .ds-company-table th:nth-child(8) { width: 170px; }
 .ds-company-table th:nth-child(9) { width: 80px; }
 .ds-company-table th:nth-child(10) { width: 150px; }
+.site-machine { display: block; color: #1d4ed8; font-size: 11px; font-weight: 700; }
+.site-name.is-machine { color: #1d4ed8; }
+.site-name.is-named { color: inherit; }
