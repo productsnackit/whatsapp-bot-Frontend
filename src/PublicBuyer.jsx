@@ -3,8 +3,8 @@ import axios from "axios";
 import "./styles.css";
 
 /* The stock buyer's page (/?buy=<token>), opened from the WhatsApp list: no login.
-   He marks the steps (Received → … → Sent) and, per item, fills how much he bought,
-   the price, where he bought it and the margin %. See supplyBuyer.js on the server. */
+   He marks the steps (Received → … → Sent) and, per item, fills how much he bought, the
+   purchase price, the selling price and where he bought it; the margin is worked out for him. See supplyBuyer.js on the server. */
 
 const API = axios.create({ baseURL: "https://whatsapp-bot-backend-b3nb.onrender.com" });
 const dayLabel = (value) => new Date(`${value}T00:00:00`).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "short" });
@@ -15,7 +15,7 @@ const formOf = (items) => Object.fromEntries(items.map((item) => [item.key, {
   qty: item.bought ? qtyText(item.bought.qty) : "",
   price: item.bought ? String(item.bought.price) : "",
   place: item.bought?.place || "",
-  margin: item.bought?.margin != null ? String(item.bought.margin) : "",
+  sell: item.bought?.sell != null ? String(item.bought.sell) : item.sell_price != null ? String(item.sell_price) : "",
 }]));
 const number = (value) => value.replace(/[^\d.]/g, "");
 
@@ -93,14 +93,17 @@ export default function PublicBuyer({ token }) {
 
       <div className="po-card pb-intro">
         <b>{done} of {data.items.length} items filled</b>
-        <span>For each item: how much you bought, the price per unit, where you bought it and the margin %.</span>
+        <span>For each item: how much you bought, the purchase price and the selling price. The margin is worked out for you.</span>
       </div>
 
       <datalist id="pb-places">{data.places.map((place) => <option key={place} value={place} />)}</datalist>
 
       {data.items.map((item) => {
         const value = form[item.key] || {};
-        const sell = Number(value.price) > 0 && value.margin !== "" ? Number(value.price) * (1 + Number(value.margin) / 100) : null;
+        const buy = value.price === "" ? null : Number(value.price);
+        const sell = value.sell === "" ? null : Number(value.sell);
+        const perUnit = buy != null && sell ? sell - buy : null;
+        const marginTotal = perUnit != null && Number(value.qty) > 0 ? perUnit * Number(value.qty) : null;
         return (
           <div key={item.key} className={`po-card pb-item ${item.bought ? "is-done" : ""}`}>
             <div className="pb-item-head">
@@ -119,10 +122,16 @@ export default function PublicBuyer({ token }) {
                     {value.qty === "" && <button type="button" onClick={() => set(item.key, { qty: qtyText(item.need) })}>All</button>}
                   </div>
                 </label>
-                <label>Price per {item.unit} (₹)<input inputMode="decimal" value={value.price} placeholder="0" onChange={(event) => set(item.key, { price: number(event.target.value) })} /></label>
-                <label className="pb-wide">Where you bought it<input list="pb-places" value={value.place} placeholder="e.g. KR Market" onChange={(event) => set(item.key, { place: event.target.value })} /></label>
-                <label>Margin %<input inputMode="decimal" value={value.margin} placeholder="e.g. 10" onChange={(event) => set(item.key, { margin: number(event.target.value) })} /></label>
-                <div className="pb-sell"><span>Selling price</span><b>{sell != null ? `${money(Math.round(sell * 100) / 100)}/${item.unit}` : "—"}</b></div>
+                <label>Purchase price / {item.unit} (₹)<input inputMode="decimal" value={value.price} placeholder="0" onChange={(event) => set(item.key, { price: number(event.target.value) })} /></label>
+                <label>Selling price / {item.unit} (₹)<input inputMode="decimal" value={value.sell} placeholder="0" onChange={(event) => set(item.key, { sell: number(event.target.value) })} /></label>
+                <div className={`pb-margin ${perUnit != null && perUnit < 0 ? "is-loss" : ""}`}>
+                  <span>Margin</span>
+                  {perUnit != null ? <>
+                    <b>{money(Math.round(perUnit * 100) / 100)}/{item.unit} · {Math.round((perUnit / sell) * 1000) / 10}%</b>
+                    {marginTotal != null && <small>{money(Math.round(marginTotal))} on {qtyText(value.qty)} {item.unit}</small>}
+                  </> : <b>—</b>}
+                </div>
+                <label className="pb-wide">Where you bought it (optional)<input list="pb-places" value={value.place} placeholder="e.g. KR Market" onChange={(event) => set(item.key, { place: event.target.value })} /></label>
               </div>
               {Number(value.qty) > 0 && Number(value.qty) < item.need && <small className="pb-short">Short by {qtyText(item.need - Number(value.qty))} {item.unit}</small>}
               {item.bought && !isChanged(item) && <small className="pb-saved">✓ Saved</small>}
