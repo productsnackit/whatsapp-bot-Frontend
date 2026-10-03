@@ -733,8 +733,8 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0 }) {
                       <td><b>{challan.company_name}</b></td>
                       <td>{challan.ref}</td>
                       <td>{qty(challan.total_qty)}</td>
-                      <td>{challan.sent_at ? new Date(challan.sent_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : <span className="na">Not sent</span>}</td>
-                      <td><a className="audit-btn" href={challan.pdf_url} target="_blank" rel="noreferrer">📄 Open / print</a></td>
+                      <td>{challan.sent_at ? new Date(challan.sent_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : <span className="na" title={challan.send_error || ""}>Not sent{challan.send_error ? ` · ${challan.send_error.slice(0, 80)}` : ""}</span>}</td>
+                      <td>{challan.has_file ? <a className="audit-btn" href={challan.pdf_url} target="_blank" rel="noreferrer">📄 Open / print</a> : <span className="na">Press “Make again & send” to fix this file</span>}</td>
                     </tr>
                   ))}
                 </tbody>
