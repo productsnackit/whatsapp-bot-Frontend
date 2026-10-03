@@ -2685,6 +2685,7 @@ export default function App() {
                     <th>Issue</th>
                     <th>Sub Issue</th>
                     <th>Location</th>
+                    <th title="Read from the payment screenshot (paid to snackitvv…)">Machine ID</th>
                     <th>Transaction ID</th>
                     <th>Image</th>
                     <th>UPI Screenshot</th>
@@ -2713,6 +2714,14 @@ export default function App() {
                         <td data-label="Issue">{t.main_issue || <span className="na">Not chosen yet</span>}</td>
                         <td data-label="Sub issue">{t.sub_issue || <span className="na">—</span>}</td>
                         <td data-label="Location"><SiteCell ticket={t} sites={sites} onSet={setTicketSite} /></td>
+                        <td data-label="Machine ID">
+                          {t.paid_machine ? (
+                            <span className={`machine-id ${t.paid_machine_location ? "" : "is-unknown"}`} title={t.paid_machine_location ? `Paid to this machine (from the payment screenshot): ${t.paid_machine_location}` : "Read from the screenshot, but this ID isn't in the machine list"}>
+                              <b>{String(t.paid_machine).toUpperCase()}</b>
+                              <small>{t.paid_machine_location || "Not in machine list"}</small>
+                            </span>
+                          ) : <span className="na" title={t.upi_image ? "No machine ID found on the screenshot" : "No payment screenshot yet"}>—</span>}
+                        </td>
                         <td data-label="Transaction ID"><TxnIdCell ticket={t} /></td>
                         <td data-label="Image">
                           {t.image ? (

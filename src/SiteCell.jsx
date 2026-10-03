@@ -43,7 +43,7 @@ export default function SiteCell({ ticket, sites, onSet }) {
           📍 {ticket.site_name}{ticket.site_match === "group" ? " · which site?" : ""}
         </span>
       ) : <span className="site-name is-none">⚠ Not matched</span>}
-      {ticket.paid_machine && <small className="site-machine" title="Machine ID from the payment screenshot">🔢 {String(ticket.paid_machine).toUpperCase()}{ticket.site_match === "machine" ? " · from payment" : ""}</small>}
+      {ticket.site_match === "machine" && <small className="site-machine">from payment screenshot</small>}
       {typed && !sameAsTyped && <small className="site-typed">“{typed}”</small>}
       {!editing && <button type="button" className="site-edit" onClick={open}>{ticket.site_name ? "Change" : "Set site"}</button>}
       {editing && (
