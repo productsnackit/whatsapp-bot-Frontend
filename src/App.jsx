@@ -29,11 +29,9 @@ const PAGE_LOADERS = {
   OperationsWorkspace: () => import("./OperationsWorkspace.jsx"),
   AuditWorkspace: () => import("./AuditWorkspace.jsx"),
   FindingsWorkspace: () => import("./FindingsWorkspace.jsx"),
-  ExpiryWorkspace: () => import("./ExpiryWorkspace.jsx"),
   EmployeesAccess: () => import("./EmployeesAccess.jsx"),
   ActivityLog: () => import("./ActivityLog.jsx"),
   RefillWorkspace: () => import("./RefillWorkspace.jsx"),
-  TasksWorkspace: () => import("./TasksWorkspace.jsx"),
   CallLogWorkspace: () => import("./CallLogWorkspace.jsx"),
   SupplyWorkspace: () => import("./SupplyWorkspace.jsx"),
   AnalyticsWorkspace: () => import("./AnalyticsWorkspace.jsx"),
@@ -42,11 +40,9 @@ const PAGE_LOADERS = {
 const OperationsWorkspace = lazy(PAGE_LOADERS.OperationsWorkspace);
 const AuditWorkspace = lazy(PAGE_LOADERS.AuditWorkspace);
 const FindingsWorkspace = lazy(PAGE_LOADERS.FindingsWorkspace);
-const ExpiryWorkspace = lazy(PAGE_LOADERS.ExpiryWorkspace);
 const EmployeesAccess = lazy(PAGE_LOADERS.EmployeesAccess);
 const ActivityLog = lazy(PAGE_LOADERS.ActivityLog);
 const RefillWorkspace = lazy(PAGE_LOADERS.RefillWorkspace);
-const TasksWorkspace = lazy(PAGE_LOADERS.TasksWorkspace);
 const CallLogWorkspace = lazy(PAGE_LOADERS.CallLogWorkspace);
 const SupplyWorkspace = lazy(PAGE_LOADERS.SupplyWorkspace);
 const AnalyticsWorkspace = lazy(PAGE_LOADERS.AnalyticsWorkspace);
@@ -60,7 +56,7 @@ const API = axios.create({
 // The installed app (see public/manifest.webmanifest) opens with ?view=internal-chat
 const LAUNCH_PARAMS = new URLSearchParams(window.location.search);
 // Notifications can also open straight into Internal Audit (?view=findings).
-const LAUNCH_VIEW = ["internal-chat", "findings", "refills", "tickets", "tasks", "call-log"].includes(LAUNCH_PARAMS.get("view")) ? LAUNCH_PARAMS.get("view") : null;
+const LAUNCH_VIEW = ["internal-chat", "findings", "refills", "tickets", "call-log"].includes(LAUNCH_PARAMS.get("view")) ? LAUNCH_PARAMS.get("view") : null;
 // Tapping a chat notification opens ?view=internal-chat&chat=<id>&department=<dept>
 const LAUNCH_CHAT = LAUNCH_PARAMS.get("chat") ? { chatId: LAUNCH_PARAMS.get("chat"), department: LAUNCH_PARAMS.get("department") } : null;
 // The Operations pages (inventory, clients, brands, demand, imports…) are hidden: nothing feeds
@@ -69,12 +65,12 @@ const SHOW_OPERATIONS = false;
 // A "customer replied" notification opens ?view=tickets&ticket=<id>&phone=<phone>
 const LAUNCH_TICKET = LAUNCH_PARAMS.get("ticket") ? { ticketId: LAUNCH_PARAMS.get("ticket"), phone: LAUNCH_PARAMS.get("phone") || "" } : null;
 // Pages a person can be given (the server decides; this mirrors it for the menu).
-const ALL_PAGE_KEYS = ["tickets", "feedback", "products", ...(SHOW_OPERATIONS ? ["operations"] : []), "audit", "refills", "supply", "findings", "expiry", "analytics", "activity", "settings"];
+const ALL_PAGE_KEYS = ["tickets", "feedback", "products", ...(SHOW_OPERATIONS ? ["operations"] : []), "audit", "refills", "supply", "findings", "analytics", "activity", "settings"];
 const OPERATIONS_VIEWS = ["inventory", "clients", "brands", "performance", "leads", "routes", "demand", "import"];
 // Until the server answers /me, people keep what they had before roles existed.
 function defaultAccess(role, department) {
   if (role === "admin") return { accessRole: "admin", roleLabel: "Owner", pages: ALL_PAGE_KEYS, readOnly: false, isAdmin: true };
-  const pages = department === "Operations" ? ["operations", "audit", "refills", "supply", "findings", "expiry"] : department === "Audit" ? ["audit", "refills", "findings", "expiry"] : ["findings", "expiry"];
+  const pages = department === "Operations" ? ["operations", "audit", "refills", "supply", "findings"] : department === "Audit" ? ["audit", "refills", "findings"] : ["findings"];
   return { accessRole: "staff", roleLabel: "Staff", pages, readOnly: false, isAdmin: false };
 }
 function readStoredAccess() {
@@ -91,7 +87,7 @@ const DEFAULT_LOGO = "/brand-mark.png";
 // Ticket filters: issue text as shown (trimmed), and the choice for tickets without one.
 const NO_VALUE = "__none__";
 const TICKETS_CACHE = "ticketsCache";
-const KEEP_ALIVE_PAGES = ["expiry", "refills", "supply", "packaged-supply", "supply-analytics", "tasks", "call-log", "findings", "audit", "analytics"];
+const KEEP_ALIVE_PAGES = ["refills", "supply", "packaged-supply", "supply-analytics", "call-log", "findings", "audit", "analytics"];
 // Table thumbnails: a small Cloudinary copy (a few KB) instead of the full photo; the viewer opens the full one.
 const thumbUrl = (url) => (typeof url === "string" && url.includes("res.cloudinary.com/") && url.includes("/image/upload/")
   ? url.replace("/image/upload/", "/image/upload/c_fill,w_120,h_120,q_auto,f_auto/")
@@ -237,7 +233,7 @@ export default function App() {
   const viewAllowed = (name) => {
     if (OPERATIONS_VIEWS.includes(name)) return canAccessOperations;
     if (["employees", "admin-settings"].includes(name)) return isAdmin;
-    if (["internal-chat", "tasks", "call-log"].includes(name)) return true;
+    if (["internal-chat", "call-log"].includes(name)) return true;
     if (name === "packaged-supply") return can("supply");
     if (name === "supply-analytics") return can("supply") || can("analytics");
     return ALL_PAGE_KEYS.includes(name) ? can(name) : false;
@@ -432,16 +428,6 @@ export default function App() {
   const departmentChats = internalChats.filter((chat) => chat.department === selectedDepartment);
   // Direct (one-to-one) chats live under the "Direct" tab; the server only sends your own.
   const myChatKey = isOwner ? "admin" : String(currentUserId);
-  // My open tasks: department-chat messages that tag me and aren't resolved yet.
-  const myTaskCounts = internalChats.reduce((counts, chat) => {
-    if (chat.type === "direct") return counts;
-    for (const message of chat.messages || []) {
-      if (!(message.mentions || []).map(String).includes(myChatKey) || message.status === "resolved") continue;
-      counts.open += 1;
-      if (message.dueAt && new Date(message.dueAt) < new Date()) counts.overdue += 1;
-    }
-    return counts;
-  }, { open: 0, overdue: 0 });
   const nameForChatKey = (key) => (key === "admin" ? "Admin" : internalUsers.find((user) => String(user.id) === String(key))?.name);
   const chatDisplayName = (chat) => {
     if (chat?.type !== "direct") return chat?.title || "";
@@ -1835,7 +1821,7 @@ export default function App() {
             ))}
           </>}
 
-          {(canAccessAudit || can("refills") || can("findings") || can("expiry")) && <>
+          {(canAccessAudit || can("refills") || can("findings")) && <>
           <div className="sidebar-divider" />
           <div className="sidebar-section-label">Quality</div>
           </>}
@@ -1866,15 +1852,6 @@ export default function App() {
             </svg>
             <span>Internal Audit</span>
           </button>}
-          {can("expiry") && <button
-            className={`nav-item ${view === "expiry" ? "active" : ""}`}
-            onClick={() => setView("expiry")}
-          >
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="4" width="18" height="17" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M10 14l4 4M14 14l-4 4" />
-            </svg>
-            <span>Expiry Tracking</span>
-          </button>}
 
           <div className="sidebar-divider" />
           <div className="sidebar-section-label">{can("analytics") ? "Insights" : "Team"}</div>
@@ -1892,14 +1869,6 @@ export default function App() {
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><rect x="7" y="12" width="3" height="6" rx="1" /><rect x="12" y="8" width="3" height="10" rx="1" /><rect x="17" y="5" width="3" height="13" rx="1" /></svg>
             <span>Supply Analytics</span>
           </button>}
-          <button
-            className={`nav-item ${view === "tasks" ? "active" : ""}`}
-            onClick={() => setView("tasks")}
-          >
-            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="18" rx="1.5" /><rect x="14" y="3" width="7" height="11" rx="1.5" /><path d="M5.5 8h2M5.5 12h2M16.5 8h2" /></svg>
-            <span>Tasks</span>
-            {myTaskCounts.open > 0 && <span className={`nav-badge ${myTaskCounts.overdue ? "" : "is-calm"}`} title={myTaskCounts.overdue ? `${myTaskCounts.overdue} overdue` : "Open tasks for you"}>{myTaskCounts.overdue || myTaskCounts.open}</span>}
-          </button>
           <button
             className={`nav-item ${view === "call-log" ? "active" : ""}`}
             onClick={() => setView("call-log")}
@@ -1993,9 +1962,7 @@ export default function App() {
               {view === "import" && "Bulk Imports"}
               {view === "audit" && "Refill Audit"}
               {view === "findings" && "Internal Audit"}
-              {view === "expiry" && "Expiry Tracking"}
               {view === "refills" && "Refill Schedule"}
-              {view === "tasks" && "Tasks"}
               {view === "call-log" && "Call Log"}
               {view === "supply" && "Direct Supply · Fruits"}
               {view === "packaged-supply" && "Packaged Supply"}
@@ -2020,9 +1987,7 @@ export default function App() {
               {view === "import" && "Upload and audit machines, slots, clients, brands, and SKUs"}
               {view === "audit" && "Machine quality checks, refillers, sites and corrective actions"}
               {view === "findings" && "Audit findings, corrective actions, owners and follow-ups"}
-              {view === "expiry" && "Batch expiry dates, expired stock and write-off value"}
               {view === "refills" && "Refill days per site (refillers go in their own order), WhatsApp reminders and photo proof"}
-              {view === "tasks" && `${myTaskCounts.open} open for you${myTaskCounts.overdue ? ` · ${myTaskCounts.overdue} overdue` : ""} · from @tags in Internal Chat`}
               {view === "supply" && "Fruit orders from companies, combined for the stock buyer"}
               {view === "packaged-supply" && "Dairy, snacks, drinks and pantry orders from companies, combined for the stock buyer"}
               {view === "call-log" && "Tasks and concerns sent to employees on WhatsApp · who has it and how long it takes"}
@@ -2138,11 +2103,9 @@ export default function App() {
           <OperationsWorkspace token={token} internalUsers={internalUsers} workspace={view} />
         )}
 
-        {keepPage("expiry") && <div className="kept-page" hidden={view !== "expiry"}><ExpiryWorkspace token={token} isAdmin={isAdmin} /></div>}
 
         {keepPage("refills") && <div className="kept-page" hidden={view !== "refills"}><RefillWorkspace token={token} /></div>}
 
-        {keepPage("tasks") && <div className="kept-page" hidden={view !== "tasks"}><TasksWorkspace token={token} isAdmin={isAdmin} onOpenChat={(task) => openChatFromNotification({ chatId: String(task.chatId), department: task.department })} /></div>}
 
         {keepPage("supply") && can("supply") && (
           <div className="kept-page" hidden={view !== "supply"}><SupplyWorkspace token={token} isAdmin={isAdmin} internalUsers={internalUsers} version={supplyVersion} segment="fruits" /></div>
