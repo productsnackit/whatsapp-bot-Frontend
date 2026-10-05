@@ -635,7 +635,7 @@ export default function AnalyticsWorkspace({ token }) {
     for (const ticket of data.tickets.filter(isComplaint).filter((row) => issue === "ALL" || issueOf(row) === issue)) {
       const key = locationKey(siteOf(ticket)) || "__none";
       const entry = byLocation.get(key) || { key, names: new Map(), count: 0, refundPaid: 0, finished: 0, abandoned: 0, last: ticket.created_at };
-      const name = siteOf(ticket) || "Not given";
+      const name = siteOf(ticket) || "No location given";
       entry.names.set(name, (entry.names.get(name) || 0) + 1);
       entry.count += 1;
       if (ticket.status === "refunded") entry.refundPaid += Number(ticket.refund_amount) || 0;
@@ -709,6 +709,7 @@ export default function AnalyticsWorkspace({ token }) {
     if (top?.count && issue === "ALL") insights.push({ icon: "◆", text: <><b>{top.issue}</b> is {formatPct(top.count / s.complaints)} of complaints</> });
     const topLocation = view.locationRows[0];
     if (topLocation && !location) insights.push({ icon: "📍", text: <><b>{topLocation.name}</b> had the most complaints ({formatInt(topLocation.count)})</> });
+    if (s.unfinished && !view.filtered) insights.push({ icon: "↩", text: <><b>{formatInt(s.unfinished)}</b> chat{s.unfinished === 1 ? "" : "s"} started but didn't pick an issue (not counted as complaints)</> });
     if (s.waiting) insights.push({ icon: "⏳", text: <><b>{formatInt(s.waiting)}</b> complaint{s.waiting === 1 ? " is" : "s are"} waiting for the team</> });
   }
 
@@ -770,7 +771,7 @@ export default function AnalyticsWorkspace({ token }) {
           </section>
 
           <div className="ax-tiles">
-            <StatTile label="Complaints" value={formatInt(s.complaints)} delta={p && change(s.complaints, p.complaints, "count")} goodWhen="down" compareLabel={compareLabel} sub={view.filtered ? `Filtered: ${[issue !== "ALL" ? issue : null, locationName].filter(Boolean).join(" · ")}` : `${formatInt(s.conversations)} WhatsApp conversations`} spark={spark("complaints")} />
+            <StatTile label="Complaints" value={formatInt(s.complaints)} delta={p && change(s.complaints, p.complaints, "count")} goodWhen="down" compareLabel={compareLabel} sub={view.filtered ? `Filtered: ${[issue !== "ALL" ? issue : null, locationName].filter(Boolean).join(" · ")}` : `${formatInt(s.unfinished)} started but didn't pick an issue`} spark={spark("complaints")} />
             <StatTile label="Resolved" value={formatPct(s.resolutionRate)} delta={p && change(s.resolutionRate, p.resolutionRate, "rate")} goodWhen="up" compareLabel={compareLabel} sub="of complaints (abandoned left out)" spark={spark("resolutionRate")} />
             <StatTile label="Median time to resolve" value={formatHours(s.medianHours)} delta={p && change(s.medianHours, p.medianHours, "hours")} goodWhen="down" compareLabel={compareLabel} sub="from complaint to refund or fix" spark={spark("medianHours")} />
             <StatTile label="Abandoned" value={formatPct(s.abandonRate)} delta={p && change(s.abandonRate, p.abandonRate, "rate")} goodWhen="down" compareLabel={compareLabel} sub="customers who stopped half-way" spark={spark("abandonRate")} />

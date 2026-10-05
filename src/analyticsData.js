@@ -48,7 +48,13 @@ export function daysBetween(a, b) {
   return Math.round((new Date(`${b}T00:00:00Z`) - new Date(`${a}T00:00:00Z`)) / 86400000);
 }
 
-export const isComplaint = (ticket) => String(ticket.category || "").toUpperCase() === "REFUND";
+// Every bot chat starts as a refund ticket; it is a complaint once the customer has said what went
+// wrong (picked an issue), or money was refunded. Chats that stop at the menu are counted apart.
+const startedChat = (ticket) => String(ticket.category || "").toUpperCase() === "REFUND";
+const saidWhatsWrong = (ticket) => Boolean(String(ticket.main_issue || "").trim() || String(ticket.sub_issue || "").trim())
+  || ["refunded", "auto_refunded"].includes(ticket.status) || Number(ticket.refund_amount) > 0;
+export const isComplaint = (ticket) => startedChat(ticket) && saidWhatsWrong(ticket);
+export const isUnfinished = (ticket) => startedChat(ticket) && !saidWhatsWrong(ticket);
 export const issueOf = (ticket) => (ISSUES.includes(ticket.sub_issue) ? ticket.sub_issue : OTHER_ISSUE);
 
 export function statusGroup(ticket) {
@@ -138,6 +144,7 @@ export function summarize(tickets, feedback) {
   return {
     complaints: complaints.length,
     conversations: tickets.length,
+    unfinished: tickets.filter(isUnfinished).length,
     refunds: refunds.length,
     refundPaid,
     avgRefund: refunds.length ? refundPaid / refunds.length : null,
