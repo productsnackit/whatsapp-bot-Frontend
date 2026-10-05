@@ -5462,3 +5462,15 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 .rf-msg-item-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12.5px; }
 .rf-msg-item p { margin: 6px 0 0; white-space: pre-wrap; font-size: 13.5px; }
 .rf-msg-failed { display: block; margin-top: 6px; color: #b45309; font-size: 12px; }
+.ds-row-admin { white-space: nowrap; }
+.ds-row-admin .audit-btn { margin: 0 4px 4px 0; padding: 5px 9px; font-size: 12px; }
+.ds-btn-danger { color: #b91c1c !important; border-color: #fecaca !important; }
+.ds-btn-danger:hover { background: #fef2f2 !important; }
+.ds-chip-closed { display: inline-block; margin: 4px 0 0 !important; background: #f1f5f9; color: #475569; }
+.ds-close-row { display: flex; gap: 8px; }
+.ds-row-admin { width: 1%; padding-left: 4px !important; padding-right: 8px !important; }
+.ds-icon-btn { display: inline-grid; place-items: center; width: 30px; height: 30px; margin: 0 2px 2px 0; padding: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: 14px; cursor: pointer; }
+.ds-icon-btn:hover { border-color: #94a3b8; }
+.ds-icon-btn.is-danger:hover { border-color: #fca5a5; background: #fef2f2; }
+.ds-orders-table .ds-row-admin { display: flex; gap: 4px; width: auto; margin-top: 6px; padding: 0 !important; }
+.ds-orders-table .ds-icon-btn { width: 26px; height: 26px; font-size: 12.5px; margin: 0; }

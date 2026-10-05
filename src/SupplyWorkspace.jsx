@@ -30,7 +30,7 @@ const PAGES = [
   { key: "setup", label: "⚙ Setup", how: ["Add your companies (with the admin's WhatsApp number) and vendors once.", "Set selling prices and Snackit's invoice details."], example: "Save AERO's admin number and every list they WhatsApp becomes an order." },
 ];
 const STEP_TONE = { Received: "blue", Processing: "warn", Ordered: "purple", "Goods received": "good", Sent: "good" };
-const STATUS_TONE_ROUND = { Collecting: "warn", "Sent to buyer": "blue", Bought: "purple", Delivered: "good" };
+const STATUS_TONE_ROUND = { Collecting: "warn", "Sent to buyer": "blue", Bought: "purple", Delivered: "good", Closed: "muted" };
 
 /* ---------- Add orders: one company's, or a message with several companies ---------- */
 function LinesTable({ lines, units, onChange }) {
@@ -688,8 +688,9 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0, segment =
   const today = isoDay(new Date());
   const q = search.trim().toLowerCase();
   const rows = list.rounds.filter((row) => {
-    if (filter === "open" && (row.status === "Delivered" || row.delivery_date < today)) return false;
-    if (filter === "done" && !(row.status === "Delivered" || row.delivery_date < today)) return false;
+    const finished = ["Delivered", "Closed"].includes(row.status) || row.delivery_date < today;
+    if (filter === "open" && finished) return false;
+    if (filter === "done" && !finished) return false;
     return !q || `${row.ref} ${row.title || ""} ${row.companies.join(" ")} ${dayLabel(row.delivery_date)}`.toLowerCase().includes(q);
   });
 
@@ -859,7 +860,10 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0, segment =
             : <p className="audit-empty">Nothing to deliver yet.</p>}
         </Box>
 
-        <Box id="ds-status" icon="📌" tone="slate" title="Status of this date" className="ds-span-12">
+        <Box id="ds-status" icon="📌" tone="slate" title="Status of this date" sub={round.status === "Closed" ? `🔒 Closed${round.closed_by ? ` by ${round.closed_by}` : ""}: no new orders, no buyer messages` : null} className="ds-span-12">
+          {isAdmin && <div className="ds-close-row">{round.status === "Closed"
+            ? <button type="button" className="audit-btn" onClick={() => closeRound(round, true)}>Reopen this date</button>
+            : <button type="button" className="audit-btn" onClick={() => closeRound(round)}>🔒 Close this date fully</button>}</div>}
           <div className="ds-status-steps">
             {STATUSES.map((status, index) => (
               <button type="button" key={status} className={`${index <= statusIndex ? "done" : ""} ${index === statusIndex ? "current" : ""}`} disabled={busy === "status"} onClick={() => index !== statusIndex && call("status", () => API.patch(`/supply/rounds/${round.id}`, { status }, { headers }), `${round.ref}: ${status}`)}>
@@ -871,6 +875,16 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0, segment =
         </Box>
       </div>
     </>;
+  };
+
+  // Admins only: close a delivery date fully (or open it again), or delete it with its orders.
+  const closeRound = (row, reopen = false) => {
+    if (!reopen && !window.confirm(`Close ${row.ref} (${dayLabel(row.delivery_date)}) fully? No new orders will be added to it and the buyer won't be sent or reminded about it.`)) return;
+    call("close", () => API.post(`/supply/rounds/${row.id}/close`, { reopen }, { headers }), `${row.ref} ${reopen ? "opened again" : "closed"}`);
+  };
+  const deleteRound = (row) => {
+    if (!window.confirm(`Delete ${row.ref} (${dayLabel(row.delivery_date)}) and all its orders? This can't be undone.`)) return;
+    call("delete", async () => { await API.delete(`/supply/rounds/${row.id}`, { headers }); if (roundId === row.id) setRoundId(null); }, `${row.ref} deleted`);
   };
 
   /* ---------- All delivery dates, like the Tickets list ---------- */
@@ -899,7 +913,16 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0, segment =
             {rows.map((row) => {
               return (
                 <tr key={row.id} className="ds-order-row" onClick={() => openRound(row.id)} tabIndex={0} onKeyDown={(event) => event.key === "Enter" && openRound(row.id)}>
-                  <td data-label="Date"><b>{dayLabel(row.delivery_date)}</b><small className="ds-sub">{row.ref}{row.title ? ` · ${row.title}` : ""}</small></td>
+                  <td data-label="Date"><b>{dayLabel(row.delivery_date)}</b><small className="ds-sub">{row.ref}{row.title ? ` · ${row.title}` : ""}</small>{row.status === "Closed" && <span className="ds-chip ds-chip-closed" title={row.closed_by ? `Closed by ${row.closed_by}` : "Closed"}>🔒 Closed</span>}
+                    {isAdmin && (
+                      <span className="ds-row-admin" onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}>
+                        {row.status === "Closed"
+                        ? <button type="button" className="ds-icon-btn" disabled={busy === "close"} onClick={() => closeRound(row, true)} title="Reopen this date" aria-label={`Reopen ${row.ref}`}>🔓</button>
+                        : <button type="button" className="ds-icon-btn" disabled={busy === "close"} onClick={() => closeRound(row)} title="Close this date fully" aria-label={`Close ${row.ref}`}>🔒</button>}
+                      <button type="button" className="ds-icon-btn is-danger" disabled={busy === "delete"} onClick={() => deleteRound(row)} title="Delete this date and its orders" aria-label={`Delete ${row.ref}`}>🗑</button>
+                      </span>
+                    )}
+                  </td>
                   <td data-label="Companies"><b>{row.companies.length}</b> / {row.companies_total}<small className="ds-sub ds-ellipsis" title={row.companies.join(", ")}>{row.companies.join(", ") || "None yet"}</small></td>
                   <td data-label="Items"><b>{row.items}</b><small className="ds-sub">{row.amounts.join(" · ") || "—"}</small>{row.to_check > 0 && <span className="ds-chip is-check">{row.to_check} to check</span>}</td>
                   <td data-label="Buyer">{row.buyer_status ? <span className={`audit-pill fnd-tone-${STEP_TONE[row.buyer_status] || "muted"}`}>{row.buyer_status}</span> : row.sent_at ? <span className="audit-pill fnd-tone-blue">List sent</span> : <span className="na">Not sent</span>}{row.short_items > 0 && row.spent > 0 && <small className="ds-sub ds-short">{row.short_items} short</small>}</td>
