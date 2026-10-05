@@ -36,6 +36,7 @@ const PAGE_LOADERS = {
   SupplyWorkspace: () => import("./SupplyWorkspace.jsx"),
   AnalyticsWorkspace: () => import("./AnalyticsWorkspace.jsx"),
   SupplyAnalytics: () => import("./SupplyAnalytics.jsx"),
+  LiveStock: () => import("./LiveStock.jsx"),
 };
 const OperationsWorkspace = lazy(PAGE_LOADERS.OperationsWorkspace);
 const AuditWorkspace = lazy(PAGE_LOADERS.AuditWorkspace);
@@ -47,6 +48,7 @@ const CallLogWorkspace = lazy(PAGE_LOADERS.CallLogWorkspace);
 const SupplyWorkspace = lazy(PAGE_LOADERS.SupplyWorkspace);
 const AnalyticsWorkspace = lazy(PAGE_LOADERS.AnalyticsWorkspace);
 const SupplyAnalytics = lazy(PAGE_LOADERS.SupplyAnalytics);
+const LiveStock = lazy(PAGE_LOADERS.LiveStock);
 
 
 const API = axios.create({
@@ -87,7 +89,7 @@ const DEFAULT_LOGO = "/brand-mark.png";
 // Ticket filters: issue text as shown (trimmed), and the choice for tickets without one.
 const NO_VALUE = "__none__";
 const TICKETS_CACHE = "ticketsCache";
-const KEEP_ALIVE_PAGES = ["refills", "supply", "packaged-supply", "supply-analytics", "call-log", "findings", "audit", "analytics"];
+const KEEP_ALIVE_PAGES = ["refills", "live-stock", "supply", "packaged-supply", "supply-analytics", "call-log", "findings", "audit", "analytics"];
 // Table thumbnails: a small Cloudinary copy (a few KB) instead of the full photo; the viewer opens the full one.
 const thumbUrl = (url) => (typeof url === "string" && url.includes("res.cloudinary.com/") && url.includes("/image/upload/")
   ? url.replace("/image/upload/", "/image/upload/c_fill,w_120,h_120,q_auto,f_auto/")
@@ -235,6 +237,7 @@ export default function App() {
     if (["employees", "admin-settings"].includes(name)) return isAdmin;
     if (["internal-chat", "call-log"].includes(name)) return true;
     if (name === "packaged-supply") return can("supply");
+    if (name === "live-stock") return can("refills");
     if (name === "supply-analytics") return can("supply") || can("analytics");
     return ALL_PAGE_KEYS.includes(name) ? can(name) : false;
   };
@@ -1843,6 +1846,13 @@ export default function App() {
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M8 15l2.5 2.5L16 13" /></svg>
             <span>Refill Schedule</span>
           </button>}
+          {can("refills") && <button
+            className={`nav-item ${view === "live-stock" ? "active" : ""}`}
+            onClick={() => setView("live-stock")}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" /><path d="M8 6h8M8 10h8M8 14h4" /><circle cx="15" cy="17" r="1.2" /></svg>
+            <span>Live Stock</span>
+          </button>}
           {can("findings") && <button
             className={`nav-item ${view === "findings" ? "active" : ""}`}
             onClick={() => setView("findings")}
@@ -1963,6 +1973,7 @@ export default function App() {
               {view === "audit" && "Refill Audit"}
               {view === "findings" && "Internal Audit"}
               {view === "refills" && "Refill Schedule"}
+              {view === "live-stock" && "Live Stock"}
               {view === "call-log" && "Call Log"}
               {view === "supply" && "Direct Supply · Fruits"}
               {view === "packaged-supply" && "Packaged Supply"}
@@ -1988,6 +1999,7 @@ export default function App() {
               {view === "audit" && "Machine quality checks, refillers, sites and corrective actions"}
               {view === "findings" && "Audit findings, corrective actions, owners and follow-ups"}
               {view === "refills" && "Refill days per site (refillers go in their own order), WhatsApp reminders and photo proof"}
+              {view === "live-stock" && "What is in each vending machine today · from Wendor sales and refill photos"}
               {view === "supply" && "Fruit orders from companies, combined for the stock buyer"}
               {view === "packaged-supply" && "Dairy, snacks, drinks and pantry orders from companies, combined for the stock buyer"}
               {view === "call-log" && "Tasks and concerns sent to employees on WhatsApp · who has it and how long it takes"}
@@ -2105,6 +2117,7 @@ export default function App() {
 
 
         {keepPage("refills") && <div className="kept-page" hidden={view !== "refills"}><RefillWorkspace token={token} /></div>}
+        {keepPage("live-stock") && can("refills") && <div className="kept-page" hidden={view !== "live-stock"}><LiveStock token={token} /></div>}
 
 
         {keepPage("supply") && can("supply") && (

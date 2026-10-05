@@ -5474,3 +5474,32 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 .ds-icon-btn.is-danger:hover { border-color: #fca5a5; background: #fef2f2; }
 .ds-orders-table .ds-row-admin { display: flex; gap: 4px; width: auto; margin-top: 6px; padding: 0 !important; }
 .ds-orders-table .ds-icon-btn { width: 26px; height: 26px; font-size: 12.5px; margin: 0; }
+
+/* Live Stock */
+.ls-page, .ls { display: grid; gap: 14px; }
+.ls-upload { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; }
+.ls-upload h3 { margin: 0 0 4px; }
+.ls-upload p { margin: 0 0 4px; color: var(--text-muted); font-size: 12.5px; max-width: 760px; }
+.ls-upload-btn { cursor: pointer; white-space: nowrap; }
+.ls-upload-btn.is-busy { opacity: .6; pointer-events: none; }
+.ls-kpis { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)) !important; margin: 0; }
+.ls-small-b { font-size: 16px !important; }
+.ls-warn { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #fcd34d; border-radius: 12px; background: #fffbeb; color: #92400e; font-size: 13px; }
+.ls-warn select { width: auto !important; }
+.ls-note { padding: 8px 12px; border-radius: 10px; background: #eff6ff; color: #1e3a8a; font-size: 12.5px; }
+.ls-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+.ls-tools .ds-search { margin-left: auto; width: 240px !important; }
+.ls-fill { display: inline-block; width: 60px; height: 6px; margin-left: 8px; border-radius: 999px; background: #e2e8f0; vertical-align: middle; overflow: hidden; }
+.ls-fill i { display: block; height: 100%; border-radius: 999px; }
+.ls-fill.is-good i { background: #16a34a; } .ls-fill.is-warn i { background: #d97706; } .ls-fill.is-bad i { background: #dc2626; }
+.ls-cell-stock { white-space: nowrap; }
+.ls-table td { vertical-align: top; }
+.ls-fits { width: 70px !important; }
+.ls-count { display: inline-flex; align-items: center; gap: 4px; }
+.ls-count input { width: 64px !important; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; }
+.ls-top { color: var(--text-muted); font-size: 12px; }
+.ls-alerts { border-color: #fecaca; }
+.ls-foot { margin: 0; color: var(--text-muted); font-size: 12px; }
+.ls-table td:nth-child(2) { max-width: 240px; }
+.ls-table td, .ls-table th { padding-left: 8px; padding-right: 8px; }
+.ls-table .ds-sub { white-space: normal; }
