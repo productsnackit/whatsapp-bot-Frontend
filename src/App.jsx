@@ -1999,7 +1999,7 @@ export default function App() {
               {view === "audit" && "Machine quality checks, refillers, sites and corrective actions"}
               {view === "findings" && "Audit findings, corrective actions, owners and follow-ups"}
               {view === "refills" && "Refill days per site (refillers go in their own order), WhatsApp reminders and photo proof"}
-              {view === "live-stock" && "What is in each vending machine today · from Wendor sales and refill photos"}
+              {view === "live-stock" && "What is in each vending machine today · from Wendor sales and each machine's refill time"}
               {view === "supply" && "Fruit orders from companies, combined for the stock buyer"}
               {view === "packaged-supply" && "Dairy, snacks, drinks and pantry orders from companies, combined for the stock buyer"}
               {view === "call-log" && "Tasks and concerns sent to employees on WhatsApp · who has it and how long it takes"}

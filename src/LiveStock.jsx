@@ -2,12 +2,22 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 
 /* Live Stock: what is in each vending machine today, from the Wendor sales report the office
-   uploads each day and the refill photos refillers already send. See machineStock.js. */
+   uploads each day and each machine's fixed refill time. See machineStock.js. */
 
 const API = axios.create({ baseURL: "https://whatsapp-bot-backend-b3nb.onrender.com" });
 const STATUS = { empty: ["Empty", "bad"], low: ["Low", "warn"], ok: ["OK", "good"], unknown: ["No refill yet", "muted"] };
 const dayText = (value) => (value ? new Date(`${String(value).slice(0, 10)}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—");
 const whenText = (value) => (value ? new Date(value).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—");
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const time12 = (time) => { if (!time) return ""; const [h, m] = time.split(":").map(Number); return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`; };
+// "Mon–Sat 9:00 am", "Daily 9:00 am", "Mon, Wed, Fri 10:30 am"
+function refillText(days, time) {
+  if (!days?.length || !time) return null;
+  const sorted = [...days].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7));
+  const label = sorted.length === 7 ? "Daily" : sorted.join() === "1,2,3,4,5,6" ? "Mon–Sat" : sorted.join() === "1,2,3,4,5" ? "Mon–Fri" : sorted.map((day) => DAYS[day]).join(", ");
+  return `${label} ${time12(time)}`;
+}
+const yesterdayIst = () => new Date(Date.now() + 5.5 * 3600000 - 86400000).toISOString().slice(0, 10);
 const num = (value) => (value == null ? "—" : Number(value).toLocaleString("en-IN"));
 const readFile = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
@@ -27,8 +37,37 @@ function Pill({ status }) {
   return <span className={`audit-pill fnd-tone-${tone}`}>{label}</span>;
 }
 
+function RefillTime({ machine, onSave }) {
+  const [days, setDays] = useState(machine.refill_days || [1, 2, 3, 4, 5, 6]);
+  const [time, setTime] = useState(machine.refill_time || "09:00");
+  const [open, setOpen] = useState(!machine.refill_days);
+  const text = refillText(machine.refill_days, machine.refill_time);
+  if (!open) {
+    return (
+      <div className="ls-refill">
+        <span>🔄 Refilled <b>{text}</b>{machine.next_refill ? <> · next {whenText(machine.next_refill)}</> : null}</span>
+        <button type="button" className="audit-btn" onClick={() => setOpen(true)}>Change</button>
+      </div>
+    );
+  }
+  return (
+    <div className="ls-refill is-edit">
+      <b>{text ? "Change refill time" : "⚠ Set when this machine is refilled"}</b>
+      <div className="ls-days">
+        {[1, 2, 3, 4, 5, 6, 0].map((day) => (
+          <button type="button" key={day} className={days.includes(day) ? "on" : ""} aria-pressed={days.includes(day)} onClick={() => setDays((list) => (list.includes(day) ? list.filter((item) => item !== day) : [...list, day]))}>{DAYS[day]}</button>
+        ))}
+      </div>
+      <label>at <input type="time" value={time} onChange={(event) => setTime(event.target.value)} aria-label="Refill time" /></label>
+      <button type="button" className="audit-btn audit-btn-primary" disabled={!days.length || !time} onClick={async () => { if (await onSave(days, time)) setOpen(false); }}>Save</button>
+      {text && <button type="button" className="audit-btn" onClick={() => setOpen(false)}>Cancel</button>}
+      <small className="na">The machine counts as full at this time on these days.</small>
+    </div>
+  );
+}
+
 /* ---------- One machine ---------- */
-function MachineView({ id, headers, locations, onBack, notify, onChanged }) {
+function MachineView({ id, headers, onBack, notify, onChanged }) {
   const [data, setData] = useState(null);
   const [query, setQuery] = useState("");
   const [counting, setCounting] = useState(null);
@@ -36,8 +75,9 @@ function MachineView({ id, headers, locations, onBack, notify, onChanged }) {
   const [filter, setFilter] = useState("all");
   const load = useCallback(() => API.get(`/stock/machines/${id}`, { headers }).then((response) => setData(response.data)).catch(() => notify("Could not load the machine", true)), [id, headers, notify]);
   useEffect(() => { const timer = setTimeout(load, 0); return () => clearTimeout(timer); }, [load]);
+  const [skipDay, setSkipDay] = useState(() => new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10));
   const act = async (request, message) => {
-    try { await request(); if (message) notify(message); await load(); onChanged(); } catch (err) { notify(err.response?.data?.error || "Could not save", true); }
+    try { await request(); if (message) notify(message); await load(); onChanged(); return true; } catch (err) { notify(err.response?.data?.error || "Could not save", true); return false; }
   };
   if (!data) return <p className="audit-empty">Loading…</p>;
   const q = query.trim().toLowerCase();
@@ -52,15 +92,16 @@ function MachineView({ id, headers, locations, onBack, notify, onChanged }) {
         <h2>{data.name}<span>Wendor {data.wendor_id}{data.location_name ? ` · ${data.location_name}` : ""}</span></h2>
       </div>
 
-      {!data.location_id && (
-        <div className="ls-warn">
-          ⚠ Not linked to a Refill Schedule location, so its refill photos can't count as refills.
-          <select defaultValue="" onChange={(event) => event.target.value && act(() => API.patch(`/stock/machines/${id}`, { location_id: event.target.value }, { headers }), "Linked")} aria-label="Refill Schedule location">
-            <option value="">Link to location…</option>
-            {locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
-          </select>
+      <RefillTime key={`${data.refill_days}-${data.refill_time}`} machine={data} onSave={(days, time) => act(() => API.put(`/stock/machines/${id}/refill-time`, { days, time }, { headers }), "Refill time saved")} />
+      {data.refill_days && (
+        <div className="ls-skip">
+          <span>Refill didn't happen one day?</span>
+          <input type="date" value={skipDay} onChange={(event) => setSkipDay(event.target.value)} aria-label="Day the refill didn't happen" />
+          <button type="button" className="audit-btn" onClick={() => window.confirm(`Mark that ${data.name} was NOT refilled on ${dayText(skipDay)}?`) && act(() => API.post(`/stock/machines/${id}/marks`, { kind: "skip", day: skipDay }, { headers }), `No refill on ${dayText(skipDay)}`)}>Skip that refill</button>
+          {data.skips.length > 0 && <small className="na">Skipped: {data.skips.map((skip) => dayText(skip.day)).join(", ")}</small>}
         </div>
       )}
+      {data.data_to && data.data_to < yesterdayIst() && <div className="ls-warn">⚠ Sales are uploaded only up to {dayText(data.data_to)}. Upload the Wendor reports for the days after that, or the stock shown is higher than what's really left.</div>}
       {data.missing_days.length > 0 && <div className="ls-warn">⚠ No sales uploaded for {data.missing_days.map(dayText).join(", ")} since the last refill: stock below looks higher than it really is until those reports are uploaded.</div>}
       {t.estimated_sizes > 0 && <div className="ls-note">ℹ {t.estimated_sizes} slot size{t.estimated_sizes === 1 ? " is" : "s are"} estimated from sales (marked ~). Type the real number in “Fits” for exact stock.</div>}
 
@@ -69,7 +110,7 @@ function MachineView({ id, headers, locations, onBack, notify, onChanged }) {
         <div className={t.empty ? "fnd-kpi-bad" : "fnd-kpi-good"}><span>Empty slots</span><b>{t.empty}</b><small>{t.low} more running low</small></div>
         <div className="fnd-kpi-purple"><span>Sells per day</span><b>{num(t.per_day)}</b><small>{num(t.sold_yesterday)} on {dayText(data.data_to)}</small></div>
         <div className="fnd-kpi-warn"><span>To bring</span><b>{num(t.bring)}</b><small>to fill every slot</small></div>
-        <div><span>Last refill</span><b className="ls-small-b">{data.last_refill ? whenText(data.last_refill.at) : "—"}</b><small>{data.last_refill ? (data.last_refill.source === "photo" ? `photo${data.last_refill.by ? ` · ${data.last_refill.by}` : ""}` : `by hand · ${data.last_refill.by || ""}`) : "No refill recorded"}</small></div>
+        <div><span>Last refill</span><b className="ls-small-b">{data.last_refill ? whenText(data.last_refill.at) : "—"}</b><small>{data.last_refill ? (data.last_refill.source === "schedule" ? "refill time" : `extra refill · ${data.last_refill.by || ""}`) : "Set the refill time"}</small></div>
       </div>
 
       <section className="audit-card">
@@ -78,7 +119,7 @@ function MachineView({ id, headers, locations, onBack, notify, onChanged }) {
             {[["all", `All slots (${data.slots.length})`], ["attention", `Empty & low (${t.empty + t.low})`], ["estimated", `Size to set (${t.estimated_sizes})`]].map(([key, label]) => <button type="button" key={key} className={filter === key ? "active" : ""} onClick={() => setFilter(key)}>{label}</button>)}
           </div>
           <input className="ds-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search slot or product" aria-label="Search slots" />
-          <button type="button" className="audit-btn" onClick={() => window.confirm(`Mark ${data.name} as refilled now (every slot full)? Use this only for a refill with no photo.`) && act(() => API.post(`/stock/machines/${id}/marks`, { kind: "refill" }, { headers }), "Marked as refilled")}>Refilled now (no photo)</button>
+          <button type="button" className="audit-btn" onClick={() => window.confirm(`Mark ${data.name} as refilled now (every slot full)? Use this for an extra refill outside its usual time.`) && act(() => API.post(`/stock/machines/${id}/marks`, { kind: "refill" }, { headers }), "Marked as refilled")}>Extra refill now</button>
           <button type="button" className="audit-btn" disabled={!bringList} onClick={() => { navigator.clipboard?.writeText(`${data.name} · what to bring\n${bringList}`); notify("What to bring copied"); }}>Copy what to bring</button>
         </div>
         <div className="ds-table-wrap">
@@ -185,10 +226,10 @@ export default function LiveStock({ token }) {
       </section>
 
       {machineId ? (
-        <MachineView key={machineId} id={machineId} headers={headers} locations={data.locations} notify={notify} onChanged={load} onBack={() => setMachineId(null)} />
+        <MachineView key={machineId} id={machineId} headers={headers} notify={notify} onChanged={load} onBack={() => setMachineId(null)} />
       ) : <>
         <div className="fnd-kpis ds-kpis ls-kpis">
-          <div className="fnd-kpi-blue"><span>Machines</span><b>{data.machines.length}</b><small>{data.machines.filter((machine) => !machine.location_id).length} not linked to a location</small></div>
+          <div className="fnd-kpi-blue"><span>Machines</span><b>{data.machines.length}</b><small>{data.machines.filter((machine) => !machine.refill_days).length} without a refill time</small></div>
           <div><span>Items in machines</span><b>{num(sum("in_machine"))}</b><small>of {num(sum("capacity"))} they hold</small></div>
           <div className={sum("empty") ? "fnd-kpi-bad" : "fnd-kpi-good"}><span>Empty slots</span><b>{sum("empty")}</b><small>{sum("low")} more running low</small></div>
           <div className="fnd-kpi-purple"><span>Sold per day</span><b>{num(Math.round(sum("per_day")))}</b><small>all machines</small></div>
@@ -225,13 +266,13 @@ export default function LiveStock({ token }) {
               <tbody>
                 {machines.map((machine) => (
                   <tr key={machine.id} className="ds-order-row" onClick={() => setMachineId(machine.id)} tabIndex={0} onKeyDown={(event) => event.key === "Enter" && setMachineId(machine.id)}>
-                    <td data-label="Machine"><b>{machine.name}</b><small className="ds-sub">{machine.location_name ? `📍 ${machine.location_name}` : "⚠ Not linked to a location"}</small></td>
-                    <td data-label="Stock now">{machine.last_refill ? <><b>{num(machine.totals.in_machine)}</b> / {num(machine.totals.capacity)}<Fill value={machine.totals.in_machine} max={machine.totals.capacity} /></> : <span className="na">No refill recorded</span>}</td>
+                    <td data-label="Machine"><b>{machine.name}</b><small className="ds-sub">{refillText(machine.refill_days, machine.refill_time) ? `🔄 ${refillText(machine.refill_days, machine.refill_time)}` : "⚠ Set refill time"}</small></td>
+                    <td data-label="Stock now">{machine.last_refill ? <><b>{num(machine.totals.in_machine)}</b> / {num(machine.totals.capacity)}<Fill value={machine.totals.in_machine} max={machine.totals.capacity} /></> : <span className="na">Set refill time</span>}</td>
                     <td data-label="Empty / low">{machine.totals.empty ? <b className="ds-minus">{machine.totals.empty} empty</b> : <span className="na">0 empty</span>}<small className="ds-sub">{machine.totals.low} low</small></td>
                     <td data-label="Sold per day">{num(machine.totals.per_day)}<small className="ds-sub">{num(machine.totals.sold_yesterday)} on {dayText(machine.data_to)}</small></td>
                     <td data-label="Bring">{num(machine.totals.bring)}</td>
-                    <td data-label="Last refill">{machine.last_refill ? whenText(machine.last_refill.at) : "—"}<small className="ds-sub">{machine.last_refill ? (machine.last_refill.source === "photo" ? "refill photo" : "by hand") : ""}</small></td>
-                    <td data-label="Sales up to">{machine.data_until ? `${dayText(machine.data_until)} ${machine.data_until.slice(11)}` : "—"}{machine.missing_days.length > 0 && <small className="ds-sub ds-short">{machine.missing_days.length} day{machine.missing_days.length === 1 ? "" : "s"} missing</small>}</td>
+                    <td data-label="Last refill">{machine.last_refill ? whenText(machine.last_refill.at) : "—"}<small className="ds-sub">{machine.next_refill ? `next ${whenText(machine.next_refill)}` : ""}</small></td>
+                    <td data-label="Sales up to">{machine.data_until ? `${dayText(machine.data_until)} ${machine.data_until.slice(11)}` : "—"}{machine.data_to && machine.data_to < yesterdayIst() && <small className="ds-sub ds-short">upload reports since then</small>}{machine.missing_days.length > 0 && <small className="ds-sub ds-short">{machine.missing_days.length} day{machine.missing_days.length === 1 ? "" : "s"} missing</small>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -239,7 +280,7 @@ export default function LiveStock({ token }) {
             {!machines.length && <p className="audit-empty">{data.machines.length ? "No machines match." : "No machines yet. Upload a Wendor transactions report to start."}</p>}
           </div>
         </section>
-        <p className="ls-foot">Stock in a slot = how many fit (at the last refill photo) or the last count, minus completed vends since then. Products in a slot change, so the product shown is the last one sold from it. Stock is as of the last uploaded sale.</p>
+        <p className="ls-foot">Stock in a slot = how many fit (at the machine's last refill time) or the last count, minus completed vends since then. Products in a slot change, so the product shown is the last one sold from it. Stock is as of the last uploaded sale.</p>
       </>}
     </div>
   );
