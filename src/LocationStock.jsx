@@ -28,13 +28,16 @@ function LocationView({ id, headers, notify, onBack, onChanged }) {
   useEffect(() => { const timer = setTimeout(load, 0); return () => clearTimeout(timer); }, [load]);
 
   const [busy, setBusy] = useState(false);
-  // This location's closing stock (Excel: product, quantity, expired).
-  const uploadStock = async (file) => {
+  const [stockFile, setStockFile] = useState(null); // { file, date } waiting for its date
+  // This location's closing stock (Excel: product, quantity, expired) as on the day it was taken.
+  const uploadStock = async () => {
+    const { file, date } = stockFile;
     setBusy(true);
     try {
       const data64 = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
-      const result = (await API.post("/locstock/warehouse", { file: { name: file.name, data: data64 }, location_id: id }, { headers })).data;
-      notify(`Closing stock: ${result.saved} items, ${num(result.units)} units${result.expired ? ` (${num(result.expired)} expired not counted)` : ""}`);
+      const result = (await API.post("/locstock/warehouse", { file: { name: file.name, data: data64 }, location_id: id, date }, { headers })).data;
+      notify(`Closing stock on ${dayText(result.date)}: ${result.saved} items, ${num(result.units)} units${result.expired ? ` (${num(result.expired)} expired not counted)` : ""}`);
+      setStockFile(null);
       await load();
       onChanged();
     } catch (err) {
@@ -69,9 +72,18 @@ function LocationView({ id, headers, notify, onBack, onChanged }) {
         <small className="na">{data.machines.length ? `Machines: ${data.machines.join(", ")}` : "No Wendor machine linked (Settings) — sales aren't taken away yet"}</small>
         <label className={`audit-btn audit-btn-primary ls-upload-btn ls-push-right ${busy ? "is-busy" : ""}`}>
           {busy ? "Reading…" : `⬆ Closing stock for ${data.name}`}
-          <input type="file" accept=".xlsx,.xls,.csv" hidden disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) uploadStock(file); }} />
+          <input type="file" accept=".xlsx,.xls,.csv" hidden disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) setStockFile({ file, date: "", max: new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10) }); }} />
         </label>
       </div>
+      {stockFile && (
+        <div className="ls-warn">
+          <b>{stockFile.file.name}</b>
+          <label>Closing stock taken on <input type="date" value={stockFile.date} max={stockFile.max} onChange={(event) => setStockFile({ ...stockFile, date: event.target.value })} /></label>
+          <button type="button" className="audit-btn audit-btn-primary" disabled={!stockFile.date || busy} onClick={uploadStock}>{busy ? "Reading…" : "Upload"}</button>
+          <button type="button" className="audit-btn" onClick={() => setStockFile(null)}>Cancel</button>
+          <small>It counts as the stock at the end of that day; sales from the next day are taken away.</small>
+        </div>
+      )}
       <div className="fnd-kpis ds-kpis ls-kpis">
         <div className="fnd-kpi-blue"><span>In stock now</span><b>{num(t.units)}</b><small>{t.items} item{t.items === 1 ? "" : "s"}</small></div>
         <div className={t.out ? "fnd-kpi-bad" : "fnd-kpi-good"}><span>Out of stock</span><b>{t.out}</b><small>{t.low} running low (under 2 days)</small></div>
@@ -123,6 +135,22 @@ function LocationView({ id, headers, notify, onBack, onChanged }) {
           <input type="number" min="0" value={newItem.qty} onChange={(event) => setNewItem({ ...newItem, qty: event.target.value })} placeholder="Qty" aria-label="Quantity" />
           <button type="button" className="audit-btn" disabled={!newItem.name.trim() || newItem.qty === ""} onClick={() => { save({ kind: "count", name: newItem.name, qty: newItem.qty, note: "count on page" }, `${newItem.name} set to ${newItem.qty}`); setNewItem({ name: "", qty: "" }); }}>Save</button>
           <small className="na">A count is the real quantity now; DCs and sales after it are added and taken away.</small>
+        </div>
+      </section>
+
+      <section className="audit-card">
+        <div className="audit-card-head"><div><h3>Closing stocks for {data.name}</h3><p>The latest one sets the stock; DCs and sales after it are added and taken away.</p></div></div>
+        <div className="ds-table-wrap">
+          <table className="ds-table">
+            <thead><tr><th>Taken on</th><th>Items</th><th>Units</th><th>By</th><th /></tr></thead>
+            <tbody>
+              {(data.counts || []).map((count) => (
+                <tr key={count.at}><td><b>{dayText(count.day)}</b></td><td>{count.items}</td><td>{num(count.units)}</td><td>{count.by || "—"}</td>
+                  <td><button type="button" className="audit-btn" onClick={async () => { if (!window.confirm(`Remove the closing stock of ${dayText(count.day)}?`)) return; try { await API.delete(`/locstock/locations/${id}/counts`, { headers, params: { at: count.at } }); notify("Closing stock removed"); await load(); onChanged(); } catch { notify("Could not remove it", true); } }}>Remove</button></td></tr>
+              ))}
+            </tbody>
+          </table>
+          {!data.counts?.length && <p className="audit-empty">No closing stock uploaded yet.</p>}
         </div>
       </section>
 
@@ -424,7 +452,7 @@ export function SettingsTab({ headers, notify, overview, onChanged }) {
       </section>
 
       <section className="audit-card">
-        <div className="audit-card-head"><div><h3>Warehouse stock Excel</h3><p>Columns like <b>Product</b> (or Item) and <b>Quantity</b> (or Closing / Stock / Balance), and <b>Expired</b> if there is one: expired units aren't counted. For one location (like “Bitgo Closing Stock”), upload it from that location's page, or from the top: the location is taken from the file name, or you're asked. For many locations at once, add a <b>Location</b> column. The same product on two rows adds up. Blank quantity = none left.</p></div></div>
+        <div className="audit-card-head"><div><h3>Warehouse stock Excel</h3><p>You're asked the date the closing stock was taken: it counts as the stock at the end of that day, and sales from the next day are taken away. A closing stock replaces earlier ones of that location for the same or a later date. Columns like <b>Product</b> (or Item) and <b>Quantity</b> (or Closing / Stock / Balance), and <b>Expired</b> if there is one: expired units aren't counted. For one location (like “Bitgo Closing Stock”), upload it from that location's page, or from the top: the location is taken from the file name, or you're asked. For many locations at once, add a <b>Location</b> column. The same product on two rows adds up. Blank quantity = none left.</p></div></div>
       </section>
     </div>
   );

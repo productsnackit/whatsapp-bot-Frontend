@@ -283,12 +283,9 @@ export default function LiveStock({ token }) {
           const range = `${dayText(result.day_from)}${result.day_to !== result.day_from ? ` – ${dayText(result.day_to)}` : ""}`;
           notify(result.sold ? `${range}: added ${num(result.sold)} sold${result.already ? ` · ${num(result.already)} sales were already saved` : ""}` : `${range}: nothing new, every sale was already saved`);
         } else if (kind === "warehouse") {
-          try {
-            notifyStock((await API.post("/locstock/warehouse", body, { headers })).data);
-          } catch (err) {
-            if (!err.response?.data?.need_location) throw err;
-            setPending({ body, name: file.name, location_id: "" });
-          }
+          // Asks the closing stock's date (and the location if needed) before reading it.
+          setPending({ body, name: file.name, location_id: "", date: "", max: overview?.today });
+          return;
         } else {
           const dc = (await API.post("/locstock/dcs", body, { headers })).data;
           notify(dc.status === "added" ? `DC ${dc.ref || ""} added: ${dc.lines.length} items, ${num(dc.units)} units${dc.replaced ? " (replaced the earlier one)" : ""}` : `DC ${dc.ref || ""}: ${dc.problem}. See the DCs tab.`, dc.status !== "added");
@@ -302,13 +299,14 @@ export default function LiveStock({ token }) {
       refresh();
     }
   };
-  const notifyStock = (result) => notify(`Closing stock${result.location_names?.length ? ` for ${result.location_names.join(", ")}` : ""}: ${result.saved} items, ${num(result.units)} units${result.expired ? ` (${num(result.expired)} expired not counted)` : ""}${result.unmatched.length ? ` · locations not matched: ${result.unmatched.join(", ")}` : ""}`, result.unmatched.length > 0 || !result.saved);
+  const notifyStock = (result) => notify(`Closing stock${result.location_names?.length ? ` for ${result.location_names.join(", ")}` : ""} on ${dayText(result.date)}: ${result.saved} items, ${num(result.units)} units${result.expired ? ` (${num(result.expired)} expired not counted)` : ""}${result.unmatched.length ? ` · locations not matched: ${result.unmatched.join(", ")}` : ""}`, result.unmatched.length > 0 || !result.saved);
   const uploadPending = async () => {
     setBusy("warehouse");
     try {
-      notifyStock((await API.post("/locstock/warehouse", { ...pending.body, location_id: pending.location_id }, { headers })).data);
+      notifyStock((await API.post("/locstock/warehouse", { ...pending.body, location_id: pending.location_id, date: pending.date }, { headers })).data);
       setPending(null);
     } catch (err) {
+      if (err.response?.data?.need_location) setPending((current) => ({ ...current, need_location: true }));
       notify(err.response?.data?.error || "Could not read the file", true);
     } finally {
       setBusy("");
@@ -339,12 +337,13 @@ export default function LiveStock({ token }) {
         </div>
         {pending && (
           <div className="ls-warn ls-pending">
-            <b>Which location is “{pending.name}” for?</b>
-            <select value={pending.location_id} onChange={(event) => setPending({ ...pending, location_id: event.target.value })} aria-label="Location">
-              <option value="">Choose…</option>
+            <b>{pending.name}</b>
+            <label>Closing stock taken on <input type="date" value={pending.date} max={pending.max} onChange={(event) => setPending({ ...pending, date: event.target.value })} /></label>
+            <select value={pending.location_id} onChange={(event) => setPending({ ...pending, location_id: event.target.value })} aria-label="Location" className={pending.need_location ? "ls-unlinked" : ""}>
+              <option value="">{pending.need_location ? "Choose the location…" : "Location: from the file name"}</option>
               {(overview?.locations || []).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
             </select>
-            <button type="button" className="audit-btn audit-btn-primary" disabled={!pending.location_id || Boolean(busy)} onClick={uploadPending}>{busy === "warehouse" ? "Reading…" : "Upload"}</button>
+            <button type="button" className="audit-btn audit-btn-primary" disabled={!pending.date || (pending.need_location && !pending.location_id) || Boolean(busy)} onClick={uploadPending}>{busy === "warehouse" ? "Reading…" : "Upload"}</button>
             <button type="button" className="audit-btn" onClick={() => setPending(null)}>Cancel</button>
           </div>
         )}
