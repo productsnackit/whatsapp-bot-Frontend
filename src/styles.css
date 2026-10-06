@@ -5563,3 +5563,4 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
   .pl-row, .pl-pair { grid-template-columns: 1fr; }
   .pl-vs { justify-self: start; }
 }
+.ls-dc-lines div { white-space: nowrap; font-size: 12.5px; line-height: 1.6; } .ls-dcs td { vertical-align: top; }

@@ -159,17 +159,26 @@ function LocationView({ id, headers, notify, onBack, onChanged }) {
       </section>
 
       <section className="audit-card">
-        <div className="audit-card-head"><div><h3>DCs for {data.name}</h3><p>Latest 30</p></div></div>
+        <div className="audit-card-head"><div><h3>DCs for {data.name} ({data.dcs.length})</h3><p>Every DC delivered here, by its DC number. A DC from before the latest closing stock is already in that count, so it isn't added again.</p></div></div>
         <div className="ds-table-wrap">
-          <table className="ds-table">
-            <thead><tr><th>DC</th><th>Date</th><th>Items</th><th>Units</th><th>From</th><th /></tr></thead>
+          <table className="ds-table ls-dcs">
+            <thead><tr><th>DC no.</th><th>Date</th><th>Items</th><th>Units</th><th>Stock</th><th /></tr></thead>
             <tbody>
               {data.dcs.map((dc) => (
-                <tr key={dc.id}><td><b>{dc.ref || `#${dc.id}`}</b></td><td>{dayText(dc.dc_date || dc.created_at)}</td><td>{dc.items}</td><td>{num(dc.units)}</td><td>{dc.source}</td><td>{dc.file_url && <a href={dc.file_url} target="_blank" rel="noreferrer">File</a>}</td></tr>
+                <tr key={dc.id}>
+                  <td><b>{dc.ref || `#${dc.id}`}</b><small className="ds-sub">{dc.source}{dc.by ? ` · ${dc.by}` : ""}</small></td>
+                  <td>{dc.dc_at ? whenText(dc.dc_at) : dayText(dc.dc_date || dc.created_at)}</td>
+                  <td className="ls-dc-lines">{dc.lines.map((line, index) => (
+                    <div key={index}><b>{num(line.qty)}{line.unit === "kg" ? " kg" : ""}</b> × {line.product || line.name}{line.product && line.product.toLowerCase() !== line.name.toLowerCase() ? <small className="na"> (DC: {line.name})</small> : null}</div>
+                  ))}</td>
+                  <td>{num(dc.units)}</td>
+                  <td>{dc.in_count ? <span className="audit-pill fnd-tone-muted" title="Delivered before the latest closing stock, so it's already counted there">In closing stock</span> : <span className="audit-pill fnd-tone-good">Added</span>}</td>
+                  <td>{dc.file_url ? <a href={dc.file_url} target="_blank" rel="noreferrer">Open DC</a> : null}</td>
+                </tr>
               ))}
             </tbody>
           </table>
-          {!data.dcs.length && <p className="audit-empty">No DCs yet.</p>}
+          {!data.dcs.length && <p className="audit-empty">No DCs yet. Upload one at the top, or send it on WhatsApp from a DC number.</p>}
         </div>
       </section>
     </div>
