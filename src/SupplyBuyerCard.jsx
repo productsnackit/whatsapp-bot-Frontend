@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 
-/* Admin Settings: the Direct Supply stock buyer. He gets the master sheet on WhatsApp by itself
+/* Admin Settings: the supply stock buyer. He gets the master sheet on WhatsApp by itself
    (when every company has ordered, or at the cutoff time the day before delivery), then taps
-   Received → Processing → Ordered → Goods received → Sent, and fills what he bought on a phone page.
+   Received → Processing → Ordered → Out for delivery → Delivered (with a photo of the delivery), and fills what he bought on a phone page.
    See supplyBuyer.js on the server. */
 
 const pick = (data) => ({ name: data.name || "", phone: data.phone || "", auto: data.auto !== false, cutoff: data.cutoff || "18:00" });
@@ -44,8 +44,8 @@ export default function SupplyBuyerCard({ api, headers }) {
     <div className="admin-settings-card pr-card">
       <div className="admin-settings-card-heading">
         <div>
-          <h3>Direct Supply buyer</h3>
-          <p>The person who buys the stock. He gets the combined list (master sheet) of all locations on WhatsApp, taps Received → Processing → Ordered → Goods received → Sent, and fills how much he bought, the price, where he bought it and the margin % on a simple phone page.</p>
+          <h3>Supply buyer</h3>
+          <p>The person who buys the stock. He gets the combined list (master sheet) of all locations on WhatsApp, taps Received → Processing → Ordered → Out for delivery → Delivered (with a photo of the delivery), and fills how much he bought, the price, where he bought it and the margin % on a simple phone page.</p>
         </div>
       </div>
       {!form ? <p className="pr-note">{message?.error || "Loading…"}</p> : (

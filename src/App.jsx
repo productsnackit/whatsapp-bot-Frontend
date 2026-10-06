@@ -1799,14 +1799,14 @@ export default function App() {
             onClick={() => setView("supply")}
           >
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z" /><path d="M3 7v10l9 4 9-4V7" /><path d="M12 11v10" /></svg>
-            <span>Direct Supply</span>
+            <span>Fruits Supply</span>
           </button>}
           {can("supply") && <button
             className={`nav-item ${view === "packaged-supply" ? "active" : ""}`}
             onClick={() => setView("packaged-supply")}
           >
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M3 12h18" /></svg>
-            <span>Packaged Supply</span>
+            <span>Direct Supply</span>
           </button>}
 
           {canAccessOperations && <>
@@ -1975,8 +1975,8 @@ export default function App() {
               {view === "refills" && "Refill Schedule"}
               {view === "live-stock" && "Live Stock"}
               {view === "call-log" && "Call Log"}
-              {view === "supply" && "Direct Supply · Fruits"}
-              {view === "packaged-supply" && "Packaged Supply"}
+              {view === "supply" && "Fruits Supply"}
+              {view === "packaged-supply" && "Direct Supply · Packaged"}
               {view === "analytics" && "Refund Analytics"}
               {view === "supply-analytics" && "Supply Analytics"}
               {view === "internal-chat" && "Internal Chat"}
@@ -2004,7 +2004,7 @@ export default function App() {
               {view === "packaged-supply" && "Dairy, snacks, drinks and pantry orders from companies, combined for the stock buyer"}
               {view === "call-log" && "Tasks and concerns sent to employees on WhatsApp · who has it and how long it takes"}
               {view === "analytics" && "Complaints, refunds and resolution · India time"}
-              {view === "supply-analytics" && "Direct Supply (fruits) and Packaged Supply · by delivery date, India time"}
+              {view === "supply-analytics" && "Fruits Supply and Direct Supply (packaged) · by delivery date, India time"}
               {view === "internal-chat" && `${departmentChats.length} active ${selectedDepartment} conversations`}
               {view === "employees" && `${internalUsers.length} people with their own login`}
               {view === "activity" && "Who changed what, and when"}

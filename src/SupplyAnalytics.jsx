@@ -3,7 +3,7 @@ import axios from "axios";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { CHROME, SLOT, addDays, bucketLabel, formatInr, formatInt, istDay } from "./analyticsData.js";
 
-/* Supply Analytics: Direct Supply (fruits) and Packaged Supply on one page, for a period of
+/* Supply Analytics: Fruits Supply and Direct Supply (packaged) on one page, for a period of
    delivery dates, for both or one of them. See supplyAnalytics.js on the server. */
 
 const API = axios.create({ baseURL: "https://whatsapp-bot-backend-b3nb.onrender.com" });
@@ -154,9 +154,9 @@ export default function SupplyAnalytics({ token, version = 0 }) {
 
           <div className="ax-grid">
             {both && (
-              <Card span={12} title="Fruits and packaged side by side" subtitle={`Direct Supply and Packaged Supply · ${rangeLabel}`}>
+              <Card span={12} title="Fruits and packaged side by side" subtitle={`Fruits Supply and Direct Supply · ${rangeLabel}`}>
                 <div className="sa-split">
-                  {[["fruits", "🍎 Direct Supply · Fruits"], ["packaged", "📦 Packaged Supply"]].map(([key, title]) => {
+                  {[["fruits", "🍎 Fruits Supply"], ["packaged", "📦 Direct Supply"]].map(([key, title]) => {
                     const part = data.by_segment[key];
                     return (
                       <div key={key} className="sa-part" style={{ borderTopColor: COLOR[key] }}>

@@ -29,7 +29,7 @@ const PAGES = [
   { key: "money", label: "💰 Money", how: ["See who owes money and what is overdue.", "Click an invoice to add a payment or print it."], example: "Every Monday, check Overdue and call those companies." },
   { key: "setup", label: "⚙ Setup", how: ["Add your companies (with the admin's WhatsApp number) and vendors once.", "Set selling prices and Snackit's invoice details."], example: "Save AERO's admin number and every list they WhatsApp becomes an order." },
 ];
-const STEP_TONE = { Received: "blue", Processing: "warn", Ordered: "purple", "Goods received": "good", Sent: "good" };
+const STEP_TONE = { Received: "blue", Processing: "warn", Ordered: "purple", "Out for delivery": "good", Delivered: "good" };
 const STATUS_TONE_ROUND = { Collecting: "warn", "Sent to buyer": "blue", Bought: "purple", Delivered: "good", Closed: "muted" };
 
 /* ---------- Add orders: one company's, or a message with several companies ---------- */
@@ -353,7 +353,7 @@ function Items({ products, units, onUpdate, onMerge }) {
       actions={<input className="ds-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search items" />}>
       <div className="ds-table-wrap is-tall">
         <table className="ds-table">
-          <thead><tr><th>Item</th><th title="Fruits go to Direct Supply, packaged items to Packaged Supply">Supply</th><th>Unit</th><th>Category</th><th title="Printed on the delivery challan">HSN</th><th title="So '2 box' adds to pieces">Pcs per box</th><th>Sell price (₹)</th><th>Other spellings</th><th /></tr></thead>
+          <thead><tr><th>Item</th><th title="Fruits go to Fruits Supply, packaged items to Direct Supply">Supply</th><th>Unit</th><th>Category</th><th title="Printed on the delivery challan">HSN</th><th title="So '2 box' adds to pieces">Pcs per box</th><th>Sell price (₹)</th><th>Other spellings</th><th /></tr></thead>
           <tbody>
             {shown.map((product) => (
               <tr key={product.id}>
@@ -586,7 +586,7 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0, segment =
       setList(orders.data);
       API.get("/supply/buyer-info", { headers }).then((info) => setBuyerInfo(info.data)).catch(() => {});
     } catch (err) {
-      notify(err.response?.data?.error || "Could not load Direct Supply", true);
+      notify(err.response?.data?.error || "Could not load the supply page", true);
     }
   }, [headers, notify, segment]);
 
@@ -674,7 +674,7 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0, segment =
 
   const billingChanged = useCallback(() => setBillingVersion((value) => value + 1), []);
 
-  if (!overview || !list) return <div className="audit-workspace"><p className="audit-empty">Loading Direct Supply…</p></div>;
+  if (!overview || !list) return <div className="audit-workspace"><p className="audit-empty">Loading…</p></div>;
 
   const companies = overview.companies || [];
   const units = overview.units || ["pcs", "kg", "box", "pkt"];
@@ -724,13 +724,14 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0, segment =
       <div className="ds-grid">
         {/* Buyer */}
         <Box id="ds-control" icon="🛒" tone="amber" title={buyerInfo?.name ? `Buyer: ${buyerInfo.name}` : "Buyer"} sub={round.sent_at ? `List sent ${new Date(round.sent_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : buyerInfo?.has_phone && buyerInfo.auto ? `List goes by itself when all ${activeCount} companies have ordered, or at ${buyerInfo.cutoff} the day before` : "List not sent yet"} className="ds-span-12">
-          {buyerInfo && !buyerInfo.has_phone && <p className="fnd-hint">Add the buyer's name and WhatsApp number in <b>Admin Settings → Direct Supply buyer</b>.</p>}
+          {buyerInfo && !buyerInfo.has_phone && <p className="fnd-hint">Add the buyer's name and WhatsApp number in <b>Admin Settings → Supply buyer</b>.</p>}
           <div className="ds-buyer-steps">
             {steps.map((step, index) => {
               const at = round.buyer_steps?.[step];
               return <div key={step} className={stepIndex >= index ? "done" : ""}><span>{stepIndex >= index ? "✓" : index + 1}</span><b>{step}</b><small>{at ? new Date(at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—"}</small></div>;
             })}
           </div>
+          {round.buyer_photos?.length > 0 && <div className="ds-buyer-photos"><b>Delivery photo{round.buyer_photos.length === 1 ? "" : "s"}</b>{round.buyer_photos.map((photo) => <a key={photo.url} href={photo.url} target="_blank" rel="noreferrer"><img src={photo.url} alt={`Delivery photo ${new Date(photo.at).toLocaleString("en-IN")}`} /></a>)}</div>}
           <div className="ds-send">
             <button type="button" className="audit-btn audit-btn-primary" disabled={!buyerInfo?.has_phone || !detail.master.length || busy === "send"} onClick={() => call("send", () => API.post(`/supply/rounds/${round.id}/send`, {}, { headers }), (response) => (response.data.via_template ? "Sent with the WhatsApp template and the Excel file" : "Sent on WhatsApp with the Excel file"))}>{busy === "send" ? "Sending…" : round.sent_at ? "Send list again" : "Send list now"}</button>
             <button type="button" className="audit-btn" onClick={downloadExcel} disabled={!detail.master.length}>⬇ Excel</button>
@@ -739,7 +740,7 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0, segment =
         </Box>
 
         {/* Delivery challans */}
-        <Box id="ds-challans" icon="📄" tone="blue" title={`Delivery challans${challans.length ? ` (${challans.length})` : ""}`} sub={challans.length ? `Made ${new Date(challans[0].made_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : "Made and sent to the buyer by themselves when he taps Goods received"} className="ds-span-12"
+        <Box id="ds-challans" icon="📄" tone="blue" title={`Delivery challans${challans.length ? ` (${challans.length})` : ""}`} sub={challans.length ? `Made ${new Date(challans[0].made_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}` : "Made and sent to the buyer by themselves when he taps Out for delivery"} className="ds-span-12"
           actions={<button type="button" className="audit-btn audit-btn-primary" disabled={!detail.orders.length || busy === "dc"} onClick={() => call("dc", async () => { const response = await API.post(`/supply/rounds/${round.id}/challans`, {}, { headers }); setChallans((await API.get(`/supply/rounds/${round.id}/challans`, { headers })).data); return response.data; }, (result) => result.error ? `${result.made} DC(s) made. ${result.error}` : `${result.made} DC(s) made and sent to the buyer`)}>{busy === "dc" ? "Making…" : challans.length ? "Make again & send" : "Make & send DCs"}</button>}>
           {challans.length ? (
             <div className="ds-table-wrap">
@@ -944,7 +945,7 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0, segment =
     <div className="audit-workspace ds-workspace ds-simple">
       {toast && <div className={`audit-toast ${toast.isError ? "is-error" : ""}`}>{toast.message}</div>}
 
-      <nav className="ds-tabs-nav" aria-label="Direct Supply">
+      <nav className="ds-tabs-nav" aria-label="Supply">
         {PAGES.map((item) => <button type="button" key={item.key} className={page === item.key ? "active" : ""} onClick={() => setPage(item.key)}>{item.label}</button>)}
       </nav>
 

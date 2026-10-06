@@ -5537,3 +5537,6 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
   .ls-dc-edit select { min-width: 0; width: 100% !important; }
 }
 .ls-add > b { font-size: 13.5px; }
+.pb-photo-note { display: block; margin-top: 8px; color: var(--text-muted, #64748b); font-size: 12px; }
+.ds-buyer-photos { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0; font-size: 13px; }
+.ds-buyer-photos img { width: 72px; height: 72px; object-fit: cover; border: 1px solid var(--border); border-radius: 10px; }

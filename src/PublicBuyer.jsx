@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import "./styles.css";
 
 /* The stock buyer's page (/?buy=<token>), opened from the WhatsApp list: no login.
-   He marks the steps (Received → … → Sent) and, per item, fills how much he bought, the
+   He marks the steps (Received → … → Out for delivery → Delivered, which needs a photo) and, per item, fills how much he bought, the
    purchase price, the selling price and where he bought it; the margin is worked out for him. See supplyBuyer.js on the server. */
 
 const API = axios.create({ baseURL: "https://whatsapp-bot-backend-b3nb.onrender.com" });
@@ -19,6 +19,12 @@ const formOf = (items) => Object.fromEntries(items.map((item) => [item.key, {
   exp: item.bought?.exp || "",
   sell: item.bought?.sell != null ? String(item.bought.sell) : item.sell_price != null ? String(item.sell_price) : "",
 }]));
+const readPhoto = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve({ name: file.name || "delivery.jpg", type: file.type || "image/jpeg", data: reader.result });
+  reader.onerror = () => reject(new Error("Couldn't read the photo"));
+  reader.readAsDataURL(file);
+});
 const number = (value) => value.replace(/[^\d.]/g, "");
 // "09072026" → "09/07/2026" as he types (the date as printed on the pack).
 const dateInput = (value) => {
@@ -32,6 +38,7 @@ export default function PublicBuyer({ token }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
+  const photoInput = useRef(null);
 
   const take = (payload) => { setData(payload); setForm(formOf(payload.items)); };
 
@@ -52,13 +59,20 @@ export default function PublicBuyer({ token }) {
   const done = data.items.filter((item) => item.bought).length;
   const stepIndex = data.steps.indexOf(data.round.buyer_status);
 
-  const markStep = async (step) => {
+  // Delivered needs a photo of the delivery: the button opens the camera first.
+  const markStep = async (step, photoFile = null) => {
+    if (step === "Delivered" && !photoFile) {
+      setError("");
+      photoInput.current?.click();
+      return;
+    }
     setBusy(step);
     setError("");
     try {
-      const response = await API.post(`/public/supply/buy/${encodeURIComponent(token)}/status`, { step });
+      const photo = photoFile ? await readPhoto(photoFile) : undefined;
+      const response = await API.post(`/public/supply/buy/${encodeURIComponent(token)}/status`, { step, photo });
       setData(response.data);
-      setNote(`Marked: ${step}`);
+      setNote(step === "Delivered" ? "Marked: Delivered, with the photo ✓" : `Marked: ${step}`);
     } catch (err) {
       setError(err.response?.data?.error || "Couldn't save. Try again.");
     } finally {
@@ -91,11 +105,13 @@ export default function PublicBuyer({ token }) {
           {data.steps.map((step, index) => (
             <button type="button" key={step} className={`${index <= stepIndex ? "done" : ""} ${index === stepIndex + 1 ? "next" : ""}`} disabled={Boolean(busy)} onClick={() => markStep(step)}>
               <span>{index < stepIndex + 1 ? "✓" : index + 1}</span>
-              <b>{step}</b>
+              <b>{step}{step === "Delivered" ? " 📸" : ""}</b>
               {data.round.buyer_steps[step] && <small>{timeText(data.round.buyer_steps[step])}</small>}
             </button>
           ))}
         </div>
+        <input ref={photoInput} type="file" accept="image/*" capture="environment" hidden onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) markStep("Delivered", file); }} />
+        <small className="pb-photo-note">Delivered needs a photo of the delivery{data.round.photos ? ` · ${data.round.photos} photo${data.round.photos === 1 ? "" : "s"} sent` : ""}.</small>
       </div>
 
       <div className="po-card pb-intro">
