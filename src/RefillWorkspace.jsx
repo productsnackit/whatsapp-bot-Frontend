@@ -3,6 +3,9 @@ import axios from "axios";
 import { downloadFile } from "./download.js";
 import RefillTimetableImport from "./RefillTimetableImport.jsx";
 
+// Background refreshes only while this page is on screen (it stays loaded when another page is open).
+const pageOnScreen = (view) => document.visibilityState === "visible" && document.body.dataset.view === view;
+
 /* Refill Schedule: sites get refill days/times, refillers get WhatsApp reminders,
    and prove each refill with a photo; supervisors verify them here. */
 
@@ -322,7 +325,7 @@ function VerifyTab({ headers, grace, onPhotos, onChanged, notify }) {
 
   useEffect(() => {
     const timer = setTimeout(load, 0);
-    const refresh = setInterval(load, 30000);
+    const refresh = setInterval(() => { if (pageOnScreen("refills")) load(); }, 30000);
     return () => { clearTimeout(timer); clearInterval(refresh); };
   }, [load]);
 
@@ -1036,7 +1039,7 @@ export default function RefillWorkspace({ token }) {
 
   useEffect(() => {
     const timer = setTimeout(load, 0);
-    const refresh = setInterval(load, 60000);
+    const refresh = setInterval(() => { if (pageOnScreen("refills")) load(); }, 60000);
     return () => { clearTimeout(timer); clearInterval(refresh); };
   }, [load]);
 

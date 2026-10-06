@@ -248,6 +248,8 @@ export default function App() {
     return ALL_PAGE_KEYS.includes(name) ? can(name) : false;
   };
   const view = viewAllowed(requestedView) ? requestedView : can("tickets") ? "tickets" : "internal-chat";
+  // Pages that stay loaded in the background refresh only while they're the page on screen.
+  useEffect(() => { document.body.dataset.view = view; }, [view]);
   // Like app tabs: once opened, these pages stay loaded (hidden) so going back is instant;
   // they keep refreshing themselves. Forgotten when a different login is used.
   const [keptPages, setKeptPages] = useState({ token, pages: [] });
@@ -1139,9 +1141,10 @@ export default function App() {
   // Keep chats fresh even if the live connection drops (e.g. phone was in the background).
   useEffect(() => {
     if (!token) return;
+    // (The live connection brings changes as they happen; this is only a backstop.)
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") fetchInternalData();
-    }, 15000);
+    }, 60000);
     const onVisible = () => { if (document.visibilityState === "visible") fetchInternalData(); };
     document.addEventListener("visibilitychange", onVisible);
     return () => {
@@ -1364,7 +1367,8 @@ export default function App() {
     if (!activeChat?.id) return;
     const loadMessages = async () => { await fetchMessages(activeChat.id); };
     loadMessages();
-    const interval = setInterval(() => { loadMessages(); }, 2000);
+    // (Not while the browser tab is in the background; the live connection brings new messages anyway.)
+    const interval = setInterval(() => { if (document.visibilityState === "visible") loadMessages(); }, 2000);
     return () => clearInterval(interval);
   }, [activeChat, fetchMessages]);
 

@@ -374,7 +374,7 @@ export default function CallLogWorkspace({ token, isAdmin, currentUserId, curren
     return () => clearTimeout(timer);
   }, [load, version]);
   useEffect(() => {
-    const timer = setInterval(() => { if (document.visibilityState === "visible") load(); }, 60000);
+    const timer = setInterval(() => { if (document.visibilityState === "visible" && document.body.dataset.view === "call-log") load(); }, 60000);
     return () => clearInterval(timer);
   }, [load]);
 
