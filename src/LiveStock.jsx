@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { LocationsTab, DcsTab, ItemsTab, SettingsTab } from "./LocationStock.jsx";
+import { LocationsTab, DcsTab, SettingsTab } from "./LocationStock.jsx";
 
 /* Live Stock: how much of each product is at each client location (warehouse stock + DCs −
    Wendor sales, see locationStock.js / LocationStock.jsx), and what is in each vending machine
@@ -252,8 +252,8 @@ function MachinesTab({ headers, notify, version }) {
   );
 }
 
-/* ---------- The page: client locations (default), DCs, machines, items, settings ---------- */
-const TABS = [["locations", "Locations"], ["dcs", "DCs"], ["machines", "Machines"], ["items", "Items"], ["settings", "Settings"]];
+/* ---------- The page: client locations (default), DCs, machines, settings (products: ProductList.jsx) ---------- */
+const TABS = [["locations", "Locations"], ["dcs", "DCs"], ["machines", "Machines"], ["settings", "Settings"]];
 
 export default function LiveStock({ token }) {
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
@@ -360,7 +360,6 @@ export default function LiveStock({ token }) {
       {tab === "locations" && <LocationsTab headers={headers} notify={notify} overview={overview} onChanged={refresh} version={version} />}
       {tab === "dcs" && <DcsTab headers={headers} notify={notify} overview={overview} onChanged={refresh} version={version} />}
       {tab === "machines" && <MachinesTab headers={headers} notify={notify} version={version} />}
-      {tab === "items" && <ItemsTab headers={headers} notify={notify} onChanged={refresh} version={version} />}
       {tab === "settings" && <SettingsTab headers={headers} notify={notify} overview={overview} onChanged={refresh} />}
     </div>
   );

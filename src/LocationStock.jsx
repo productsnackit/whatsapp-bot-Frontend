@@ -110,7 +110,7 @@ function LocationView({ id, headers, notify, onBack, onChanged }) {
                 <tr key={row.item_id}>
                   <td><b>{row.name}</b>{row.short > 0 && <small className="ds-sub ds-short">sold {num(row.short)} more than was there — a DC or count is missing</small>}{row.adjust !== 0 && <small className="ds-sub">corrected {row.adjust > 0 ? "+" : ""}{num(row.adjust)}</small>}</td>
                   <td><b>{num(row.available)}</b></td>
-                  <td>{row.value != null ? <>{rupees(row.value)}<small className="ds-sub">@ ₹{num(row.price)}{row.price_from === "sales" ? " (machine price)" : row.price_from === "page" ? " (set)" : " (MRP)"}</small></> : <span className="na">no price</span>}</td>
+                  <td>{row.value != null ? <>{rupees(row.value)}<small className="ds-sub">@ ₹{num(row.price)}{row.price_from === "sales" ? " (machine price)" : row.price_from === "page" ? " (set)" : row.price_from === "list" ? "" : " (MRP)"}</small></> : <span className="na">no price</span>}</td>
                   <td>{row.counted ? <>{num(row.counted.qty)}<small className="ds-sub">{dayText(row.counted.at)}</small></> : <span className="na">—</span>}</td>
                   <td>{row.dc_in ? `+${num(row.dc_in)}` : "—"}</td>
                   <td>{row.sold ? `−${num(row.sold)}` : "—"}</td>
@@ -342,62 +342,6 @@ export function DcsTab({ headers, notify, overview, onChanged, version }) {
             </tbody>
           </table>
           {!added.length && <p className="audit-empty">No DCs yet. Upload one above or send it on WhatsApp from a DC number (Settings).</p>}
-        </div>
-      </section>
-    </div>
-  );
-}
-
-/* ---------- Items: one list for warehouse, DC and Wendor names ---------- */
-export function ItemsTab({ headers, notify, onChanged, version }) {
-  const [data, setData] = useState(null);
-  const [query, setQuery] = useState("");
-  const load = useCallback(() => API.get("/locstock/items", { headers }).then((response) => setData(response.data)).catch(() => notify("Could not load the items", true)), [headers, notify]);
-  useEffect(() => { const timer = setTimeout(load, 0); return () => clearTimeout(timer); }, [load, version]);
-  if (!data) return <p className="audit-empty">Loading items…</p>;
-
-  const merge = async (from, into) => {
-    if (!window.confirm(`Merge "${from.name}" into "${into.name}"? They become one item everywhere.`)) return;
-    try { await API.post("/locstock/items/merge", { from_id: from.id, into_id: into.id }, { headers }); notify(`Merged into ${into.name}`); await load(); onChanged(); } catch (err) { notify(err.response?.data?.error || "Could not merge", true); }
-  };
-  const setPrice = async (item, price) => {
-    try { await API.patch(`/locstock/items/${item.id}`, { price }, { headers }); notify(price === "" ? `${item.name}: price cleared` : `${item.name}: ₹${price}`); await load(); onChanged(); } catch (err) { notify(err.response?.data?.error || "Could not save the price", true); }
-  };
-  const list = data.items.filter((item) => !query.trim() || `${item.name} ${(item.aliases || []).join(" ")}`.toLowerCase().includes(query.trim().toLowerCase()));
-
-  return (
-    <div className="ls">
-      {data.similar.length > 0 && (
-        <section className="audit-card">
-          <div className="audit-card-head"><div><h3>Probably the same product ({data.similar.length})</h3><p>The warehouse, DCs and Wendor spell names differently. Merge two names that are one product, so its stock adds up. Merged spellings are remembered.</p></div></div>
-          <div className="ds-table-wrap">
-            <table className="ds-table">
-              <thead><tr><th>Name</th><th>Name</th><th>Alike</th><th /></tr></thead>
-              <tbody>
-                {data.similar.map((pair) => (
-                  <tr key={`${pair.a.id}-${pair.b.id}`}>
-                    <td>{pair.a.name}</td><td>{pair.b.name}</td><td>{pair.score}%</td>
-                    <td className="ls-merge"><button type="button" className="audit-btn" onClick={() => merge(pair.b, pair.a)}>Keep “{pair.a.name}”</button><button type="button" className="audit-btn" onClick={() => merge(pair.a, pair.b)}>Keep “{pair.b.name}”</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-      <section className="audit-card">
-        <div className="ls-tools">
-          <b>Items ({data.items.length})</b>
-          <input className="ds-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search item" aria-label="Search items" />
-        </div>
-        <div className="ds-table-wrap is-tall">
-          <table className="ds-table">
-            <thead><tr><th>Item</th><th title="One unit, for stock values. From the closing stock's MRP, or set here">Price (₹)</th><th>Other spellings</th><th>Unit</th></tr></thead>
-            <tbody>{list.map((item) => <tr key={item.id}><td><b>{item.name}</b></td>
-              <td><input className="ls-price" type="number" min="0" step="0.01" defaultValue={item.price ?? ""} placeholder="—" aria-label={`Price of ${item.name}`} onBlur={(event) => { if (String(event.target.value) !== String(item.price ?? "")) setPrice(item, event.target.value); }} /><small className="ds-sub">{item.price_from === "page" ? "set here" : item.price_from === "closing stock" ? "MRP" : item.price == null ? "sale price used" : ""}</small></td>
-              <td className="ls-top">{(item.aliases || []).join(" · ") || "—"}</td><td>{item.unit || "—"}</td></tr>)}</tbody>
-          </table>
-          {!list.length && <p className="audit-empty">No items yet. They appear from warehouse stock, DCs and Wendor reports.</p>}
         </div>
       </section>
     </div>

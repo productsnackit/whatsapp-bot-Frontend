@@ -37,6 +37,7 @@ const PAGE_LOADERS = {
   AnalyticsWorkspace: () => import("./AnalyticsWorkspace.jsx"),
   SupplyAnalytics: () => import("./SupplyAnalytics.jsx"),
   LiveStock: () => import("./LiveStock.jsx"),
+  ProductList: () => import("./ProductList.jsx"),
 };
 const OperationsWorkspace = lazy(PAGE_LOADERS.OperationsWorkspace);
 const AuditWorkspace = lazy(PAGE_LOADERS.AuditWorkspace);
@@ -49,6 +50,7 @@ const SupplyWorkspace = lazy(PAGE_LOADERS.SupplyWorkspace);
 const AnalyticsWorkspace = lazy(PAGE_LOADERS.AnalyticsWorkspace);
 const SupplyAnalytics = lazy(PAGE_LOADERS.SupplyAnalytics);
 const LiveStock = lazy(PAGE_LOADERS.LiveStock);
+const ProductList = lazy(PAGE_LOADERS.ProductList);
 
 
 const API = axios.create({
@@ -238,6 +240,7 @@ export default function App() {
     if (["internal-chat", "call-log"].includes(name)) return true;
     if (name === "packaged-supply") return can("supply");
     if (name === "live-stock") return can("refills");
+    if (name === "product-list") return can("refills");
     if (name === "supply-analytics") return can("supply") || can("analytics");
     return ALL_PAGE_KEYS.includes(name) ? can(name) : false;
   };
@@ -1853,6 +1856,13 @@ export default function App() {
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" /><path d="M8 6h8M8 10h8M8 14h4" /><circle cx="15" cy="17" r="1.2" /></svg>
             <span>Live Stock</span>
           </button>}
+          {can("refills") && <button
+            className={`nav-item ${view === "product-list" ? "active" : ""}`}
+            onClick={() => setView("product-list")}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z" /><circle cx="7.5" cy="7.5" r="1.5" /></svg>
+            <span>Product List</span>
+          </button>}
           {can("findings") && <button
             className={`nav-item ${view === "findings" ? "active" : ""}`}
             onClick={() => setView("findings")}
@@ -1974,6 +1984,7 @@ export default function App() {
               {view === "findings" && "Internal Audit"}
               {view === "refills" && "Refill Schedule"}
               {view === "live-stock" && "Live Stock"}
+              {view === "product-list" && "Product List"}
               {view === "call-log" && "Call Log"}
               {view === "supply" && "Fruits Supply"}
               {view === "packaged-supply" && "Direct Supply · Packaged"}
@@ -2000,6 +2011,7 @@ export default function App() {
               {view === "findings" && "Audit findings, corrective actions, owners and follow-ups"}
               {view === "refills" && "Refill days per site (refillers go in their own order), WhatsApp reminders and photo proof"}
               {view === "live-stock" && "Stock at each client location · warehouse stock + DCs − Wendor sales"}
+              {view === "product-list" && "Every product with its price · linked to Live Stock"}
               {view === "supply" && "Fruit orders from companies, combined for the stock buyer"}
               {view === "packaged-supply" && "Dairy, snacks, drinks and pantry orders from companies, combined for the stock buyer"}
               {view === "call-log" && "Tasks and concerns sent to employees on WhatsApp · who has it and how long it takes"}
@@ -2118,6 +2130,7 @@ export default function App() {
 
         {keepPage("refills") && <div className="kept-page" hidden={view !== "refills"}><RefillWorkspace token={token} /></div>}
         {keepPage("live-stock") && can("refills") && <div className="kept-page" hidden={view !== "live-stock"}><LiveStock token={token} /></div>}
+        {view === "product-list" && can("refills") && <ProductList token={token} />}
 
 
         {keepPage("supply") && can("supply") && (
