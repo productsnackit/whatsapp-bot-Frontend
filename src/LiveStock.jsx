@@ -279,7 +279,8 @@ export default function LiveStock({ token }) {
         const body = { file: { ...(await readFile(file)), type: file.type } };
         if (kind === "wendor") {
           const result = (await API.post("/stock/upload", body, { headers })).data;
-          notify(`${file.name}: ${num(result.sold)} sold · ${dayText(result.day_from)}${result.day_to !== result.day_from ? ` – ${dayText(result.day_to)}` : ""}`);
+          const range = `${dayText(result.day_from)}${result.day_to !== result.day_from ? ` – ${dayText(result.day_to)}` : ""}`;
+          notify(result.sold ? `${range}: added ${num(result.sold)} sold${result.already ? ` · ${num(result.already)} sales were already saved` : ""}` : `${range}: nothing new, every sale was already saved`);
         } else if (kind === "warehouse") {
           const result = (await API.post("/locstock/warehouse", body, { headers })).data;
           notify(`Warehouse stock: ${result.saved} rows at ${result.locations} location${result.locations === 1 ? "" : "s"}${result.unmatched.length ? ` · not matched: ${result.unmatched.join(", ")}` : ""}`, result.unmatched.length > 0);
@@ -310,7 +311,7 @@ export default function LiveStock({ token }) {
       <section className="audit-card ls-upload">
         <div>
           <h3>Upload</h3>
-          <p><b>Warehouse stock</b> (Excel: location, item, quantity) sets what is at each location. <b>DCs</b> (PDF or photo) add to it; they can also be sent on WhatsApp from the DC numbers in Settings. <b>Wendor reports</b> take away what the machines sold. Uploading the same day or DC again replaces it.</p>
+          <p><b>Warehouse stock</b> (Excel: location, item, quantity) sets what is at each location. <b>DCs</b> (PDF or photo) add to it; they can also be sent on WhatsApp from the DC numbers in Settings. <b>Wendor reports</b> take away what the machines sold. Sales are kept for good: a Wendor report only adds the sales not saved yet, so overlapping dates are fine. The same DC again replaces it.</p>
           {lastUpload && <small className="na">Last Wendor upload: {lastUpload.file_name || "report"} · {dayText(lastUpload.day_from)}{lastUpload.day_to !== lastUpload.day_from ? ` – ${dayText(lastUpload.day_to)}` : ""} · {num(lastUpload.sold)} sold · {whenText(lastUpload.uploaded_at)} by {lastUpload.uploaded_by}</small>}
         </div>
         <div className="ls-upload-btns">
