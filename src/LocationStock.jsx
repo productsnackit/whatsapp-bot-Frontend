@@ -32,11 +32,11 @@ function LocationView({ id, headers, notify, onBack, onChanged }) {
   const [stockFile, setStockFile] = useState(null); // { file, date } waiting for its date
   // This location's closing stock (Excel: product, quantity, expired) as on the day it was taken.
   const uploadStock = async () => {
-    const { file, date } = stockFile;
+    const { file, date, time } = stockFile;
     setBusy(true);
     try {
       const data64 = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
-      const result = (await API.post("/locstock/warehouse", { file: { name: file.name, data: data64 }, location_id: id, date }, { headers })).data;
+      const result = (await API.post("/locstock/warehouse", { file: { name: file.name, data: data64 }, location_id: id, date, time: time || "" }, { headers })).data;
       notify(`Closing stock on ${dayText(result.date)}: ${result.saved} items, ${num(result.units)} units${result.expired ? ` (${num(result.expired)} expired not counted)` : ""}`);
       setStockFile(null);
       await load();
@@ -80,9 +80,10 @@ function LocationView({ id, headers, notify, onBack, onChanged }) {
         <div className="ls-warn">
           <b>{stockFile.file.name}</b>
           <label>Closing stock taken on <input type="date" value={stockFile.date} max={stockFile.max} onChange={(event) => setStockFile({ ...stockFile, date: event.target.value })} /></label>
+          <label>at <input type="time" value={stockFile.time || ""} onChange={(event) => setStockFile({ ...stockFile, time: event.target.value })} aria-label="Time counted" /></label>
           <button type="button" className="audit-btn audit-btn-primary" disabled={!stockFile.date || busy} onClick={uploadStock}>{busy ? "Reading…" : "Upload"}</button>
           <button type="button" className="audit-btn" onClick={() => setStockFile(null)}>Cancel</button>
-          <small>It counts as the stock at the end of that day; sales from the next day are taken away.</small>
+          <small>The stock at that moment (blank time = end of that day): DCs and sales after it are added and taken away.</small>
         </div>
       )}
       <div className="fnd-kpis ds-kpis ls-kpis">

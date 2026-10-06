@@ -299,11 +299,11 @@ export default function LiveStock({ token }) {
       refresh();
     }
   };
-  const notifyStock = (result) => notify(`Closing stock${result.location_names?.length ? ` for ${result.location_names.join(", ")}` : ""} on ${dayText(result.date)}: ${result.saved} items, ${num(result.units)} units${result.expired ? ` (${num(result.expired)} expired not counted)` : ""}${result.unmatched.length ? ` · locations not matched: ${result.unmatched.join(", ")}` : ""}`, result.unmatched.length > 0 || !result.saved);
+  const notifyStock = (result) => notify(`Closing stock${result.location_names?.length ? ` for ${result.location_names.join(", ")}` : ""} on ${dayText(result.date)}${result.time && result.time !== "23:59" ? ` at ${result.time}` : ""}: ${result.saved} items, ${num(result.units)} units${result.expired ? ` (${num(result.expired)} expired not counted)` : ""}${result.unmatched.length ? ` · locations not matched: ${result.unmatched.join(", ")}` : ""}`, result.unmatched.length > 0 || !result.saved);
   const uploadPending = async () => {
     setBusy("warehouse");
     try {
-      notifyStock((await API.post("/locstock/warehouse", { ...pending.body, location_id: pending.location_id, date: pending.date }, { headers })).data);
+      notifyStock((await API.post("/locstock/warehouse", { ...pending.body, location_id: pending.location_id, date: pending.date, time: pending.time || "" }, { headers })).data);
       setPending(null);
     } catch (err) {
       if (err.response?.data?.need_location) setPending((current) => ({ ...current, need_location: true }));
@@ -339,6 +339,7 @@ export default function LiveStock({ token }) {
           <div className="ls-warn ls-pending">
             <b>{pending.name}</b>
             <label>Closing stock taken on <input type="date" value={pending.date} max={pending.max} onChange={(event) => setPending({ ...pending, date: event.target.value })} /></label>
+            <label>at <input type="time" value={pending.time || ""} onChange={(event) => setPending({ ...pending, time: event.target.value })} aria-label="Time counted" /> <small>(blank = end of day)</small></label>
             <select value={pending.location_id} onChange={(event) => setPending({ ...pending, location_id: event.target.value })} aria-label="Location" className={pending.need_location ? "ls-unlinked" : ""}>
               <option value="">{pending.need_location ? "Choose the location…" : "Location: from the file name"}</option>
               {(overview?.locations || []).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}

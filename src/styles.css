@@ -5564,3 +5564,7 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
   .pl-vs { justify-self: start; }
 }
 .ls-dc-lines div { white-space: nowrap; font-size: 12.5px; line-height: 1.6; } .ls-dcs td { vertical-align: top; }
+.ls-warn input[type="time"] { width: auto !important; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; font: inherit; }
+.pl-join { white-space: nowrap; }
+.pl-join-box { display: grid; gap: 6px; min-width: 280px; white-space: normal; }
+.pl-join-box input[list] { padding: 6px 9px; border: 1px solid var(--border); border-radius: 8px; font: inherit; }

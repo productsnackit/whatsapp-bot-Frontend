@@ -42,6 +42,7 @@ export default function ProductList({ token }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("listed");
   const [open, setOpen] = useState(null); // the "same as" choice waiting for its price
+  const [joining, setJoining] = useState(null); // { product, text, into } — "same as…" from the table
   const notify = useCallback((message, isError = false) => { setToast({ message, isError }); setTimeout(() => setToast(null), 5000); }, []);
   const load = useCallback(() => API.get("/locstock/products", { headers }).then((response) => setData(response.data)).catch((err) => notify(err.response?.data?.error || "Could not load the products", true)), [headers, notify]);
   useEffect(() => { const timer = setTimeout(load, 0); return () => clearTimeout(timer); }, [load]);
@@ -164,7 +165,7 @@ export default function ProductList({ token }) {
         </div>
         <div className="ds-table-wrap is-tall">
           <table className="ds-table">
-            <thead><tr><th>Product</th><th>Wendor ID</th><th>Brand</th><th title="One unit; used for stock values">Price (₹)</th><th>Used</th><th>Other spellings</th></tr></thead>
+            <thead><tr><th>Product</th><th>Wendor ID</th><th>Brand</th><th title="One unit; used for stock values">Price (₹)</th><th>Used</th><th>Other spellings</th><th /></tr></thead>
             <tbody>
               {products.map((product) => (
                 <tr key={product.id}>
@@ -177,10 +178,21 @@ export default function ProductList({ token }) {
                   </td>
                   <td>{used(product)}</td>
                   <td className="ls-top">{(product.aliases || []).join(" · ") || "—"}</td>
+                  <td className="pl-join">
+                    {joining?.product.id === product.id ? (
+                      <div className="pl-join-box">
+                        <input list="pl-all-products" value={joining.text} autoFocus placeholder="Type the product it is" aria-label={`${product.name} is the same as`}
+                          onChange={(event) => setJoining({ ...joining, text: event.target.value, into: data.products.find((other) => other.id !== product.id && other.name === event.target.value) || null })} />
+                        {joining.into && <PricePick prices={[joining.into.price, product.price]} busy={Boolean(busy)} label="Same, join" onPick={(price) => { same(product, joining.into, price, `“${product.name}” joined “${joining.into.name}”`); setJoining(null); }} />}
+                        <button type="button" className="audit-btn" onClick={() => setJoining(null)}>Cancel</button>
+                      </div>
+                    ) : <button type="button" className="audit-btn" onClick={() => setJoining({ product, text: "", into: null })} title="This product and another are one: join them (stock, sales and DCs add up)">Same as…</button>}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <datalist id="pl-all-products">{data.products.map((other) => <option key={other.id} value={other.name}>{other.price != null ? `₹${other.price}` : ""}</option>)}</datalist>
           {!products.length && <p className="audit-empty">{data.products.length ? "No products match." : "No products yet. Upload the product list."}</p>}
         </div>
       </section>
