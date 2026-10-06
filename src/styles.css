@@ -5543,3 +5543,4 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 .ls-pending { width: 100%; }
 .ls-push-right { margin-left: auto; }
 .ls-warn label { display: inline-flex; align-items: center; gap: 6px; } .ls-warn input[type="date"] { width: auto !important; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; font: inherit; }
+.ls-price { width: 90px !important; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; font: inherit; }

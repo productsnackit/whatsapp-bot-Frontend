@@ -8,6 +8,7 @@ const API = axios.create({ baseURL: "https://whatsapp-bot-backend-b3nb.onrender.
 const num = (value) => (value == null ? "—" : Number(value).toLocaleString("en-IN", { maximumFractionDigits: 2 }));
 const dayText = (value) => (value ? new Date(`${String(value).slice(0, 10)}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "—");
 const whenText = (value) => (value ? new Date(value).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—");
+const rupees = (value) => (value == null ? "—" : `₹${Math.round(Number(value)).toLocaleString("en-IN")}`);
 const STATUS = { out: ["Out", "bad"], low: ["Low", "warn"], ok: ["OK", "good"] };
 const tracked = (location) => location.totals.dcs > 0 || location.last_count_at || location.totals.units > 0;
 
@@ -85,7 +86,8 @@ function LocationView({ id, headers, notify, onBack, onChanged }) {
         </div>
       )}
       <div className="fnd-kpis ds-kpis ls-kpis">
-        <div className="fnd-kpi-blue"><span>In stock now</span><b>{num(t.units)}</b><small>{t.items} item{t.items === 1 ? "" : "s"}</small></div>
+        <div className="fnd-kpi-blue"><span>Stock value</span><b>{rupees(t.value)}</b><small>{num(t.units)} units · {t.items} item{t.items === 1 ? "" : "s"}{t.no_price ? ` · ${t.no_price} without a price` : ""}</small></div>
+        <div className="fnd-kpi-good"><span>Sold (out) value</span><b>{rupees(t.sold_value)}</b><small>since the closing stock · DCs in {rupees(t.dc_value)}</small></div>
         <div className={t.out ? "fnd-kpi-bad" : "fnd-kpi-good"}><span>Out of stock</span><b>{t.out}</b><small>{t.low} running low (under 2 days)</small></div>
         <div className="fnd-kpi-purple"><span>Sold per day</span><b>{num(t.per_day)}</b><small>last 7 days with sales</small></div>
         <div className={t.short ? "fnd-kpi-warn" : ""}><span>Sold more than sent</span><b>{t.short}</b><small>items: a DC or count is missing</small></div>
@@ -102,15 +104,17 @@ function LocationView({ id, headers, notify, onBack, onChanged }) {
         </div>
         <div className="ds-table-wrap is-tall">
           <table className="ds-table ls-table">
-            <thead><tr><th>Item</th><th>In stock</th><th>Last count</th><th>DC in</th><th>Sold</th><th>Per day</th><th>Days left</th><th /><th /></tr></thead>
+            <thead><tr><th>Item</th><th>In stock</th><th>Value</th><th>Last count</th><th>DC in</th><th>Sold</th><th>Sold ₹</th><th>Per day</th><th>Days left</th><th /><th /></tr></thead>
             <tbody>
               {rows.map((row) => (
                 <tr key={row.item_id}>
                   <td><b>{row.name}</b>{row.short > 0 && <small className="ds-sub ds-short">sold {num(row.short)} more than was there — a DC or count is missing</small>}{row.adjust !== 0 && <small className="ds-sub">corrected {row.adjust > 0 ? "+" : ""}{num(row.adjust)}</small>}</td>
                   <td><b>{num(row.available)}</b></td>
+                  <td>{row.value != null ? <>{rupees(row.value)}<small className="ds-sub">@ ₹{num(row.price)}{row.price_from === "sales" ? " (machine price)" : row.price_from === "page" ? " (set)" : " (MRP)"}</small></> : <span className="na">no price</span>}</td>
                   <td>{row.counted ? <>{num(row.counted.qty)}<small className="ds-sub">{dayText(row.counted.at)}</small></> : <span className="na">—</span>}</td>
                   <td>{row.dc_in ? `+${num(row.dc_in)}` : "—"}</td>
                   <td>{row.sold ? `−${num(row.sold)}` : "—"}</td>
+                  <td>{row.sold_value ? rupees(row.sold_value) : "—"}</td>
                   <td>{row.per_day || "—"}</td>
                   <td>{row.days_left ?? "—"}</td>
                   <td><Pill status={row.status} /></td>
@@ -190,7 +194,8 @@ export function LocationsTab({ headers, notify, overview, onChanged }) {
     <div className="ls">
       <div className="fnd-kpis ds-kpis ls-kpis">
         <div className="fnd-kpi-blue"><span>Locations with stock data</span><b>{withStock.length}</b><small>of {all.length} locations</small></div>
-        <div><span>Units at locations</span><b>{num(sum("units"))}</b><small>{num(sum("items"))} item lines in stock</small></div>
+        <div><span>Stock value at locations</span><b>{rupees(sum("value"))}</b><small>{num(sum("units"))} units</small></div>
+        <div className="fnd-kpi-good"><span>Sold (out) value</span><b>{rupees(sum("sold_value"))}</b><small>since each location's closing stock</small></div>
         <div className={sum("out") ? "fnd-kpi-bad" : "fnd-kpi-good"}><span>Items out</span><b>{sum("out")}</b><small>{sum("low")} running low</small></div>
         <div className="fnd-kpi-purple"><span>Sold per day</span><b>{num(Math.round(sum("per_day")))}</b><small>linked machines</small></div>
         <div className={overview.inbox ? "fnd-kpi-warn" : ""}><span>DCs to check</span><b>{overview.inbox}</b><small>location not clear / not read</small></div>
@@ -204,12 +209,14 @@ export function LocationsTab({ headers, notify, overview, onChanged }) {
         </div>
         <div className="table-wrapper ds-orders-table">
           <table>
-            <thead><tr><th>Location</th><th>In stock</th><th>Out / low</th><th>Sold per day</th><th>DCs</th><th>Last count</th><th>Sales up to</th></tr></thead>
+            <thead><tr><th>Location</th><th>In stock</th><th>Stock value</th><th>Sold value</th><th>Out / low</th><th>Sold per day</th><th>DCs</th><th>Last count</th><th>Sales up to</th></tr></thead>
             <tbody>
               {list.map((location) => (
                 <tr key={location.id} className="ds-order-row" onClick={() => setLocationId(location.id)} tabIndex={0} onKeyDown={(event) => event.key === "Enter" && setLocationId(location.id)}>
                   <td data-label="Location"><b>{location.name}</b><small className="ds-sub">{location.machines.length ? location.machines.join(", ") : "no machine linked"}</small></td>
                   <td data-label="In stock">{tracked(location) ? <><b>{num(location.totals.units)}</b><small className="ds-sub">{location.totals.items} item{location.totals.items === 1 ? "" : "s"}</small></> : <span className="na">No data yet</span>}</td>
+                  <td data-label="Stock value">{tracked(location) ? <b>{rupees(location.totals.value)}</b> : "—"}{location.totals.no_price ? <small className="ds-sub">{location.totals.no_price} without a price</small> : null}</td>
+                  <td data-label="Sold value">{location.totals.sold_value ? rupees(location.totals.sold_value) : "—"}</td>
                   <td data-label="Out / low">{location.totals.out ? <b className="ds-minus">{location.totals.out} out</b> : <span className="na">0 out</span>}<small className="ds-sub">{location.totals.low} low{location.totals.short ? ` · ${location.totals.short} missing DC` : ""}</small></td>
                   <td data-label="Sold per day">{location.totals.per_day ? num(location.totals.per_day) : "—"}</td>
                   <td data-label="DCs">{location.totals.dcs || "—"}</td>
@@ -353,6 +360,9 @@ export function ItemsTab({ headers, notify, onChanged, version }) {
     if (!window.confirm(`Merge "${from.name}" into "${into.name}"? They become one item everywhere.`)) return;
     try { await API.post("/locstock/items/merge", { from_id: from.id, into_id: into.id }, { headers }); notify(`Merged into ${into.name}`); await load(); onChanged(); } catch (err) { notify(err.response?.data?.error || "Could not merge", true); }
   };
+  const setPrice = async (item, price) => {
+    try { await API.patch(`/locstock/items/${item.id}`, { price }, { headers }); notify(price === "" ? `${item.name}: price cleared` : `${item.name}: ₹${price}`); await load(); onChanged(); } catch (err) { notify(err.response?.data?.error || "Could not save the price", true); }
+  };
   const list = data.items.filter((item) => !query.trim() || `${item.name} ${(item.aliases || []).join(" ")}`.toLowerCase().includes(query.trim().toLowerCase()));
 
   return (
@@ -382,8 +392,10 @@ export function ItemsTab({ headers, notify, onChanged, version }) {
         </div>
         <div className="ds-table-wrap is-tall">
           <table className="ds-table">
-            <thead><tr><th>Item</th><th>Other spellings</th><th>Unit</th></tr></thead>
-            <tbody>{list.map((item) => <tr key={item.id}><td><b>{item.name}</b></td><td className="ls-top">{(item.aliases || []).join(" · ") || "—"}</td><td>{item.unit || "—"}</td></tr>)}</tbody>
+            <thead><tr><th>Item</th><th title="One unit, for stock values. From the closing stock's MRP, or set here">Price (₹)</th><th>Other spellings</th><th>Unit</th></tr></thead>
+            <tbody>{list.map((item) => <tr key={item.id}><td><b>{item.name}</b></td>
+              <td><input className="ls-price" type="number" min="0" step="0.01" defaultValue={item.price ?? ""} placeholder="—" aria-label={`Price of ${item.name}`} onBlur={(event) => { if (String(event.target.value) !== String(item.price ?? "")) setPrice(item, event.target.value); }} /><small className="ds-sub">{item.price_from === "page" ? "set here" : item.price_from === "closing stock" ? "MRP" : item.price == null ? "sale price used" : ""}</small></td>
+              <td className="ls-top">{(item.aliases || []).join(" · ") || "—"}</td><td>{item.unit || "—"}</td></tr>)}</tbody>
           </table>
           {!list.length && <p className="audit-empty">No items yet. They appear from warehouse stock, DCs and Wendor reports.</p>}
         </div>
