@@ -5568,3 +5568,34 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 .pl-join { white-space: nowrap; }
 .pl-join-box { display: grid; gap: 6px; min-width: 280px; white-space: normal; }
 .pl-join-box input[list] { padding: 6px 9px; border: 1px solid var(--border); border-radius: 8px; font: inherit; }
+
+/* Closing Stock */
+.cs-head { display: grid; grid-template-columns: minmax(200px, 1.4fr) repeat(2, minmax(140px, 1fr)) minmax(180px, 1.4fr); gap: 10px; }
+.cs-head label { display: grid; gap: 4px; font-size: 12.5px; font-weight: 700; color: var(--text-muted); }
+.cs-head label small { font-weight: 500; }
+.cs-head input, .cs-head select { width: 100% !important; padding: 9px 10px; border: 1px solid var(--border); border-radius: 10px; font: inherit; color: var(--text-primary); background: var(--surface); }
+.cs-tools { margin: 12px 0 0; }
+.cs-search { position: relative; margin-bottom: 10px; }
+.cs-search > input { width: 100% !important; padding: 11px 12px; border: 1px solid var(--border); border-radius: 12px; font: inherit; font-size: 15px; }
+.cs-suggest { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; right: 0; max-height: 360px; overflow: auto; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); box-shadow: 0 12px 30px rgba(15, 23, 42, .12); }
+.cs-suggest button { display: flex; width: 100%; justify-content: space-between; gap: 12px; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--border); background: none; font: inherit; text-align: left; cursor: pointer; }
+.cs-suggest button:hover, .cs-suggest button:focus { background: #f1f5f9; }
+.cs-suggest span { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+.cs-lines { display: grid; gap: 6px; }
+.cs-line { display: grid; grid-template-columns: minmax(200px, 1fr) 110px 110px 100px auto; align-items: end; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 12px; }
+.cs-line.is-blank { border-color: #fcd34d; background: #fffbeb; }
+.cs-name { align-self: center; }
+.cs-name b { display: block; font-size: 13.5px; }
+.cs-name small { color: var(--text-muted); font-size: 12px; }
+.cs-line label { display: grid; gap: 2px; font-size: 11.5px; font-weight: 700; color: var(--text-muted); }
+.cs-line input { width: 100% !important; padding: 8px; border: 1px solid var(--border); border-radius: 8px; font: inherit; font-size: 15px; }
+.cs-foot { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding: 12px 0 4px; border-top: 1px solid var(--border); background: var(--surface); }
+.cs-foot-actions { display: flex; gap: 8px; }
+@media (max-width: 760px) {
+  .cs-head { grid-template-columns: 1fr 1fr; }
+  .cs-head label:first-child, .cs-note { grid-column: 1 / -1; }
+  .cs-line { grid-template-columns: 1fr 1fr 1fr auto; }
+  .cs-name { grid-column: 1 / -1; }
+  .cs-foot { flex-direction: column; align-items: stretch; }
+  .cs-foot-actions .audit-btn-primary { flex: 1; }
+}
