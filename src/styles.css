@@ -5512,3 +5512,28 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 .ls-days button.on { border-color: #0f172a; background: #0f172a; color: #fff; }
 .ls-skip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-muted); }
 .ls-skip input { width: auto !important; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; font: inherit; }
+
+/* Live Stock: locations, DCs */
+.ls-upload-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.ls-badge { display: inline-block; min-width: 18px; margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: #dc2626; color: #fff; font-size: 11px; line-height: 16px; text-align: center; }
+.ls-title { margin: 0; font-size: 18px; }
+.ls-mini-tabs { margin: 0; }
+.ls-mini-tabs button { padding: 5px 11px; font-size: 12.5px; }
+.ls-add { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.ls-add input { width: auto !important; min-width: 120px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; font: inherit; }
+.ls-add input[type="number"] { width: 90px !important; min-width: 0; }
+.ls-dc { padding: 12px 0; border-top: 1px solid var(--border); }
+.ls-dc-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 13px; }
+.ls-dc-edit { display: grid; gap: 8px; }
+.ls-dc-edit label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; }
+.ls-dc-edit select { width: auto !important; min-width: 220px; }
+.ls-lines input, .ls-lines select { width: 100% !important; padding: 5px 8px; border: 1px solid var(--border); border-radius: 8px; font: inherit; }
+.ls-lines td:nth-child(2) { width: 90px; } .ls-lines td:nth-child(3) { width: 80px; } .ls-lines td:nth-child(4) { width: 44px; }
+.ls-merge { display: flex; flex-wrap: wrap; gap: 6px; }
+.ls-unlinked { border-color: #fcd34d !important; background: #fffbeb !important; }
+@media (max-width: 640px) {
+  .ls-upload-btns { width: 100%; }
+  .ls-upload-btns .audit-btn { flex: 1 1 100%; text-align: center; }
+  .ls-dc-edit select { min-width: 0; width: 100% !important; }
+}
+.ls-add > b { font-size: 13.5px; }

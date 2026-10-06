@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { LocationsTab, DcsTab, ItemsTab, SettingsTab } from "./LocationStock.jsx";
 
-/* Live Stock: what is in each vending machine today, from the Wendor sales report the office
-   uploads each day and each machine's fixed refill time. See machineStock.js. */
+/* Live Stock: how much of each product is at each client location (warehouse stock + DCs −
+   Wendor sales, see locationStock.js / LocationStock.jsx), and what is in each vending machine
+   (Wendor sales and each machine's fixed refill time, see machineStock.js). */
 
 const API = axios.create({ baseURL: "https://whatsapp-bot-backend-b3nb.onrender.com" });
 const STATUS = { empty: ["Empty", "bad"], low: ["Low", "warn"], ok: ["OK", "good"], unknown: ["No refill yet", "muted"] };
@@ -176,55 +178,19 @@ function MachineView({ id, headers, onBack, notify, onChanged }) {
 }
 
 /* ---------- All machines ---------- */
-export default function LiveStock({ token }) {
-  const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
+function MachinesTab({ headers, notify, version }) {
   const [data, setData] = useState(null);
   const [machineId, setMachineId] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState(null);
   const [query, setQuery] = useState("");
-  const notify = useCallback((message, isError = false) => { setToast({ message, isError }); setTimeout(() => setToast(null), 4500); }, []);
-  const load = useCallback(() => API.get("/stock/overview", { headers }).then((response) => setData(response.data)).catch((err) => notify(err.response?.data?.error || "Could not load Live Stock", true)), [headers, notify]);
-  useEffect(() => { const timer = setTimeout(load, 0); return () => clearTimeout(timer); }, [load]);
+  const load = useCallback(() => API.get("/stock/overview", { headers }).then((response) => setData(response.data)).catch((err) => notify(err.response?.data?.error || "Could not load the machines", true)), [headers, notify]);
+  useEffect(() => { const timer = setTimeout(load, 0); return () => clearTimeout(timer); }, [load, version]);
 
-  const upload = async (files) => {
-    if (!files?.length) return;
-    setBusy(true);
-    try {
-      for (const file of files) {
-        const response = await API.post("/stock/upload", { file: await readFile(file) }, { headers });
-        const result = response.data;
-        notify(`${file.name}: ${num(result.sold)} sold · ${dayText(result.day_from)}${result.day_to !== result.day_from ? ` – ${dayText(result.day_to)}` : ""}`);
-      }
-      await load();
-    } catch (err) {
-      notify(err.response?.data?.error || err.message || "Could not read the report", true);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (!data) return <div className="audit-workspace"><p className="audit-empty">Loading Live Stock…</p></div>;
+  if (!data) return <p className="audit-empty">Loading machines…</p>;
   const machines = data.machines.filter((machine) => !query.trim() || `${machine.name} ${machine.location_name || ""}`.toLowerCase().includes(query.trim().toLowerCase()));
   const sum = (key) => data.machines.reduce((total, machine) => total + (machine.totals[key] || 0), 0);
-  const lastUpload = data.uploads[0];
 
   return (
-    <div className="audit-workspace ls-page">
-      {toast && <div className={`audit-toast ${toast.isError ? "is-error" : ""}`}>{toast.message}</div>}
-
-      <section className="audit-card ls-upload">
-        <div>
-          <h3>Upload yesterday's Wendor report</h3>
-          <p>Wendor → Transactions → download for the day (or several days) → upload here. Uploading a day again replaces it, so nothing is counted twice. Only completed vends count.</p>
-          {lastUpload && <small className="na">Last upload: {lastUpload.file_name || "report"} · {dayText(lastUpload.day_from)}{lastUpload.day_to !== lastUpload.day_from ? ` – ${dayText(lastUpload.day_to)}` : ""} · {num(lastUpload.sold)} sold · {whenText(lastUpload.uploaded_at)} by {lastUpload.uploaded_by}</small>}
-        </div>
-        <label className={`audit-btn audit-btn-primary ls-upload-btn ${busy ? "is-busy" : ""}`}>
-          {busy ? "Reading…" : "⬆ Upload Wendor report"}
-          <input type="file" accept=".xlsx,.xls,.csv" multiple hidden disabled={busy} onChange={(event) => { const files = [...(event.target.files || [])]; event.target.value = ""; upload(files); }} />
-        </label>
-      </section>
-
+    <div className="ls">
       {machineId ? (
         <MachineView key={machineId} id={machineId} headers={headers} notify={notify} onChanged={load} onBack={() => setMachineId(null)} />
       ) : <>
@@ -282,6 +248,91 @@ export default function LiveStock({ token }) {
         </section>
         <p className="ls-foot">Stock in a slot = how many fit (at the machine's last refill time) or the last count, minus completed vends since then. Products in a slot change, so the product shown is the last one sold from it. Stock is as of the last uploaded sale.</p>
       </>}
+    </div>
+  );
+}
+
+/* ---------- The page: client locations (default), DCs, machines, items, settings ---------- */
+const TABS = [["locations", "Locations"], ["dcs", "DCs"], ["machines", "Machines"], ["items", "Items"], ["settings", "Settings"]];
+
+export default function LiveStock({ token }) {
+  const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
+  const [tab, setTab] = useState("locations");
+  const [toast, setToast] = useState(null);
+  const [version, setVersion] = useState(0);
+  const [overview, setOverview] = useState(null);
+  const [busy, setBusy] = useState("");
+  const notify = useCallback((message, isError = false) => { setToast({ message, isError }); setTimeout(() => setToast(null), 5000); }, []);
+  const refresh = useCallback(() => setVersion((value) => value + 1), []);
+  useEffect(() => {
+    let alive = true;
+    API.get("/locstock/overview", { headers }).then((response) => alive && setOverview(response.data)).catch((err) => notify(err.response?.data?.error || "Could not load Live Stock", true));
+    return () => { alive = false; };
+  }, [headers, notify, version]);
+
+  // One upload box for the three kinds of file.
+  const upload = async (kind, files) => {
+    if (!files?.length) return;
+    setBusy(kind);
+    try {
+      for (const file of files) {
+        const body = { file: { ...(await readFile(file)), type: file.type } };
+        if (kind === "wendor") {
+          const result = (await API.post("/stock/upload", body, { headers })).data;
+          notify(`${file.name}: ${num(result.sold)} sold · ${dayText(result.day_from)}${result.day_to !== result.day_from ? ` – ${dayText(result.day_to)}` : ""}`);
+        } else if (kind === "warehouse") {
+          const result = (await API.post("/locstock/warehouse", body, { headers })).data;
+          notify(`Warehouse stock: ${result.saved} rows at ${result.locations} location${result.locations === 1 ? "" : "s"}${result.unmatched.length ? ` · not matched: ${result.unmatched.join(", ")}` : ""}`, result.unmatched.length > 0);
+        } else {
+          const dc = (await API.post("/locstock/dcs", body, { headers })).data;
+          notify(dc.status === "added" ? `DC ${dc.ref || ""} added: ${dc.lines.length} items, ${num(dc.units)} units${dc.replaced ? " (replaced the earlier one)" : ""}` : `DC ${dc.ref || ""}: ${dc.problem}. See the DCs tab.`, dc.status !== "added");
+          if (dc.status !== "added") setTab("dcs");
+        }
+      }
+    } catch (err) {
+      notify(err.response?.data?.error || err.message || "Could not read the file", true);
+    } finally {
+      setBusy("");
+      refresh();
+    }
+  };
+  const lastUpload = overview?.uploads?.[0];
+  const uploadButton = (kind, label, accept) => (
+    <label className={`audit-btn ${kind === "wendor" ? "audit-btn-primary" : ""} ls-upload-btn ${busy ? "is-busy" : ""}`}>
+      {busy === kind ? "Reading…" : label}
+      <input type="file" accept={accept} multiple hidden disabled={Boolean(busy)} onChange={(event) => { const files = [...(event.target.files || [])]; event.target.value = ""; upload(kind, files); }} />
+    </label>
+  );
+
+  return (
+    <div className="audit-workspace ls-page">
+      {toast && <div className={`audit-toast ${toast.isError ? "is-error" : ""}`}>{toast.message}</div>}
+      <section className="audit-card ls-upload">
+        <div>
+          <h3>Upload</h3>
+          <p><b>Warehouse stock</b> (Excel: location, item, quantity) sets what is at each location. <b>DCs</b> (PDF or photo) add to it; they can also be sent on WhatsApp from the DC numbers in Settings. <b>Wendor reports</b> take away what the machines sold. Uploading the same day or DC again replaces it.</p>
+          {lastUpload && <small className="na">Last Wendor upload: {lastUpload.file_name || "report"} · {dayText(lastUpload.day_from)}{lastUpload.day_to !== lastUpload.day_from ? ` – ${dayText(lastUpload.day_to)}` : ""} · {num(lastUpload.sold)} sold · {whenText(lastUpload.uploaded_at)} by {lastUpload.uploaded_by}</small>}
+        </div>
+        <div className="ls-upload-btns">
+          {uploadButton("wendor", "⬆ Wendor report", ".xlsx,.xls,.csv")}
+          {uploadButton("warehouse", "⬆ Warehouse stock", ".xlsx,.xls,.csv")}
+          {uploadButton("dc", "⬆ DC (PDF / photo)", ".pdf,image/*")}
+        </div>
+      </section>
+
+      <nav className="ds-tabs" aria-label="Live Stock">
+        {TABS.map(([key, label]) => (
+          <button key={key} type="button" className={tab === key ? "active" : ""} onClick={() => setTab(key)}>
+            {label}{key === "dcs" && overview?.inbox ? <span className="ls-badge">{overview.inbox}</span> : null}
+          </button>
+        ))}
+      </nav>
+
+      {tab === "locations" && <LocationsTab headers={headers} notify={notify} overview={overview} onChanged={refresh} version={version} />}
+      {tab === "dcs" && <DcsTab headers={headers} notify={notify} overview={overview} onChanged={refresh} version={version} />}
+      {tab === "machines" && <MachinesTab headers={headers} notify={notify} version={version} />}
+      {tab === "items" && <ItemsTab headers={headers} notify={notify} onChanged={refresh} version={version} />}
+      {tab === "settings" && <SettingsTab headers={headers} notify={notify} overview={overview} onChanged={refresh} />}
     </div>
   );
 }
