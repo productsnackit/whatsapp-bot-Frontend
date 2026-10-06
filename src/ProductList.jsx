@@ -40,7 +40,7 @@ export default function ProductList({ token }) {
   const [toast, setToast] = useState(null);
   const [busy, setBusy] = useState("");
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState("all");
+  const [filter, setFilter] = useState("listed");
   const [open, setOpen] = useState(null); // the "same as" choice waiting for its price
   const notify = useCallback((message, isError = false) => { setToast({ message, isError }); setTimeout(() => setToast(null), 5000); }, []);
   const load = useCallback(() => API.get("/locstock/products", { headers }).then((response) => setData(response.data)).catch((err) => notify(err.response?.data?.error || "Could not load the products", true)), [headers, notify]);
@@ -69,10 +69,10 @@ export default function ProductList({ token }) {
   if (!data) return <div className="audit-workspace"><p className="audit-empty">Loading products…</p></div>;
   const { confirm } = data;
   const toMatch = confirm.matches.filter((match) => match.options.length);
-  const outside = confirm.matches.filter((match) => !match.options.length);
   const products = data.products.filter((product) => (filter === "all" || (filter === "listed" ? product.in_list : filter === "outside" ? !product.in_list : product.price == null))
     && (!query.trim() || `${product.name} ${product.brand || ""} ${(product.wendor_ids || []).join(" ")} ${(product.aliases || []).join(" ")}`.toLowerCase().includes(query.trim().toLowerCase())));
   const toConfirm = toMatch.length + confirm.duplicates.length + confirm.prices.length;
+  const listedNoPrice = data.products.filter((product) => product.in_list && product.price == null).length;
 
   return (
     <div className="audit-workspace ls-page">
@@ -90,10 +90,9 @@ export default function ProductList({ token }) {
       </section>
 
       <div className="fnd-kpis ds-kpis ls-kpis">
-        <div className="fnd-kpi-blue"><span>Products</span><b>{data.counts.total}</b><small>{data.counts.listed} from the product list</small></div>
-        <div className={toConfirm ? "fnd-kpi-warn" : "fnd-kpi-good"}><span>To confirm</span><b>{toConfirm}</b><small>names, duplicates and prices</small></div>
-        <div className={outside.length ? "fnd-kpi-bad" : ""}><span>Not in the list</span><b>{outside.length}</b><small>no close product found</small></div>
-        <div><span>Without a price</span><b>{data.products.filter((product) => product.price == null).length}</b><small>not counted in stock value</small></div>
+        <div className="fnd-kpi-blue"><span>Product list</span><b>{data.counts.listed}</b><small>{listedNoPrice ? `${listedNoPrice} without a price` : "all with a price"}</small></div>
+        <div className={toConfirm ? "fnd-kpi-warn" : "fnd-kpi-good"}><span>To confirm</span><b>{toConfirm}</b><small>{toMatch.length} names · {confirm.duplicates.length} listed twice · {confirm.prices.length} prices</small></div>
+        <div className={data.counts.not_listed ? "fnd-kpi-bad" : ""}><span>Other names</span><b>{data.counts.not_listed}</b><small>from closing stock, DCs, Wendor; not in the list</small></div>
       </div>
 
       {toMatch.length > 0 && (
@@ -121,7 +120,7 @@ export default function ProductList({ token }) {
 
       {confirm.duplicates.length > 0 && (
         <section className="audit-card ls-alerts">
-          <div className="audit-card-head"><div><h3>⚠ Same product twice? ({confirm.duplicates.length})</h3><p>Products in the list that look like one. If they're the same, choose the name to keep and confirm the price.</p></div></div>
+          <div className="audit-card-head"><div><h3>⚠ Same product twice? ({confirm.duplicates.length})</h3><p>The product list has some products twice (often with two IDs or two prices). If they're the same, choose the name to keep and confirm the price; if not, mark them different.</p></div></div>
           {confirm.duplicates.map(({ a, b, score }) => {
             const key = `dup-${a.id}-${b.id}`;
             return (
@@ -159,7 +158,7 @@ export default function ProductList({ token }) {
       <section className="audit-card">
         <div className="ls-tools">
           <div className="ds-tabs ls-mini-tabs">
-            {[["all", `All (${data.products.length})`], ["listed", "In the product list"], ["outside", `Not in the list (${data.counts.not_listed})`], ["noprice", "No price"]].map(([key, label]) => <button key={key} type="button" className={filter === key ? "active" : ""} onClick={() => setFilter(key)}>{label}</button>)}
+            {[["listed", `Product list (${data.counts.listed})`], ["outside", `Other names (${data.counts.not_listed})`], ["noprice", "No price"], ["all", `All (${data.products.length})`]].map(([key, label]) => <button key={key} type="button" className={filter === key ? "active" : ""} onClick={() => setFilter(key)}>{label}</button>)}
           </div>
           <input className="ds-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search product, brand or ID" aria-label="Search products" />
         </div>
