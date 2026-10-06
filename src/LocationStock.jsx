@@ -27,6 +27,22 @@ function LocationView({ id, headers, notify, onBack, onChanged }) {
   const load = useCallback(() => API.get(`/locstock/locations/${id}`, { headers }).then((response) => setData(response.data)).catch(() => notify("Could not load the location", true)), [id, headers, notify]);
   useEffect(() => { const timer = setTimeout(load, 0); return () => clearTimeout(timer); }, [load]);
 
+  const [busy, setBusy] = useState(false);
+  // This location's closing stock (Excel: product, quantity, expired).
+  const uploadStock = async (file) => {
+    setBusy(true);
+    try {
+      const data64 = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
+      const result = (await API.post("/locstock/warehouse", { file: { name: file.name, data: data64 }, location_id: id }, { headers })).data;
+      notify(`Closing stock: ${result.saved} items, ${num(result.units)} units${result.expired ? ` (${num(result.expired)} expired not counted)` : ""}`);
+      await load();
+      onChanged();
+    } catch (err) {
+      notify(err.response?.data?.error || "Could not read the file", true);
+    } finally {
+      setBusy(false);
+    }
+  };
   const save = async (body, message) => {
     try {
       await API.post(`/locstock/locations/${id}/moves`, body, { headers });
@@ -51,6 +67,10 @@ function LocationView({ id, headers, notify, onBack, onChanged }) {
         <button type="button" className="audit-btn" onClick={onBack}>← All locations</button>
         <h3 className="ls-title">{data.name}</h3>
         <small className="na">{data.machines.length ? `Machines: ${data.machines.join(", ")}` : "No Wendor machine linked (Settings) — sales aren't taken away yet"}</small>
+        <label className={`audit-btn audit-btn-primary ls-upload-btn ls-push-right ${busy ? "is-busy" : ""}`}>
+          {busy ? "Reading…" : `⬆ Closing stock for ${data.name}`}
+          <input type="file" accept=".xlsx,.xls,.csv" hidden disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) uploadStock(file); }} />
+        </label>
       </div>
       <div className="fnd-kpis ds-kpis ls-kpis">
         <div className="fnd-kpi-blue"><span>In stock now</span><b>{num(t.units)}</b><small>{t.items} item{t.items === 1 ? "" : "s"}</small></div>
@@ -404,7 +424,7 @@ export function SettingsTab({ headers, notify, overview, onChanged }) {
       </section>
 
       <section className="audit-card">
-        <div className="audit-card-head"><div><h3>Warehouse stock Excel</h3><p>One row per location and item, with columns like <b>Location</b>, <b>Item</b>, <b>Quantity</b> (or Closing / Stock / Balance). If there is no location column, each sheet's name is taken as the location. Location names are matched to the Refill Audit locations; ones that don't match are listed after the upload.</p></div></div>
+        <div className="audit-card-head"><div><h3>Warehouse stock Excel</h3><p>Columns like <b>Product</b> (or Item) and <b>Quantity</b> (or Closing / Stock / Balance), and <b>Expired</b> if there is one: expired units aren't counted. For one location (like “Bitgo Closing Stock”), upload it from that location's page, or from the top: the location is taken from the file name, or you're asked. For many locations at once, add a <b>Location</b> column. The same product on two rows adds up. Blank quantity = none left.</p></div></div>
       </section>
     </div>
   );

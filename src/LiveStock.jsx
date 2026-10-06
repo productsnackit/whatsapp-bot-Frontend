@@ -262,6 +262,7 @@ export default function LiveStock({ token }) {
   const [version, setVersion] = useState(0);
   const [overview, setOverview] = useState(null);
   const [busy, setBusy] = useState("");
+  const [pending, setPending] = useState(null); // closing stock whose location isn't in the file
   const notify = useCallback((message, isError = false) => { setToast({ message, isError }); setTimeout(() => setToast(null), 5000); }, []);
   const refresh = useCallback(() => setVersion((value) => value + 1), []);
   useEffect(() => {
@@ -282,8 +283,12 @@ export default function LiveStock({ token }) {
           const range = `${dayText(result.day_from)}${result.day_to !== result.day_from ? ` – ${dayText(result.day_to)}` : ""}`;
           notify(result.sold ? `${range}: added ${num(result.sold)} sold${result.already ? ` · ${num(result.already)} sales were already saved` : ""}` : `${range}: nothing new, every sale was already saved`);
         } else if (kind === "warehouse") {
-          const result = (await API.post("/locstock/warehouse", body, { headers })).data;
-          notify(`Warehouse stock: ${result.saved} rows at ${result.locations} location${result.locations === 1 ? "" : "s"}${result.unmatched.length ? ` · not matched: ${result.unmatched.join(", ")}` : ""}`, result.unmatched.length > 0);
+          try {
+            notifyStock((await API.post("/locstock/warehouse", body, { headers })).data);
+          } catch (err) {
+            if (!err.response?.data?.need_location) throw err;
+            setPending({ body, name: file.name, location_id: "" });
+          }
         } else {
           const dc = (await API.post("/locstock/dcs", body, { headers })).data;
           notify(dc.status === "added" ? `DC ${dc.ref || ""} added: ${dc.lines.length} items, ${num(dc.units)} units${dc.replaced ? " (replaced the earlier one)" : ""}` : `DC ${dc.ref || ""}: ${dc.problem}. See the DCs tab.`, dc.status !== "added");
@@ -292,6 +297,19 @@ export default function LiveStock({ token }) {
       }
     } catch (err) {
       notify(err.response?.data?.error || err.message || "Could not read the file", true);
+    } finally {
+      setBusy("");
+      refresh();
+    }
+  };
+  const notifyStock = (result) => notify(`Closing stock${result.location_names?.length ? ` for ${result.location_names.join(", ")}` : ""}: ${result.saved} items, ${num(result.units)} units${result.expired ? ` (${num(result.expired)} expired not counted)` : ""}${result.unmatched.length ? ` · locations not matched: ${result.unmatched.join(", ")}` : ""}`, result.unmatched.length > 0 || !result.saved);
+  const uploadPending = async () => {
+    setBusy("warehouse");
+    try {
+      notifyStock((await API.post("/locstock/warehouse", { ...pending.body, location_id: pending.location_id }, { headers })).data);
+      setPending(null);
+    } catch (err) {
+      notify(err.response?.data?.error || "Could not read the file", true);
     } finally {
       setBusy("");
       refresh();
@@ -311,14 +329,25 @@ export default function LiveStock({ token }) {
       <section className="audit-card ls-upload">
         <div>
           <h3>Upload</h3>
-          <p><b>Warehouse stock</b> (Excel: location, item, quantity) sets what is at each location. <b>DCs</b> (PDF or photo) add to it; they can also be sent on WhatsApp from the DC numbers in Settings. <b>Wendor reports</b> take away what the machines sold. Sales are kept for good: a Wendor report only adds the sales not saved yet, so overlapping dates are fine. The same DC again replaces it.</p>
+          <p><b>Closing stock</b> (Excel: product and quantity, for one location or with a Location column) sets what is at a location; expired units aren't counted. <b>DCs</b> (PDF or photo) add to it; they can also be sent on WhatsApp from the DC numbers in Settings. <b>Wendor reports</b> take away what the machines sold. Sales are kept for good: a Wendor report only adds the sales not saved yet, so overlapping dates are fine. The same DC again replaces it.</p>
           {lastUpload && <small className="na">Last Wendor upload: {lastUpload.file_name || "report"} · {dayText(lastUpload.day_from)}{lastUpload.day_to !== lastUpload.day_from ? ` – ${dayText(lastUpload.day_to)}` : ""} · {num(lastUpload.sold)} sold · {whenText(lastUpload.uploaded_at)} by {lastUpload.uploaded_by}</small>}
         </div>
         <div className="ls-upload-btns">
           {uploadButton("wendor", "⬆ Wendor report", ".xlsx,.xls,.csv")}
-          {uploadButton("warehouse", "⬆ Warehouse stock", ".xlsx,.xls,.csv")}
+          {uploadButton("warehouse", "⬆ Closing stock", ".xlsx,.xls,.csv")}
           {uploadButton("dc", "⬆ DC (PDF / photo)", ".pdf,image/*")}
         </div>
+        {pending && (
+          <div className="ls-warn ls-pending">
+            <b>Which location is “{pending.name}” for?</b>
+            <select value={pending.location_id} onChange={(event) => setPending({ ...pending, location_id: event.target.value })} aria-label="Location">
+              <option value="">Choose…</option>
+              {(overview?.locations || []).map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}
+            </select>
+            <button type="button" className="audit-btn audit-btn-primary" disabled={!pending.location_id || Boolean(busy)} onClick={uploadPending}>{busy === "warehouse" ? "Reading…" : "Upload"}</button>
+            <button type="button" className="audit-btn" onClick={() => setPending(null)}>Cancel</button>
+          </div>
+        )}
       </section>
 
       <nav className="ds-tabs" aria-label="Live Stock">
