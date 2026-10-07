@@ -241,9 +241,9 @@ export default function App() {
     if (["employees", "admin-settings"].includes(name)) return isAdmin;
     if (["internal-chat", "call-log"].includes(name)) return true;
     if (name === "packaged-supply") return can("supply");
-    if (name === "live-stock") return can("refills");
-    if (name === "product-list") return can("refills");
-    if (name === "closing-stock") return can("refills");
+    if (name === "live-stock") return can("live_stock");
+    if (name === "product-list") return can("product_list");
+    if (name === "closing-stock") return can("closing_stock");
     if (name === "supply-analytics") return can("supply") || can("analytics");
     return ALL_PAGE_KEYS.includes(name) ? can(name) : false;
   };
@@ -1834,7 +1834,7 @@ export default function App() {
             ))}
           </>}
 
-          {(canAccessAudit || can("refills") || can("findings")) && <>
+          {(canAccessAudit || can("refills") || can("live_stock") || can("closing_stock") || can("product_list") || can("findings")) && <>
           <div className="sidebar-divider" />
           <div className="sidebar-section-label">Quality</div>
           </>}
@@ -1856,21 +1856,21 @@ export default function App() {
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M8 15l2.5 2.5L16 13" /></svg>
             <span>Refill Schedule</span>
           </button>}
-          {can("refills") && <button
+          {can("live_stock") && <button
             className={`nav-item ${view === "live-stock" ? "active" : ""}`}
             onClick={() => setView("live-stock")}
           >
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" /><path d="M8 6h8M8 10h8M8 14h4" /><circle cx="15" cy="17" r="1.2" /></svg>
             <span>Live Stock</span>
           </button>}
-          {can("refills") && <button
+          {can("closing_stock") && <button
             className={`nav-item ${view === "closing-stock" ? "active" : ""}`}
             onClick={() => setView("closing-stock")}
           >
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1z" /><path d="M8 5H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" /><path d="m9 13 2 2 4-4" /></svg>
             <span>Closing Stock</span>
           </button>}
-          {can("refills") && <button
+          {can("product_list") && <button
             className={`nav-item ${view === "product-list" ? "active" : ""}`}
             onClick={() => setView("product-list")}
           >
@@ -2145,9 +2145,9 @@ export default function App() {
 
 
         {keepPage("refills") && <div className="kept-page" hidden={view !== "refills"}><RefillWorkspace token={token} /></div>}
-        {keepPage("live-stock") && can("refills") && <div className="kept-page" hidden={view !== "live-stock"}><LiveStock token={token} /></div>}
-        {view === "product-list" && can("refills") && <ProductList token={token} isAdmin={isAdmin} />}
-        {view === "closing-stock" && can("refills") && <ClosingStock token={token} isAdmin={isAdmin} />}
+        {keepPage("live-stock") && can("live_stock") && <div className="kept-page" hidden={view !== "live-stock"}><LiveStock token={token} /></div>}
+        {view === "product-list" && can("product_list") && <ProductList token={token} isAdmin={isAdmin} />}
+        {view === "closing-stock" && can("closing_stock") && <ClosingStock token={token} isAdmin={isAdmin} />}
 
 
         {keepPage("supply") && can("supply") && (
