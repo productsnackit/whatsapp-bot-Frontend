@@ -34,7 +34,7 @@ function PricePick({ prices, onPick, busy, label = "Confirm" }) {
   );
 }
 
-export default function ProductList({ token }) {
+export default function ProductList({ token, isAdmin = false }) {
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
   const [data, setData] = useState(null);
   const [toast, setToast] = useState(null);
@@ -53,6 +53,9 @@ export default function ProductList({ token }) {
   };
   const same = (from, into, price, message) => act(`same-${from.id}-${into.id}`, () => API.post("/locstock/products/same", { from_id: from.id, into_id: into.id, price }, { headers }), message || `“${from.name}” is now “${into.name}”`);
   const notSame = (a, b) => act(`not-${a.id}-${b.id}`, () => API.post("/locstock/products/not-same", { a_id: a.id, b_id: b.id }, { headers }), "Marked as different products");
+  // Admin only: a product nobody uses (the server refuses one in counts, DCs or sales).
+  const removeProduct = (product) => window.confirm(`Delete “${product.name}” from the products?\n\nOnly a product not used in any closing stock, DC or Wendor sale can be deleted.`)
+    && act(`delete-${product.id}`, () => API.delete(`/locstock/items/${product.id}`, { headers }), `Deleted “${product.name}”`);
   const setPrice = (product, price) => act(`price-${product.id}`, () => API.patch(`/locstock/items/${product.id}`, { price }, { headers }), `${product.name}: ${price === "" ? "price cleared" : `₹${price}`}`);
   const upload = async (file) => {
     setBusy("upload");
@@ -187,6 +190,7 @@ export default function ProductList({ token }) {
                         <button type="button" className="audit-btn" onClick={() => setJoining(null)}>Cancel</button>
                       </div>
                     ) : <button type="button" className="audit-btn" onClick={() => setJoining({ product, text: "", into: null })} title="This product and another are one: join them (stock, sales and DCs add up)">Same as…</button>}
+                    {isAdmin && joining?.product.id !== product.id && <button type="button" className="audit-btn pl-delete" disabled={Boolean(busy)} onClick={() => removeProduct(product)} title="Delete this product (only if it isn't used anywhere)">{busy === `delete-${product.id}` ? "Deleting…" : "Delete"}</button>}
                   </td>
                 </tr>
               ))}
