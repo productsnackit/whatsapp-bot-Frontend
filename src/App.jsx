@@ -39,6 +39,7 @@ const PAGE_LOADERS = {
   LiveStock: () => import("./LiveStock.jsx"),
   ProductList: () => import("./ProductList.jsx"),
   ClosingStock: () => import("./ClosingStock.jsx"),
+  SalesData: () => import("./SalesData.jsx"),
 };
 const OperationsWorkspace = lazy(PAGE_LOADERS.OperationsWorkspace);
 const AuditWorkspace = lazy(PAGE_LOADERS.AuditWorkspace);
@@ -53,6 +54,7 @@ const SupplyAnalytics = lazy(PAGE_LOADERS.SupplyAnalytics);
 const LiveStock = lazy(PAGE_LOADERS.LiveStock);
 const ProductList = lazy(PAGE_LOADERS.ProductList);
 const ClosingStock = lazy(PAGE_LOADERS.ClosingStock);
+const SalesData = lazy(PAGE_LOADERS.SalesData);
 
 
 const API = axios.create({
@@ -245,6 +247,7 @@ export default function App() {
     if (name === "product-list") return can("product_list");
     if (name === "closing-stock") return can("closing_stock");
     if (name === "supply-analytics") return can("supply") || can("analytics");
+    if (name === "sale-data") return can("sales_data");
     return ALL_PAGE_KEYS.includes(name) ? can(name) : false;
   };
   const view = viewAllowed(requestedView) ? requestedView : can("tickets") ? "tickets" : "internal-chat";
@@ -1888,7 +1891,7 @@ export default function App() {
           </button>}
 
           <div className="sidebar-divider" />
-          <div className="sidebar-section-label">{can("analytics") ? "Insights" : "Team"}</div>
+          <div className="sidebar-section-label">{can("analytics") || can("sales_data") ? "Insights" : "Team"}</div>
           {can("analytics") && <button
             className={`nav-item ${view === "analytics" ? "active" : ""}`}
             onClick={() => setView("analytics")}
@@ -1902,6 +1905,13 @@ export default function App() {
           >
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18" /><rect x="7" y="12" width="3" height="6" rx="1" /><rect x="12" y="8" width="3" height="10" rx="1" /><rect x="17" y="5" width="3" height="13" rx="1" /></svg>
             <span>Supply Analytics</span>
+          </button>}
+          {can("sales_data") && <button
+            className={`nav-item ${view === "sale-data" ? "active" : ""}`}
+            onClick={() => setView("sale-data")}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 17l5-5 4 4 8-8" /><path d="M14 8h6v6" /></svg>
+            <span>Sale Data</span>
           </button>}
           <button
             className={`nav-item ${view === "call-log" ? "active" : ""}`}
@@ -2005,6 +2015,7 @@ export default function App() {
               {view === "packaged-supply" && "Direct Supply · Packaged"}
               {view === "analytics" && "Refund Analytics"}
               {view === "supply-analytics" && "Supply Analytics"}
+              {view === "sale-data" && "Sale Data"}
               {view === "internal-chat" && "Internal Chat"}
               {view === "employees" && "Employees & Access"}
               {view === "activity" && "Activity Log"}
@@ -2033,6 +2044,7 @@ export default function App() {
               {view === "call-log" && "Tasks and concerns sent to employees on WhatsApp · who has it and how long it takes"}
               {view === "analytics" && "Complaints, refunds and resolution · India time"}
               {view === "supply-analytics" && "Fruits Supply and Direct Supply (packaged) · by delivery date, India time"}
+              {view === "sale-data" && "What the machines sold · per location, against the period before · from the Wendor reports"}
               {view === "internal-chat" && `${departmentChats.length} active ${selectedDepartment} conversations`}
               {view === "employees" && `${internalUsers.length} people with their own login`}
               {view === "activity" && "Who changed what, and when"}
@@ -2955,6 +2967,7 @@ export default function App() {
 
         {/* ── ANALYTICS VIEW ──────────────────────────────────────────────── */}
         {keepPage("analytics") && <div className="kept-page" hidden={view !== "analytics"}><AnalyticsWorkspace token={token} /></div>}
+        {view === "sale-data" && can("sales_data") && <SalesData token={token} />}
         {keepPage("supply-analytics") && (can("supply") || can("analytics")) && <div className="kept-page" hidden={view !== "supply-analytics"}><SupplyAnalytics token={token} version={supplyVersion} /></div>}
         </Suspense>
       </main>
