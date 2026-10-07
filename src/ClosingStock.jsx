@@ -31,7 +31,7 @@ const readFile = (file) => new Promise((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
-export default function ClosingStock({ token }) {
+export default function ClosingStock({ token, isAdmin = false }) {
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
   const [locations, setLocations] = useState([]);
   const [catalog, setCatalog] = useState([]);
@@ -132,6 +132,21 @@ export default function ClosingStock({ token }) {
       setBusy("");
     }
   };
+  // Admin only: a wrong closing stock can be deleted (it leaves Live Stock; the one before counts again).
+  const remove = async (row) => {
+    if (!window.confirm(`Delete the closing stock of ${row.location_name} taken ${whenText(row.at)}?\n\nIts count leaves Live Stock: the closing stock before it (if any) counts again. This can't be undone.`)) return;
+    setBusy(`delete-${row.id}`);
+    try {
+      await API.delete(`/locstock/closings/${row.id}`, { headers });
+      notify(`Deleted the closing stock of ${row.location_name}`);
+      if (open?.id === row.id) setOpen(null);
+      loadHistory();
+    } catch (err) {
+      notify(err.response?.data?.error || "Could not delete it", true);
+    } finally {
+      setBusy("");
+    }
+  };
   const openPast = async (row) => {
     if (open?.id === row.id) return setOpen(null);
     try { setOpen((await API.get(`/locstock/closings/${row.id}`, { headers })).data); } catch { notify("Could not open it", true); }
@@ -218,7 +233,7 @@ export default function ClosingStock({ token }) {
                   <td data-label="Units">{num(row.units)}{Number(row.expired) ? <small className="ds-sub">+{num(row.expired)} expired</small> : null}</td>
                   <td data-label="Value">{rupees(row.value)}</td>
                   <td data-label="By">{row.by || "—"}{row.note ? <small className="ds-sub">{row.note}</small> : null}</td>
-                  <td data-label="" onClick={(event) => event.stopPropagation()}><button type="button" className="audit-btn" disabled={Boolean(busy)} onClick={() => exportOne(row.id)}>⬇ Export</button></td>
+                  <td data-label="" onClick={(event) => event.stopPropagation()} className="cs-row-actions"><button type="button" className="audit-btn" disabled={Boolean(busy)} onClick={() => exportOne(row.id)}>⬇ Export</button>{isAdmin && <button type="button" className="audit-btn cs-delete" disabled={Boolean(busy)} onClick={() => remove(row)}>{busy === `delete-${row.id}` ? "Deleting…" : "Delete"}</button>}</td>
                 </tr>,
                 open?.id === row.id && (
                   <tr key={`${row.id}-lines`}><td colSpan={7}>

@@ -5599,3 +5599,4 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
   .cs-foot { flex-direction: column; align-items: stretch; }
   .cs-foot-actions .audit-btn-primary { flex: 1; }
 }
+.cs-row-actions { display: flex; flex-wrap: wrap; gap: 6px; } .cs-delete { color: #b91c1c; border-color: #fecaca; }

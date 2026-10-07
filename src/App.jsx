@@ -2147,7 +2147,7 @@ export default function App() {
         {keepPage("refills") && <div className="kept-page" hidden={view !== "refills"}><RefillWorkspace token={token} /></div>}
         {keepPage("live-stock") && can("refills") && <div className="kept-page" hidden={view !== "live-stock"}><LiveStock token={token} /></div>}
         {view === "product-list" && can("refills") && <ProductList token={token} />}
-        {view === "closing-stock" && can("refills") && <ClosingStock token={token} />}
+        {view === "closing-stock" && can("refills") && <ClosingStock token={token} isAdmin={isAdmin} />}
 
 
         {keepPage("supply") && can("supply") && (
