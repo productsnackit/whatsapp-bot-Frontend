@@ -94,6 +94,11 @@ function LocationView({ id, headers, notify, onBack, onChanged }) {
         <div className={t.short ? "fnd-kpi-warn" : ""}><span>Sold more than sent</span><b>{t.short}</b><small>items: a DC or count is missing</small></div>
         <div><span>DCs</span><b>{t.dcs}</b><small>last count {data.last_count_at ? whenText(data.last_count_at) : "—"}</small></div>
       </div>
+      {t.unnamed?.units > 0 && (
+        <div className="ls-note">
+          <b>{num(t.unnamed.units)} sold from VendVitor slots ({rupees(t.unnamed.value)})</b> since the closing stock, from {t.unnamed.slots} slot{t.unnamed.slots === 1 ? "" : "s"}. VendVitor reports have no product names, so these are taken off the total units and stock value above, but not off any product in the list below.
+        </div>
+      )}
       {data.sales_to && <p className="ls-note">Sales are taken away up to {dayText(data.sales_to)}. Upload the Wendor reports after that to see today's stock.</p>}
 
       <section className="audit-card">

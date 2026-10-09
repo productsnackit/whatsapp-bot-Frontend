@@ -91,7 +91,7 @@ function MachineView({ id, headers, onBack, notify, onChanged }) {
     <div className="ls">
       <div className="ds-detail-head">
         <button type="button" className="audit-btn" onClick={onBack}>← All machines</button>
-        <h2>{data.name}<span>Wendor {data.wendor_id}{data.location_name ? ` · ${data.location_name}` : ""}</span></h2>
+        <h2>{data.name}<span>{data.vendor === "vendvitor" ? "VendVitor" : "Wendor"} {data.wendor_id}{data.location_name ? ` · ${data.location_name}` : ""}</span></h2>
       </div>
 
       <RefillTime key={`${data.refill_days}-${data.refill_time}`} machine={data} onSave={(days, time) => act(() => API.put(`/stock/machines/${id}/refill-time`, { days, time }, { headers }), "Refill time saved")} />
@@ -281,7 +281,7 @@ export default function LiveStock({ token }) {
         if (kind === "wendor") {
           const result = (await API.post("/stock/upload", body, { headers })).data;
           const range = `${dayText(result.day_from)}${result.day_to !== result.day_from ? ` – ${dayText(result.day_to)}` : ""}`;
-          notify(result.sold ? `${range}: added ${num(result.sold)} sold${result.already ? ` · ${num(result.already)} sales were already saved` : ""}` : `${range}: nothing new, every sale was already saved`);
+          notify(result.sold ? `${result.vendor === "vendvitor" ? `VendVitor ${(result.machines || []).join(", ")} · ` : ""}${range}: added ${num(result.sold)} sold${result.already ? ` · ${num(result.already)} sales were already saved` : ""}` : `${range}: nothing new, every sale was already saved`);
         } else if (kind === "warehouse") {
           // Asks the closing stock's date (and the location if needed) before reading it.
           setPending({ body, name: file.name, location_id: "", date: "", max: overview?.today });
@@ -327,11 +327,11 @@ export default function LiveStock({ token }) {
       <section className="audit-card ls-upload">
         <div>
           <h3>Upload</h3>
-          <p><b>Closing stock</b> (Excel: product and quantity, for one location or with a Location column) sets what is at a location; expired units aren't counted. <b>DCs</b> (PDF or photo) add to it; they can also be sent on WhatsApp from the DC numbers in Settings. <b>Wendor reports</b> take away what the machines sold. Sales are kept for good: a Wendor report only adds the sales not saved yet, so overlapping dates are fine. The same DC again replaces it.</p>
-          {lastUpload && <small className="na">Last Wendor upload: {lastUpload.file_name || "report"} · {dayText(lastUpload.day_from)}{lastUpload.day_to !== lastUpload.day_from ? ` – ${dayText(lastUpload.day_to)}` : ""} · {num(lastUpload.sold)} sold · {whenText(lastUpload.uploaded_at)} by {lastUpload.uploaded_by}</small>}
+          <p><b>Closing stock</b> (Excel: product and quantity, for one location or with a Location column) sets what is at a location; expired units aren't counted. <b>DCs</b> (PDF or photo) add to it; they can also be sent on WhatsApp from the DC numbers in Settings. <b>Sales reports</b> take away what the machines sold: the Wendor transactions Excel, or the VendVitor CSV (keep its file name, e.g. vv00017_2026-09-01_To_2026-09-30.csv; it has no product names, so its sales come off the location's totals only). Sales are kept for good: a report only adds the sales not saved yet, so overlapping dates are fine. The same DC again replaces it.</p>
+          {lastUpload && <small className="na">Last sales upload: {lastUpload.file_name || "report"} · {dayText(lastUpload.day_from)}{lastUpload.day_to !== lastUpload.day_from ? ` – ${dayText(lastUpload.day_to)}` : ""} · {num(lastUpload.sold)} sold · {whenText(lastUpload.uploaded_at)} by {lastUpload.uploaded_by}</small>}
         </div>
         <div className="ls-upload-btns">
-          {uploadButton("wendor", "⬆ Wendor report", ".xlsx,.xls,.csv")}
+          {uploadButton("wendor", "⬆ Sales report (Wendor / VendVitor)", ".xlsx,.xls,.csv")}
           {uploadButton("warehouse", "⬆ Closing stock", ".xlsx,.xls,.csv")}
           {uploadButton("dc", "⬆ DC (PDF / photo)", ".pdf,image/*")}
         </div>
