@@ -264,7 +264,7 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
   const [importResult, setImportResult] = useState(null);
   // Opened from My Home: show that action's details and follow-ups.
   const [focusSeen, setFocusSeen] = useState(null);
-  if (focus && focus !== focusSeen) { setFocusSeen(focus); setFollowUpId(focus.id); }
+  if (focus && focus !== focusSeen) { setFocusSeen(focus); if (focus.new) { setFormError(""); setEditing(emptyForm()); } else setFollowUpId(focus.id); }
 
   const notify = useCallback((message, isError = false) => {
     setToast({ message, isError });

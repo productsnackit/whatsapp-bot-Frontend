@@ -960,6 +960,20 @@ function Refillers({ headers, refillers, isAdmin, onChanged, onAudit, notify }) 
     }
   };
 
+  // The refiller app (RefillerApp.jsx): they log in with their phone number and this PIN.
+  const setPin = async (refiller) => {
+    if (!refiller.phone) return notify(`Add ${refiller.name}'s phone number first (Edit)`, true);
+    const pin = window.prompt(`App PIN for ${refiller.name} (4 to 6 digits).\nThey log in with their phone number ${refiller.phone} and this PIN.${refiller.has_pin ? "\nLeave empty to remove app access." : ""}`, "");
+    if (pin === null) return;
+    try {
+      await API.put(`/audit/refillers/${refiller.id}/pin`, { pin: pin.trim() }, { headers });
+      notify(pin.trim() ? `PIN set. ${refiller.name} logs in with ${refiller.phone} and PIN ${pin.trim()}` : `${refiller.name}'s app access removed`);
+      onChanged();
+    } catch (err) {
+      notify(err.response?.data?.error || "Could not set the PIN", true);
+    }
+  };
+
   const remove = async (refiller) => {
     if (!window.confirm(`Delete ${refiller.name}? Their ${refiller.site_count} sites will become unassigned.`)) return;
     try {
@@ -1000,12 +1014,14 @@ function Refillers({ headers, refillers, isAdmin, onChanged, onAudit, notify }) 
               <div><b>{r.name}</b><span>{r.shift || "Shift not set"}{r.workload ? ` · ${r.workload}` : ""}</span></div>
               <span className="audit-pill">{r.site_count} sites</span>
             </div>
+            <p className="audit-muted">📱 Refiller app: {r.has_pin ? <b>PIN set</b> : "no PIN yet"}</p>
             {r.support && r.support !== "Independent" && <p className="audit-muted">Support: {r.support}</p>}
             <div className="audit-chips">{(r.sites || []).map((site) => <span key={site}>{site}</span>)}</div>
             <ContactButtons phone={r.phone} />
             <div className="audit-form-actions">
               <button type="button" className="audit-btn audit-btn-primary" onClick={() => onAudit(r.sites?.[0] || "", r.name)}>Conduct audit</button>
               <button type="button" className="audit-btn" onClick={() => setDraft({ ...r })}>Edit</button>
+              <button type="button" className="audit-btn" onClick={() => setPin(r)}>{r.has_pin ? "Change app PIN" : "Set app PIN"}</button>
               {isAdmin && <button type="button" className="audit-link-danger" onClick={() => remove(r)}>Delete</button>}
             </div>
           </section>

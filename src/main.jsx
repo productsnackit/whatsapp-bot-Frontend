@@ -22,6 +22,9 @@ if (buyToken) {
   import('./PublicBuyer.jsx').then(({ default: PublicBuyer }) => root.render(<StrictMode><PublicBuyer token={buyToken} /></StrictMode>))
 } else if (orderToken) {
   import('./PublicOrder.jsx').then(({ default: PublicOrder }) => root.render(<StrictMode><PublicOrder token={orderToken} /></StrictMode>))
+} else if (localStorage.getItem('userRole') === 'refiller' && localStorage.getItem('token')) {
+  // A refiller's login opens their own simple app.
+  import('./RefillerApp.jsx').then(({ default: RefillerApp }) => root.render(<StrictMode><RefillerApp /></StrictMode>))
 } else {
   root.render(
     <StrictMode>

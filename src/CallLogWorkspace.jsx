@@ -350,7 +350,7 @@ export default function CallLogWorkspace({ token, isAdmin, currentUserId, curren
   const [now, setNow] = useState(() => Date.now());
   // Opened from My Home: show that task.
   const [focusSeen, setFocusSeen] = useState(null);
-  if (focus && focus !== focusSeen) { setFocusSeen(focus); setOpenId(focus.id); }
+  if (focus && focus !== focusSeen) { setFocusSeen(focus); if (focus.new) setRaising(true); else setOpenId(focus.id); }
 
   const notify = useCallback((message, isError = false) => {
     setToast({ message, isError });

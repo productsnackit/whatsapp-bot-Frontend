@@ -196,6 +196,8 @@ export default function App() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [loginInProgress, setLoginInProgress] = useState(false);
+  const [loginMode, setLoginMode] = useState("password"); // or "otp" (code on WhatsApp)
+  const [otp, setOtp] = useState({ phone: "", code: "", sentTo: "", error: "", sentAt: 0 });
   const chatEndRef = useRef(null);
 
   // The last list is kept for this browser tab, so a reload shows tickets instantly while fresh ones load.
@@ -267,6 +269,8 @@ export default function App() {
   // My Home opens an Internal Audit action or a Call Log task straight away.
   const [findingsFocus, setFindingsFocus] = useState(null);
   const [callLogFocus, setCallLogFocus] = useState(null);
+  const [newSheet, setNewSheet] = useState(null); // phone "New" sheet: "menu" or "people"
+  const [newSheetSearch, setNewSheetSearch] = useState("");
   // Big buttons on My Home: every page this person can open.
   const homePages = [
     ["internal-chat", "💬", "Internal Chat", "Team chats & tasks"],
@@ -743,11 +747,16 @@ export default function App() {
   /* =========================================================================
      AUTH
   ========================================================================= */
-  const login = async () => {
-    if (loginInProgress || !username.trim() || !password) return;
-    setLoginInProgress(true);
-    try {
-      const res = await API.post("/login", { username: username.trim(), password });
+  // After a password or WhatsApp-code login: remember who it is and open their first page.
+  const finishLogin = (res) => {
+      // Refillers get their own simple app (RefillerApp.jsx, chosen in main.jsx).
+      if (res.data.role === "refiller") {
+        localStorage.setItem("token", res.data.token);
+        localStorage.setItem("userRole", "refiller");
+        localStorage.setItem("userName", res.data.name || "");
+        window.location.reload();
+        return;
+      }
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("userRole", res.data.role || "admin");
       localStorage.setItem("userName", res.data.name || "Admin");
@@ -765,8 +774,40 @@ export default function App() {
       setSelectedDepartment(res.data.department || "Accounts");
       setView(LAUNCH_VIEW || ((res.data.role || "admin") === "admin" ? "tickets" : "home"));
       setSessionExpired(false);
+  };
+  const login = async () => {
+    if (loginInProgress || !username.trim() || !password) return;
+    setLoginInProgress(true);
+    try {
+      finishLogin(await API.post("/login", { username: username.trim(), password }));
     } catch (err) {
-      alert(err.response?.status === 401 ? "Wrong username or password" : "Login failed. Check your connection and try again.");
+      const reason = err.response?.data?.error;
+      alert(err.response?.status === 401 ? (reason && !/invalid credentials/i.test(reason) ? reason : "Wrong username or password") : "Login failed. Check your connection and try again.");
+    } finally {
+      setLoginInProgress(false);
+    }
+  };
+
+  // Log in with a 6-digit code sent on WhatsApp (otpLogin.js).
+  const sendOtp = async () => {
+    if (loginInProgress || otp.phone.replace(/\D/g, "").length < 10) return;
+    setLoginInProgress(true);
+    try {
+      const res = await API.post("/login/otp/send", { phone: otp.phone });
+      setOtp((current) => ({ ...current, sentTo: res.data.to, code: "", error: "", sentAt: Date.now() }));
+    } catch (err) {
+      setOtp((current) => ({ ...current, error: err.response?.data?.error || "Couldn't send the code. Check your internet and try again." }));
+    } finally {
+      setLoginInProgress(false);
+    }
+  };
+  const verifyOtp = async () => {
+    if (loginInProgress || otp.code.length !== 6) return;
+    setLoginInProgress(true);
+    try {
+      finishLogin(await API.post("/login/otp/verify", { phone: otp.phone, code: otp.code }));
+    } catch (err) {
+      setOtp((current) => ({ ...current, code: "", error: err.response?.data?.error || "Couldn't log you in. Try again." }));
     } finally {
       setLoginInProgress(false);
     }
@@ -1652,21 +1693,29 @@ export default function App() {
             </div>
             <h2>Welcome back</h2>
             <p className="login-sub">Sign in to manage tickets, feedback, and analytics.</p>
+            <div className="login-mode" role="tablist">
+              <button type="button" role="tab" aria-selected={loginMode === "password"} className={loginMode === "password" ? "is-on" : ""} onClick={() => setLoginMode("password")}>Password</button>
+              <button type="button" role="tab" aria-selected={loginMode === "otp"} className={loginMode === "otp" ? "is-on" : ""} onClick={() => setLoginMode("otp")}>Code on WhatsApp</button>
+            </div>
+            {loginMode === "password" ? (
+              <>
             <div className="login-field">
-              <label>Username</label>
+              <label>Username or phone number</label>
               <input
                 type="text"
-                placeholder="Enter username"
+                autoComplete="username"
+                placeholder="Username (refillers: your phone number)"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && login()}
               />
             </div>
             <div className="login-field">
-              <label>Password</label>
+              <label>Password or PIN</label>
               <input
                 type="password"
-                placeholder="Enter password"
+                autoComplete="current-password"
+                placeholder="Password (refillers: your PIN)"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && login()}
@@ -1678,6 +1727,38 @@ export default function App() {
                 <path d="M5 12h14M12 5l7 7-7 7" />
               </svg>
             </button>
+              </>
+            ) : !otp.sentTo ? (
+              <>
+                <div className="login-field">
+                  <label>Your WhatsApp number</label>
+                  <input type="tel" inputMode="numeric" autoComplete="tel" placeholder="10-digit mobile number" value={otp.phone}
+                    onChange={(e) => setOtp({ ...otp, phone: e.target.value, error: "" })} onKeyDown={(e) => e.key === "Enter" && sendOtp()} />
+                </div>
+                {otp.error && <p className="login-otp-error">{otp.error}</p>}
+                <button className="login-btn" onClick={sendOtp} disabled={loginInProgress || otp.phone.replace(/\D/g, "").length < 10}>
+                  {loginInProgress ? "Sending…" : "Send code"}
+                </button>
+                <p className="login-otp-hint">We'll send a 6-digit code to your WhatsApp.</p>
+              </>
+            ) : (
+              <>
+                <p className="login-otp-hint">Code sent on WhatsApp to <b>{otp.sentTo}</b></p>
+                <div className="login-field">
+                  <label>6-digit code</label>
+                  <input type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="••••••" className="login-otp-code" value={otp.code} autoFocus
+                    onChange={(e) => { const code = e.target.value.replace(/\D/g, "").slice(0, 6); setOtp({ ...otp, code, error: "" }); }} onKeyDown={(e) => e.key === "Enter" && verifyOtp()} />
+                </div>
+                {otp.error && <p className="login-otp-error">{otp.error}</p>}
+                <button className="login-btn" onClick={verifyOtp} disabled={loginInProgress || otp.code.length !== 6}>
+                  {loginInProgress ? "Checking…" : "Log in"}
+                </button>
+                <div className="login-otp-links">
+                  <button type="button" onClick={sendOtp} disabled={loginInProgress}>Send again</button>
+                  <button type="button" onClick={() => setOtp({ phone: otp.phone, code: "", sentTo: "", error: "", sentAt: 0 })}>Change number</button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -1802,14 +1883,54 @@ export default function App() {
       {/* ── MOBILE BOTTOM BAR (phones only; hidden inside a conversation) ───── */}
       {!(view === "internal-chat" && mobileChatPane === "conversation") && !activeChat && (
         <nav className="mobile-tabbar" aria-label="Main">
-          {[["home", "🏠", "Home"], ["internal-chat", "💬", "Chats"], ["call-log", "📞", "Calls"]].map(([name, icon, label]) => (
-            <button key={name} type="button" className={view === name ? "is-on" : ""} onClick={() => { if (name === "internal-chat") setMobileChatPane("list"); setView(name); }}>
-              <span aria-hidden="true">{icon}</span>{label}
-              {name === "internal-chat" && internalChats.some((chat) => Number(chat.unread || 0) > 0) && <i className="mobile-tabbar-dot" />}
-            </button>
-          ))}
+          <button type="button" className={view === "home" ? "is-on" : ""} onClick={() => setView("home")}><span aria-hidden="true">🏠</span>Home</button>
+          <button type="button" className={view === "internal-chat" ? "is-on" : ""} onClick={() => { setMobileChatPane("list"); setView("internal-chat"); }}>
+            <span aria-hidden="true">💬</span>Chats
+            {internalChats.some((chat) => Number(chat.unread || 0) > 0) && <i className="mobile-tabbar-dot" />}
+          </button>
+          <button type="button" className={`mobile-tabbar-new ${newSheet ? "is-on" : ""}`} onClick={() => setNewSheet("menu")}><span aria-hidden="true">＋</span>New</button>
+          {can("findings") && <button type="button" className={view === "findings" ? "is-on" : ""} onClick={() => setView("findings")}><span aria-hidden="true">📋</span>Audit</button>}
           <button type="button" className={mobileNavOpen ? "is-on" : ""} onClick={() => setMobileNavOpen(true)}><span aria-hidden="true">☰</span>Menu</button>
         </nav>
+      )}
+      {/* "New": the things everyone starts — a task for someone, an audit issue, a message. */}
+      {newSheet && (
+        <div className="mh-sheet-backdrop" onClick={() => setNewSheet(null)}>
+          <div className="mh-sheet" role="dialog" aria-label="New" onClick={(event) => event.stopPropagation()}>
+            <i className="mh-sheet-grip" aria-hidden="true" />
+            {newSheet === "menu" ? (
+              <>
+                <h3>What do you want to do?</h3>
+                <button type="button" onClick={() => { setNewSheet(null); setCallLogFocus({ new: true, at: Date.now() }); setView("call-log"); }}>
+                  <span>📞</span><b>Give someone a task</b><small>Goes to their WhatsApp; you see when it's done</small>
+                </button>
+                {can("findings") && <button type="button" onClick={() => { setNewSheet(null); setFindingsFocus({ new: true, at: Date.now() }); setView("findings"); }}>
+                  <span>📋</span><b>Report an audit issue</b><small>Something wrong that needs a corrective action</small>
+                </button>}
+                <button type="button" onClick={() => setNewSheet("people")}>
+                  <span>💬</span><b>Message a colleague</b><small>Start a one-to-one chat</small>
+                </button>
+                {can("closing_stock") && <button type="button" onClick={() => { setNewSheet(null); setView("closing-stock"); }}>
+                  <span>📝</span><b>Enter closing stock</b><small>Count a location's stock</small>
+                </button>}
+              </>
+            ) : (
+              <>
+                <h3><button type="button" className="mh-sheet-back" onClick={() => setNewSheet("menu")} aria-label="Back">‹</button> Message a colleague</h3>
+                <input type="search" placeholder="Search a name" value={newSheetSearch} onChange={(event) => setNewSheetSearch(event.target.value)} />
+                <div className="mh-sheet-people">
+                  {[...(isOwner ? [] : [{ id: "admin", name: "Admin", department: "Owner" }]), ...internalUsers]
+                    .filter((user) => String(user.id) !== myChatKey && String(user.name || "").toLowerCase().includes(newSheetSearch.trim().toLowerCase()))
+                    .map((user) => (
+                      <button type="button" key={user.id} onClick={() => { setNewSheet(null); setNewSheetSearch(""); setView("internal-chat"); startDirectChat(String(user.id)); }}>
+                        <span className="mh-avatar">{String(user.name || "?").slice(0, 1).toUpperCase()}</span><b>{user.name}</b><small>{user.department}</small>
+                      </button>
+                    ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       )}
 
       {/* ── SIDEBAR ─────────────────────────────────────────────────────────── */}

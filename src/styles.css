@@ -5685,3 +5685,99 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
   .mobile-tabbar-dot { position: absolute; top: 5px; left: calc(50% + 8px); width: 9px; height: 9px; border-radius: 50%; background: #16a34a; border: 2px solid #fff; }
   .dashboard:has(.mobile-tabbar) .main-content { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
 }
+
+/* ── Phone polish (My Home): one dark top, no white bounce, "New" sheet ─────── */
+.mh-sheet-backdrop { position: fixed; inset: 0; z-index: 400; display: flex; align-items: flex-end; justify-content: center; background: rgba(2, 6, 23, .5); animation: mh-fade .15s ease; }
+.mh-sheet { width: 100%; max-width: 520px; max-height: 82vh; overflow-y: auto; display: grid; gap: 8px; padding: 10px 14px calc(18px + env(safe-area-inset-bottom)); border-radius: 22px 22px 0 0; background: var(--surface); animation: mh-up .2s ease; }
+.mh-sheet-grip { justify-self: center; width: 40px; height: 5px; border-radius: 3px; background: #d6dae3; margin-bottom: 4px; }
+.mh-sheet h3 { display: flex; align-items: center; gap: 6px; margin: 2px 2px 6px; font-size: 17px; font-weight: 800; color: var(--text-primary); }
+.mh-sheet > button, .mh-sheet-people button { display: grid; grid-template-columns: 44px 1fr; grid-template-rows: auto auto; column-gap: 12px; align-items: center; width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--text-primary); font: inherit; text-align: left; cursor: pointer; }
+.mh-sheet > button > span { grid-row: span 2; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: var(--surface-2); font-size: 22px; }
+.mh-sheet > button b, .mh-sheet-people b { font-size: 15px; font-weight: 700; }
+.mh-sheet > button small, .mh-sheet-people small { font-size: 12.5px; color: var(--text-muted); }
+.mh-sheet-people { display: grid; gap: 6px; }
+.mh-sheet-people button { grid-template-columns: 38px 1fr; padding: 9px 12px; }
+.mh-sheet-people .mh-avatar { grid-row: span 2; }
+.mh-sheet input[type="search"] { width: 100%; padding: 11px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); font: inherit; font-size: 15px; color: var(--text-primary); }
+.mh-sheet-back { border: 0; background: none; font-size: 28px; line-height: 1; padding: 0 6px 0 0; color: var(--text-secondary); cursor: pointer; }
+@keyframes mh-fade { from { opacity: 0; } }
+@keyframes mh-up { from { transform: translateY(40px); opacity: .6; } }
+@media (max-width: 768px) {
+  /* No rubber-band at the top showing the light page behind the dark bar. */
+  html, body { overscroll-behavior-y: none; background: var(--canvas); }
+  .mobile-topbar { box-shadow: none; }
+  /* My Home: the dark bar and the greeting are one dark block. */
+  .dashboard.view-home .main-content { padding-top: 0; }
+  .view-home .mh-hello { margin: 0 -12px; padding: 6px 18px 22px; border-radius: 0 0 26px 26px; background: var(--obsidian); }
+  .view-home .mh-hello .mh-refresh { margin-top: 6px; }
+  .view-home .mh-stats { margin-top: -2px; }
+  .mobile-tabbar { grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
+  .mobile-tabbar .mobile-tabbar-new span { display: grid; place-items: center; width: 40px; height: 32px; border-radius: 12px; background: var(--red); color: #fff; font-size: 22px; font-weight: 800; filter: none; opacity: 1; }
+  .mobile-tabbar .mobile-tabbar-new { color: var(--text-primary); }
+}
+
+/* ── REFILLER APP (RefillerApp.jsx): very simple, big buttons ─────────────── */
+.rf-app { min-height: 100vh; background: var(--canvas); color: var(--text-primary); padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+.rf-app-top { position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: calc(14px + env(safe-area-inset-top)) 16px 18px; background: var(--obsidian); color: #fff; border-radius: 0 0 24px 24px; }
+.rf-app-top span { font-size: 12.5px; color: rgba(255,255,255,.65); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+.rf-app-top h1 { margin-top: 2px; font-size: 24px; font-weight: 800; color: #fff; letter-spacing: 0; }
+.rf-app-top-btns { display: flex; gap: 8px; }
+.rf-app-top-btns button { min-width: 44px; height: 44px; padding: 0 12px; border: 0; border-radius: 12px; background: rgba(255,255,255,.12); color: #fff; font: inherit; font-size: 20px; cursor: pointer; }
+.rf-app-top-btns .rf-app-logout { font-size: 13px; font-weight: 700; }
+.rf-app-main { display: grid; gap: 18px; max-width: 560px; margin: 0 auto; padding: 16px; }
+.rf-app-main h2 { margin: 0 2px 10px; font-size: 18px; font-weight: 800; }
+.rf-app-loading, .rf-app-error { margin: 16px; padding: 16px; border-radius: 14px; background: var(--surface); text-align: center; font-size: 15px; color: var(--text-secondary); }
+.rf-app-error { background: #fff5f5; color: #b91c1c; }
+.rf-app-toast { position: fixed; left: 12px; right: 12px; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 60; padding: 15px 16px; border-radius: 14px; background: #15803d; color: #fff; font-size: 16px; font-weight: 700; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+.rf-app-toast.is-bad { background: #b91c1c; }
+.rf-app-progress { display: grid; gap: 10px; padding: 18px; border-radius: 18px; background: var(--surface); border: 1px solid var(--border); }
+.rf-app-progress b { font-size: 19px; font-weight: 800; }
+.rf-app-progress small { font-size: 15px; color: #15803d; font-weight: 700; }
+.rf-app-bar { height: 14px; border-radius: 99px; background: var(--surface-3, #e5e7eb); overflow: hidden; }
+.rf-app-bar span { display: block; height: 100%; border-radius: 99px; background: #16a34a; transition: width .4s; }
+.rf-app-list { list-style: none; display: grid; gap: 12px; }
+.rf-app-card { display: grid; gap: 12px; padding: 16px; border-radius: 18px; background: var(--surface); border: 1px solid var(--border); border-left: 6px solid #94a3b8; }
+.rf-app-card.is-todo { border-left-color: #2563eb; } .rf-app-card.is-sent { border-left-color: #0ea5e9; } .rf-app-card.is-ok { border-left-color: #16a34a; }
+.rf-app-card.is-bad { border-left-color: #dc2626; } .rf-app-card.is-warn { border-left-color: #d97706; } .rf-app-card.is-problem { border-left-color: #dc2626; }
+.rf-app-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.rf-app-card-top > div { display: grid; gap: 3px; min-width: 0; }
+.rf-app-card-top b { font-size: 18px; font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
+.rf-app-card-top small { font-size: 14px; color: var(--text-muted); font-weight: 600; }
+.rf-app-pill { flex: none; padding: 6px 10px; border-radius: 10px; background: var(--surface-2); color: var(--text-secondary); font-size: 13px; font-weight: 800; text-align: center; max-width: 45%; }
+.rf-app-pill.is-todo { background: #dbeafe; color: #1e40af; } .rf-app-pill.is-sent { background: #e0f2fe; color: #075985; } .rf-app-pill.is-ok { background: #dcfce7; color: #166534; }
+.rf-app-pill.is-bad { background: #fee2e2; color: #991b1b; } .rf-app-pill.is-warn { background: #fef3c7; color: #92400e; }
+.rf-app-reason { font-size: 15px; color: var(--text-secondary); background: var(--surface-2); padding: 10px 12px; border-radius: 12px; }
+.rf-app-big { width: 100%; min-height: 56px; padding: 14px; border: 0; border-radius: 14px; background: #16a34a; color: #fff; font: inherit; font-size: 18px; font-weight: 800; cursor: pointer; }
+.rf-app-big.is-red { background: #dc2626; }
+.rf-app-big:disabled { background: #cbd5e1; color: #fff; cursor: default; }
+.rf-app-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rf-app-ghost { min-height: 48px; padding: 10px 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); color: var(--text-primary); font: inherit; font-size: 16px; font-weight: 700; cursor: pointer; }
+.rf-app-cant { display: grid; gap: 10px; }
+.rf-app-cant textarea { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 12px; font: inherit; font-size: 16px; resize: vertical; }
+.rf-app-other { width: 100%; min-height: 56px; border: 2px dashed #cbd5e1; border-radius: 16px; background: var(--surface); color: var(--text-primary); font: inherit; font-size: 17px; font-weight: 800; cursor: pointer; }
+.rf-app-sites { display: grid; gap: 8px; max-height: 50vh; overflow-y: auto; }
+.rf-app-sites button { display: grid; gap: 2px; min-height: 54px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); color: var(--text-primary); font: inherit; font-size: 16px; font-weight: 700; text-align: left; cursor: pointer; }
+.rf-app-sites small { font-size: 13px; color: var(--text-muted); font-weight: 600; }
+.rf-app-sheet-back { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-end; justify-content: center; background: rgba(2,6,23,.55); }
+.rf-app-sheet { width: 100%; max-width: 560px; display: grid; gap: 12px; padding: 20px 16px calc(18px + env(safe-area-inset-bottom)); border-radius: 24px 24px 0 0; background: var(--surface); }
+.rf-app-sheet h3 { font-size: 20px; font-weight: 800; }
+.rf-app-sheet p { font-size: 15px; color: var(--text-secondary); }
+.rf-app-photos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.rf-app-photos > div { position: relative; aspect-ratio: 1; border-radius: 14px; overflow: hidden; background: var(--surface-2); }
+.rf-app-photos img { width: 100%; height: 100%; object-fit: cover; }
+.rf-app-photos > div button { position: absolute; top: 6px; right: 6px; width: 34px; height: 34px; border: 0; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 20px; cursor: pointer; }
+.rf-app-add { display: grid; place-items: center; align-content: center; gap: 4px; aspect-ratio: 1; border: 2px dashed #cbd5e1; border-radius: 14px; background: var(--surface-2); font: inherit; font-size: 34px; cursor: pointer; }
+.rf-app-add span { font-size: 15px; font-weight: 700; color: var(--text-secondary); }
+.rf-app-cancel { width: 100%; }
+
+/* ── Login: password or a code on WhatsApp ─────────────────────────────── */
+.login-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin-bottom: 16px; border-radius: 12px; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1); }
+.login-mode button { padding: 10px 8px; border: 0; border-radius: 9px; background: transparent; color: rgba(255,255,255,.65); font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; }
+.login-mode button.is-on { background: #fff; color: #0b0f19; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+.login-otp-hint { margin: 10px 0 12px; font-size: 13.5px; color: rgba(255,255,255,.7); text-align: center; }
+.login-otp-hint b { color: #fff; }
+.login-otp-error { margin: 0 0 10px; padding: 9px 12px; border-radius: 10px; background: rgba(239,68,68,.15); color: #fecaca; font-size: 13px; }
+.login-otp-code { letter-spacing: .5em; font-size: 22px !important; text-align: center; font-weight: 700; }
+.login-otp-links { display: flex; justify-content: space-between; margin-top: 12px; }
+.login-otp-links button { border: 0; background: none; color: #93c5fd; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.login-otp-links button:disabled { opacity: .5; }
