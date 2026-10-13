@@ -19,6 +19,7 @@ import { siteOf, NOT_MATCHED } from "./analyticsData.js";
 import { WaitBadge, RiskBadge, WatchStrip, CustomerHistory, TicketAlertsCard } from "./TicketWatch.jsx";
 import { DEFAULT_WATCH_HOURS, waitInfo, needsRefundCheck, refundWarnings } from "./ticketWatchData.js";
 import AccountPanel from "./AccountPanel.jsx";
+import MyHome from "./MyHome.jsx";
 import MentionText, { MentionSuggestions, TaskLine } from "./MentionText.jsx";
 import { useMentionInput, mentionIds } from "./mentions.js";
 import "./styles.css";
@@ -64,7 +65,7 @@ const API = axios.create({
 // The installed app (see public/manifest.webmanifest) opens with ?view=internal-chat
 const LAUNCH_PARAMS = new URLSearchParams(window.location.search);
 // Notifications can also open straight into Internal Audit (?view=findings).
-const LAUNCH_VIEW = ["internal-chat", "findings", "refills", "tickets", "call-log"].includes(LAUNCH_PARAMS.get("view")) ? LAUNCH_PARAMS.get("view") : null;
+const LAUNCH_VIEW = ["home", "internal-chat", "findings", "refills", "tickets", "call-log"].includes(LAUNCH_PARAMS.get("view")) ? LAUNCH_PARAMS.get("view") : null;
 // Tapping a chat notification opens ?view=internal-chat&chat=<id>&department=<dept>
 const LAUNCH_CHAT = LAUNCH_PARAMS.get("chat") ? { chatId: LAUNCH_PARAMS.get("chat"), department: LAUNCH_PARAMS.get("department") } : null;
 // The Operations pages (inventory, clients, brands, demand, imports…) are hidden: nothing feeds
@@ -229,7 +230,8 @@ export default function App() {
   const [editingRefundId, setEditingRefundId] = useState(null);
   const [refundAmountInput, setRefundAmountInput] = useState("");
 
-  const [requestedView, setView] = useState(LAUNCH_VIEW || "tickets");
+  // Employees open on My Home (their tasks, messages and pages); the owner login on Tickets.
+  const [requestedView, setView] = useState(LAUNCH_VIEW || (userRole === "admin" ? "tickets" : "home"));
   // The shared owner login is "admin" in chats; named admins keep their own chat identity.
   const isOwner = userRole === "admin";
   const myAccess = access || defaultAccess(userRole, currentUserDepartment);
@@ -241,7 +243,7 @@ export default function App() {
   const viewAllowed = (name) => {
     if (OPERATIONS_VIEWS.includes(name)) return canAccessOperations;
     if (["employees", "admin-settings"].includes(name)) return isAdmin;
-    if (["internal-chat", "call-log"].includes(name)) return true;
+    if (["home", "internal-chat", "call-log"].includes(name)) return true;
     if (name === "packaged-supply") return can("supply");
     if (name === "live-stock") return can("live_stock");
     if (name === "product-list") return can("product_list");
@@ -250,7 +252,7 @@ export default function App() {
     if (name === "sale-data") return can("sales_data");
     return ALL_PAGE_KEYS.includes(name) ? can(name) : false;
   };
-  const view = viewAllowed(requestedView) ? requestedView : can("tickets") ? "tickets" : "internal-chat";
+  const view = viewAllowed(requestedView) ? requestedView : !isOwner ? "home" : can("tickets") ? "tickets" : "internal-chat";
   // Pages that stay loaded in the background refresh only while they're the page on screen.
   useEffect(() => { document.body.dataset.view = view; }, [view]);
   // Like app tabs: once opened, these pages stay loaded (hidden) so going back is instant;
@@ -262,6 +264,28 @@ export default function App() {
   if (keptPages.token !== token) setKeptPages({ token, pages: [] });
   else if (KEEP_ALIVE_PAGES.includes(view) && !keptPages.pages.includes(view)) setKeptPages({ token, pages: [...keptPages.pages, view] });
   const keepPage = (name) => view === name || (keptPages.token === token && keptPages.pages.includes(name));
+  // My Home opens an Internal Audit action or a Call Log task straight away.
+  const [findingsFocus, setFindingsFocus] = useState(null);
+  const [callLogFocus, setCallLogFocus] = useState(null);
+  // Big buttons on My Home: every page this person can open.
+  const homePages = [
+    ["internal-chat", "💬", "Internal Chat", "Team chats & tasks"],
+    ["call-log", "📞", "Call Log", "Calls & tasks"],
+    ["findings", "📋", "Internal Audit", "Findings & actions"],
+    ["audit", "✅", "Refill Audit", "Machine checks"],
+    ["refills", "🗓️", "Refill Schedule", "Refill plan"],
+    ["live-stock", "📦", "Live Stock", "Stock per location"],
+    ["closing-stock", "📝", "Closing Stock", "Count a location"],
+    ["product-list", "🏷️", "Product List", "Products & prices"],
+    ["sale-data", "📈", "Sale Data", "Sales by location"],
+    ["supply", "🍎", "Fruits Supply", "Orders & DCs"],
+    ["packaged-supply", "🧃", "Direct Supply", "Packaged orders"],
+    ["tickets", "🎫", "Support Tickets", "Customer issues"],
+    ["feedback", "⭐", "Feedback", "Customer feedback"],
+    ["products", "💡", "Product Leads", "Requests"],
+    ["analytics", "📊", "Refund Analytics", "Refunds"],
+    ["supply-analytics", "📊", "Supply Analytics", "Supply numbers"],
+  ].filter(([name]) => viewAllowed(name)).map(([name, icon, label, hint]) => ({ view: name, icon, label, hint }));
   // Mobile-only UI state (ignored by the desktop layout)
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobileChatPane, setMobileChatPane] = useState(LAUNCH_CHAT ? "conversation" : "list");
@@ -739,7 +763,7 @@ export default function App() {
       setCurrentUserDepartment(res.data.department || "Accounts");
       setCurrentUserId(res.data.userId || "");
       setSelectedDepartment(res.data.department || "Accounts");
-      setView(LAUNCH_VIEW || (res.data.isAdmin || (res.data.pages || []).includes("tickets") ? "tickets" : "internal-chat"));
+      setView(LAUNCH_VIEW || ((res.data.role || "admin") === "admin" ? "tickets" : "home"));
       setSessionExpired(false);
     } catch (err) {
       alert(err.response?.status === 401 ? "Wrong username or password" : "Login failed. Check your connection and try again.");
@@ -1775,6 +1799,18 @@ export default function App() {
         <span>{adminProfile.displayName || "Snackit"}</span>
       </header>
       {mobileNavOpen && <div className="mobile-nav-backdrop" onClick={() => setMobileNavOpen(false)} />}
+      {/* ── MOBILE BOTTOM BAR (phones only; hidden inside a conversation) ───── */}
+      {!(view === "internal-chat" && mobileChatPane === "conversation") && !activeChat && (
+        <nav className="mobile-tabbar" aria-label="Main">
+          {[["home", "🏠", "Home"], ["internal-chat", "💬", "Chats"], ["call-log", "📞", "Calls"]].map(([name, icon, label]) => (
+            <button key={name} type="button" className={view === name ? "is-on" : ""} onClick={() => { if (name === "internal-chat") setMobileChatPane("list"); setView(name); }}>
+              <span aria-hidden="true">{icon}</span>{label}
+              {name === "internal-chat" && internalChats.some((chat) => Number(chat.unread || 0) > 0) && <i className="mobile-tabbar-dot" />}
+            </button>
+          ))}
+          <button type="button" className={mobileNavOpen ? "is-on" : ""} onClick={() => setMobileNavOpen(true)}><span aria-hidden="true">☰</span>Menu</button>
+        </nav>
+      )}
 
       {/* ── SIDEBAR ─────────────────────────────────────────────────────────── */}
       <aside className={`sidebar ${mobileNavOpen ? "mobile-open" : ""}`}>
@@ -1784,6 +1820,10 @@ export default function App() {
         </div>
 
         <nav className="sidebar-nav">
+          <button className={`nav-item ${view === "home" ? "active" : ""}`} onClick={() => setView("home")}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" /></svg>
+            <span>My Home</span>
+          </button>
           {(can("tickets") || can("feedback") || can("products")) && <div className="sidebar-section-label">Main Menu</div>}
           {can("tickets") && <button
             className={`nav-item ${view === "tickets" ? "active" : ""}`}
@@ -1993,6 +2033,7 @@ export default function App() {
         <div className="page-header">
           <div className="page-title">
             <h1>
+              {view === "home" && "My Home"}
               {view === "tickets" && "Support Tickets"}
               {view === "feedback" && "Customer Feedback"}
               {view === "products" && "Product Leads"}
@@ -2179,8 +2220,25 @@ export default function App() {
               internalUsers={internalUsers}
               departments={departments}
               version={callLogVersion}
+              focus={callLogFocus}
             />
           </div>
+        )}
+
+        {view === "home" && (
+          <MyHome
+            token={token}
+            name={currentUserName}
+            department={currentUserDepartment}
+            pages={homePages}
+            onView={setView}
+            onOpen={(open) => {
+              if (open.view === "internal-chat") return openChatFromNotification(open);
+              if (open.view === "findings") setFindingsFocus({ id: open.id, at: Date.now() });
+              if (open.view === "call-log") setCallLogFocus({ id: open.id, at: Date.now() });
+              setView(open.view);
+            }}
+          />
         )}
 
         {keepPage("findings") && (
@@ -2192,6 +2250,7 @@ export default function App() {
             currentUserId={currentUserId}
             internalUsers={internalUsers}
             departments={departments}
+            focus={findingsFocus}
           />
           </div>
         )}

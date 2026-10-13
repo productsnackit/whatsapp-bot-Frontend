@@ -244,7 +244,7 @@ function FollowUps({ finding, currentUserName, onAdd, onClose }) {
 }
 
 /* ---------- Page ---------- */
-export default function FindingsWorkspace({ token, isAdmin, currentUserName, currentUserId, internalUsers, departments }) {
+export default function FindingsWorkspace({ token, isAdmin, currentUserName, currentUserId, internalUsers, departments, focus }) {
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
   const [findings, setFindings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -262,6 +262,9 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
   const [followUpId, setFollowUpId] = useState(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  // Opened from My Home: show that action's details and follow-ups.
+  const [focusSeen, setFocusSeen] = useState(null);
+  if (focus && focus !== focusSeen) { setFocusSeen(focus); setFollowUpId(focus.id); }
 
   const notify = useCallback((message, isError = false) => {
     setToast({ message, isError });

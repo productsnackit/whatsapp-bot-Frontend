@@ -333,7 +333,7 @@ function TaskDetails({ task, employees, departments, canChange, isAdmin, onUpdat
 }
 
 /* ---------- Page ---------- */
-export default function CallLogWorkspace({ token, isAdmin, currentUserId, currentUserName, internalUsers, departments, version }) {
+export default function CallLogWorkspace({ token, isAdmin, currentUserId, currentUserName, internalUsers, departments, version, focus }) {
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
   const [tasks, setTasks] = useState([]);
   const [people, setPeople] = useState([]);
@@ -348,6 +348,9 @@ export default function CallLogWorkspace({ token, isAdmin, currentUserId, curren
   const [raising, setRaising] = useState(false);
   const [openId, setOpenId] = useState(null);
   const [now, setNow] = useState(() => Date.now());
+  // Opened from My Home: show that task.
+  const [focusSeen, setFocusSeen] = useState(null);
+  if (focus && focus !== focusSeen) { setFocusSeen(focus); setOpenId(focus.id); }
 
   const notify = useCallback((message, isError = false) => {
     setToast({ message, isError });
