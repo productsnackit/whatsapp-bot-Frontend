@@ -70,6 +70,66 @@ function findingRowsFromCsv(text) {
   return lines.map((cells) => Object.fromEntries(keys.map((key, i) => [key, cells[i]]).filter(([key]) => key)));
 }
 
+const MAX_FILE_MB = 15;
+const fileSize = (bytes) => (bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
+const fileIcon = (file) => (file.kind === "image" ? "🖼️" : /pdf/i.test(file.mime || file.name) ? "📕" : /sheet|excel|csv|xls/i.test(file.mime || file.name) ? "📊" : /word|doc/i.test(file.mime || file.name) ? "📝" : "📎");
+const readFileData = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve({ name: file.name, type: file.type || "application/octet-stream", data: reader.result });
+  reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
+  reader.readAsDataURL(file);
+});
+
+/* Locations it's about: search and tick (Refill Audit locations); chosen ones show as chips. */
+function LocationPicker({ value, options, onChange }) {
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const chosen = value || [];
+  const query = search.trim().toLowerCase();
+  const shown = options.filter((name) => !query || name.toLowerCase().includes(query));
+  const toggle = (name) => onChange(chosen.includes(name) ? chosen.filter((item) => item !== name) : [...chosen, name]);
+  return (
+    <div className="fnd-locs">
+      {chosen.length > 0 && (
+        <div className="fnd-loc-chips">
+          {chosen.map((name) => <span key={name}>📍 {name}<button type="button" aria-label={`Remove ${name}`} onClick={() => toggle(name)}>×</button></span>)}
+        </div>
+      )}
+      <input value={search} onChange={(e) => { setSearch(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)}
+        placeholder={options.length ? "Search a location to add (e.g. Bitgo, Fortis)…" : "No locations set up yet (Refill Audit → Locations)"} />
+      {open && options.length > 0 && (
+        <div className="fnd-loc-list">
+          {shown.slice(0, 60).map((name) => (
+            <label key={name} className={chosen.includes(name) ? "is-on" : ""}>
+              <input type="checkbox" checked={chosen.includes(name)} onChange={() => toggle(name)} /> {name}
+            </label>
+          ))}
+          {!shown.length && <p>No location matches “{search}”.</p>}
+          <button type="button" className="fnd-loc-done" onClick={() => { setOpen(false); setSearch(""); }}>Done</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Files on a finding: open, and remove (the person who attached it, or an admin). */
+function AttachmentList({ files, onRemove, currentUserName, isAdmin }) {
+  if (!files?.length) return null;
+  return (
+    <ul className="fnd-files">
+      {files.map((file, index) => (
+        <li key={`${file.url}-${index}`}>
+          <a href={file.url} target="_blank" rel="noreferrer" className="fnd-file">
+            {file.kind === "image" ? <img src={file.url.replace("/image/upload/", "/image/upload/c_fill,w_96,h_96,q_auto,f_auto/")} alt="" /> : <span className="fnd-file-icon">{fileIcon(file)}</span>}
+            <span><b>{file.name}</b><small>{fileSize(file.size || 0)}{file.by ? ` · ${file.by}` : ""}</small></span>
+          </a>
+          {onRemove && (isAdmin || file.by === currentUserName) && <button type="button" className="audit-link-danger" onClick={() => onRemove(index, file)}>Remove</button>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 const emptyForm = (department) => ({
   department: department || "Operations",
   observed_on: today(),
@@ -81,17 +141,26 @@ const emptyForm = (department) => ({
   action_plan: "",
   assignee_id: "",
   due_date: "",
+  locations: [],
 });
 
 /* ---------- Log / edit a finding ---------- */
-function FindingForm({ initial, departments, employees, saving, error, onSave, onClose }) {
+function FindingForm({ initial, departments, employees, locations, saving, error, onSave, onClose, onRemoveFile, currentUserName, isAdmin }) {
   const [form, setForm] = useState(initial);
+  const [files, setFiles] = useState([]); // new files, sent after the finding is saved
+  const [fileError, setFileError] = useState("");
+  const addFiles = (list) => {
+    const picked = [...list];
+    const tooBig = picked.filter((file) => file.size > MAX_FILE_MB * 1048576);
+    setFileError(tooBig.length ? `${tooBig.map((file) => file.name).join(", ")} ${tooBig.length === 1 ? "is" : "are"} over ${MAX_FILE_MB} MB` : "");
+    setFiles((current) => [...current, ...picked.filter((file) => file.size <= MAX_FILE_MB * 1048576)].slice(0, 10 - (initial.attachments || []).length));
+  };
   const set = (key) => (event) => setForm((prev) => ({ ...prev, [key]: event.target.value }));
   const editing = Boolean(initial.id);
 
   return (
     <div className="fnd-backdrop" onClick={onClose}>
-      <form className="fnd-modal" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); onSave(form); }}>
+      <form className="fnd-modal" onClick={(event) => event.stopPropagation()} onSubmit={(event) => { event.preventDefault(); onSave(form, files); }}>
         <div className="fnd-modal-head">
           <h3>{editing ? `Edit ${initial.ref}` : "Log audit observation"}</h3>
           <button type="button" className="fnd-close" onClick={onClose} aria-label="Close">×</button>
@@ -111,6 +180,10 @@ function FindingForm({ initial, departments, employees, saving, error, onSave, o
                 {RISKS.map(([value, hint]) => <option key={value} value={value}>{value}: {hint}</option>)}
               </select>
             </label>
+          </div>
+          <div className="fnd-field">
+            <span className="fnd-field-label">Location(s)</span>
+            <LocationPicker value={form.locations} options={locations} onChange={(next) => setForm((prev) => ({ ...prev, locations: next }))} />
           </div>
           <label>Finding / non-conformance *
             <input value={form.title} onChange={set("title")} placeholder="Short statement of what's wrong" required />
@@ -147,12 +220,32 @@ function FindingForm({ initial, departments, employees, saving, error, onSave, o
               </select>
             </label>
           </div>
+          <div className="fnd-field">
+            <span className="fnd-field-label">Attach files <small>(photos, PDF, Excel, Word · up to {MAX_FILE_MB} MB each, 10 per finding)</small></span>
+            <AttachmentList files={initial.attachments} onRemove={editing ? onRemoveFile : null} currentUserName={currentUserName} isAdmin={isAdmin} />
+            {files.length > 0 && (
+              <ul className="fnd-files fnd-files-new">
+                {files.map((file, index) => (
+                  <li key={`${file.name}-${index}`}>
+                    <span className="fnd-file"><span className="fnd-file-icon">{fileIcon({ kind: /^image\//.test(file.type) ? "image" : "", mime: file.type, name: file.name })}</span><span><b>{file.name}</b><small>{fileSize(file.size)} · will be attached when you save</small></span></span>
+                    <button type="button" className="audit-link-danger" onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}>Remove</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {(initial.attachments || []).length + files.length < 10 && (
+              <label className="fnd-attach-btn">📎 Add files
+                <input type="file" multiple hidden accept="image/*,.pdf,.xls,.xlsx,.csv,.doc,.docx,.ppt,.pptx,.txt" onChange={(e) => { const list = [...(e.target.files || [])]; e.target.value = ""; addFiles(list); }} />
+              </label>
+            )}
+            {fileError && <div className="audit-error">{fileError}</div>}
+          </div>
           {!editing && <p className="fnd-hint">The action owner gets a notification on their phone.</p>}
           {error && <div className="audit-error">{error}</div>}
         </div>
         <div className="fnd-modal-foot">
           <button type="button" className="audit-btn" onClick={onClose}>Cancel</button>
-          <button type="submit" className="audit-btn audit-btn-primary" disabled={saving}>{saving ? "Saving…" : editing ? "Save changes" : "Save finding"}</button>
+          <button type="submit" className="audit-btn audit-btn-primary" disabled={Boolean(saving)}>{saving ? (typeof saving === "string" ? saving : "Saving…") : editing ? "Save changes" : "Save finding"}</button>
         </div>
       </form>
     </div>
@@ -160,7 +253,8 @@ function FindingForm({ initial, departments, employees, saving, error, onSave, o
 }
 
 /* ---------- Follow-up trail ---------- */
-function FollowUps({ finding, currentUserName, onAdd, onClose }) {
+function FollowUps({ finding, currentUserName, isAdmin, onAdd, onAttach, onRemoveFile, onClose }) {
+  const [attaching, setAttaching] = useState(false);
   const [entry, setEntry] = useState({ date: today(), auditor: currentUserName || "", status: finding.status === "Open" ? "In Progress" : finding.status, notes: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -197,7 +291,19 @@ function FollowUps({ finding, currentUserName, onAdd, onClose }) {
             <div><span>Action owner</span><b>{finding.assignee_name || "—"}</b></div>
             <div><span>Due</span><b className={isOverdue(finding) ? "fnd-overdue-text" : ""}>{formatDate(finding.due_date)}{isOverdue(finding) ? " · overdue" : ""}</b></div>
             <div><span>Status</span><b><span className={`audit-pill fnd-tone-${STATUS_TONE[finding.status]}`}>{finding.status}</span></b></div>
+            {(finding.locations || []).length > 0 && <p><span>Location(s)</span>{finding.locations.map((name) => `📍 ${name}`).join("   ")}</p>}
             <p><span>Action plan</span>{finding.action_plan}</p>
+          </div>
+
+          <div className="fnd-field">
+            <span className="fnd-field-label">Files ({(finding.attachments || []).length})</span>
+            <AttachmentList files={finding.attachments} onRemove={(index, file) => onRemoveFile(finding, index, file)} currentUserName={currentUserName} isAdmin={isAdmin} />
+            {(finding.attachments || []).length < 10 && (
+              <label className={`fnd-attach-btn ${attaching ? "is-busy" : ""}`}>{attaching ? "Uploading…" : "📎 Attach files"}
+                <input type="file" multiple hidden disabled={attaching} accept="image/*,.pdf,.xls,.xlsx,.csv,.doc,.docx,.ppt,.pptx,.txt"
+                  onChange={async (e) => { const list = [...(e.target.files || [])]; e.target.value = ""; if (!list.length) return; setAttaching(true); try { await onAttach(finding, list); } finally { setAttaching(false); } }} />
+              </label>
+            )}
           </div>
 
           <form className="fnd-followup-form" onSubmit={submit}>
@@ -262,6 +368,8 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
   const [followUpId, setFollowUpId] = useState(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const [locationOptions, setLocationOptions] = useState([]);
+  const [locFilter, setLocFilter] = useState("ALL");
   // Opened from My Home: show that action's details and follow-ups.
   const [focusSeen, setFocusSeen] = useState(null);
   if (focus && focus !== focusSeen) { setFocusSeen(focus); if (focus.new) { setFormError(""); setEditing(emptyForm()); } else setFollowUpId(focus.id); }
@@ -292,6 +400,10 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
     return () => { active = false; };
   }, [headers]);
 
+  useEffect(() => {
+    API.get("/findings/locations", { headers }).then((response) => setLocationOptions(Array.isArray(response.data) ? response.data : [])).catch(() => {});
+  }, [headers]);
+
   const replace = (finding) => setFindings((prev) => {
     const exists = prev.some((item) => item.id === finding.id);
     return exists ? prev.map((item) => (item.id === finding.id ? finding : item)) : [finding, ...prev];
@@ -314,31 +426,69 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
 
   const query = search.trim().toLowerCase();
   const filtered = findings.filter((f) =>
-    (!query || [f.ref, f.department, f.title, f.description, f.assignee_name, f.root_cause, f.action_plan].some((v) => String(v || "").toLowerCase().includes(query)))
+    (!query || [f.ref, f.department, f.title, f.description, f.assignee_name, f.root_cause, f.action_plan, ...(f.locations || [])].some((v) => String(v || "").toLowerCase().includes(query)))
+    && (locFilter === "ALL" || (f.locations || []).includes(locFilter))
     && (statusFilter === "ALL" || f.status === statusFilter)
     && (riskFilter === "ALL" || f.risk === riskFilter)
     && (deptFilter === "ALL" || f.department === deptFilter)
     && (!onlyOverdue || isOverdue(f))
     && (!onlyMine || String(f.assignee_id) === String(currentUserId))
   );
-  const filtersOn = query || statusFilter !== "ALL" || riskFilter !== "ALL" || deptFilter !== "ALL" || onlyOverdue || onlyMine;
-  const clearFilters = () => { setSearch(""); setStatusFilter("ALL"); setRiskFilter("ALL"); setDeptFilter("ALL"); setOnlyOverdue(false); setOnlyMine(false); };
+  const filtersOn = query || statusFilter !== "ALL" || riskFilter !== "ALL" || deptFilter !== "ALL" || locFilter !== "ALL" || onlyOverdue || onlyMine;
+  const clearFilters = () => { setSearch(""); setStatusFilter("ALL"); setRiskFilter("ALL"); setDeptFilter("ALL"); setLocFilter("ALL"); setOnlyOverdue(false); setOnlyMine(false); };
+  const usedLocations = [...new Set(findings.flatMap((f) => f.locations || []))].sort();
 
-  const save = async (form) => {
+  // Files go one by one after the finding is saved (each up to 15 MB).
+  const uploadFiles = async (finding, files) => {
+    let latest = finding;
+    const failed = [];
+    for (const [index, file] of files.entries()) {
+      setSaving(`Uploading file ${index + 1} of ${files.length}…`);
+      try {
+        latest = (await API.post(`/findings/${finding.id}/attachments`, { file: await readFileData(file) }, { headers })).data;
+      } catch (err) {
+        failed.push(`${file.name}: ${err.response?.data?.error || "upload failed"}`);
+      }
+    }
+    replace(latest);
+    return failed;
+  };
+  const attachToFinding = async (finding, files) => {
+    const failed = await uploadFiles(finding, files.filter((file) => file.size <= MAX_FILE_MB * 1048576));
+    setSaving(false);
+    const skipped = files.filter((file) => file.size > MAX_FILE_MB * 1048576).map((file) => `${file.name} is over ${MAX_FILE_MB} MB`);
+    if (failed.length || skipped.length) notify([...failed, ...skipped].join(" · "), true);
+    else notify(`${files.length} file${files.length === 1 ? "" : "s"} attached to ${finding.ref}`);
+  };
+  const removeFile = async (finding, index, file) => {
+    if (!window.confirm(`Remove "${file.name}" from ${finding.ref}?`)) return;
+    try {
+      const response = await API.delete(`/findings/${finding.id}/attachments/${index}`, { headers, params: { url: file.url } });
+      replace(response.data);
+      setEditing((current) => (current && current.id === finding.id ? { ...current, attachments: response.data.attachments } : current));
+      notify("File removed");
+    } catch (err) {
+      notify(err.response?.data?.error || "Could not remove the file", true);
+    }
+  };
+
+  const save = async (form, files = []) => {
     setSaving(true);
     setFormError("");
     try {
       const payload = {
         department: form.department, observed_on: dateOnly(form.observed_on), title: form.title, description: form.description,
         risk: form.risk, status: form.status, root_cause: form.root_cause || "", action_plan: form.action_plan,
-        assignee_id: form.assignee_id, due_date: dateOnly(form.due_date),
+        assignee_id: form.assignee_id, due_date: dateOnly(form.due_date), locations: form.locations || [],
       };
       const response = form.id
         ? await API.patch(`/findings/${form.id}`, payload, { headers })
         : await API.post("/findings", payload, { headers });
       replace(response.data);
+      const failed = files.length ? await uploadFiles(response.data, files) : [];
       setEditing(null);
-      notify(form.id ? `${response.data.ref} updated` : `${response.data.ref} logged · ${response.data.assignee_name} notified`);
+      if (failed.length) notify(`${response.data.ref} saved, but some files didn't attach: ${failed.join(" · ")}`, true);
+      else notify(form.id ? `${response.data.ref} updated` : `${response.data.ref} logged · ${response.data.assignee_name} notified${files.length ? ` · ${files.length} file${files.length === 1 ? "" : "s"} attached` : ""}`);
     } catch (err) {
       setFormError(err.response?.data?.error || "Could not save. Check your connection and try again.");
     } finally {
@@ -375,8 +525,8 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
   };
 
   const exportCsv = () => downloadCsv(`Snackit_Audit_Findings_${today()}.csv`, [
-    ["Ref", "Department", "Observed", "Finding", "Evidence", "Risk", "Status", "Root cause", "Action plan", "Action owner", "Due", "Overdue", "Follow-ups", "Logged by"],
-    ...filtered.map((f) => [f.ref, f.department, dateOnly(f.observed_on), f.title, f.description, f.risk, f.status, f.root_cause, f.action_plan, f.assignee_name, dateOnly(f.due_date), isOverdue(f) ? "YES" : "NO", (f.follow_ups || []).length, f.created_by]),
+    ["Ref", "Department", "Locations", "Observed", "Finding", "Evidence", "Risk", "Status", "Root cause", "Action plan", "Action owner", "Due", "Overdue", "Follow-ups", "Files", "Logged by"],
+    ...filtered.map((f) => [f.ref, f.department, (f.locations || []).join("; "), dateOnly(f.observed_on), f.title, f.description, f.risk, f.status, f.root_cause, f.action_plan, f.assignee_name, dateOnly(f.due_date), isOverdue(f) ? "YES" : "NO", (f.follow_ups || []).length, (f.attachments || []).map((file) => file.url).join(" "), f.created_by]),
   ]);
 
   const importCsv = async (event) => {
@@ -441,6 +591,12 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
             <option value="ALL">All departments</option>
             {departments.map((department) => <option key={department}>{department}</option>)}
           </select>
+          {usedLocations.length > 0 && (
+            <select value={locFilter} onChange={(e) => setLocFilter(e.target.value)} aria-label="Location">
+              <option value="ALL">All locations</option>
+              {usedLocations.map((name) => <option key={name}>{name}</option>)}
+            </select>
+          )}
           {!isAdmin && (
             <label className="audit-check fnd-mine"><input type="checkbox" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} /> Assigned to me</label>
           )}
@@ -504,6 +660,8 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
                       {f.root_cause && <p className="fnd-rca"><b>Root cause:</b> {f.root_cause}</p>}
                       <div className="fnd-meta">
                         <span>{f.department}</span>
+                        {(f.locations || []).length > 0 && <span>📍 {f.locations.join(", ")}</span>}
+                        {(f.attachments || []).length > 0 && <button type="button" className="fnd-files-link" onClick={() => setFollowUpId(f.id)}>📎 {f.attachments.length} file{f.attachments.length === 1 ? "" : "s"}</button>}
                         <span>Observed {formatDate(f.observed_on)}</span>
                         <span>Owner <b>{f.assignee_name || "—"}</b></span>
                         <span className={overdue ? "fnd-overdue-text" : ""}>Due {formatDate(f.due_date)}</span>
@@ -536,14 +694,18 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
           initial={editing}
           departments={departments}
           employees={internalUsers}
+          locations={locationOptions}
           saving={saving}
           error={formError}
           onSave={save}
+          onRemoveFile={(index, file) => removeFile(editing, index, file)}
+          currentUserName={currentUserName}
+          isAdmin={isAdmin}
           onClose={() => setEditing(null)}
         />
       )}
       {followUpFinding && (
-        <FollowUps key={followUpFinding.id} finding={followUpFinding} currentUserName={currentUserName} onAdd={addFollowUp} onClose={() => setFollowUpId(null)} />
+        <FollowUps key={followUpFinding.id} finding={followUpFinding} currentUserName={currentUserName} isAdmin={isAdmin} onAdd={addFollowUp} onAttach={attachToFinding} onRemoveFile={removeFile} onClose={() => setFollowUpId(null)} />
       )}
     </div>
   );
