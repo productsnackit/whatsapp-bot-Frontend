@@ -41,6 +41,7 @@ const PAGE_LOADERS = {
   ProductList: () => import("./ProductList.jsx"),
   ClosingStock: () => import("./ClosingStock.jsx"),
   SalesData: () => import("./SalesData.jsx"),
+  InvoicesPage: () => import("./InvoicesPage.jsx"),
 };
 const OperationsWorkspace = lazy(PAGE_LOADERS.OperationsWorkspace);
 const AuditWorkspace = lazy(PAGE_LOADERS.AuditWorkspace);
@@ -56,6 +57,7 @@ const LiveStock = lazy(PAGE_LOADERS.LiveStock);
 const ProductList = lazy(PAGE_LOADERS.ProductList);
 const ClosingStock = lazy(PAGE_LOADERS.ClosingStock);
 const SalesData = lazy(PAGE_LOADERS.SalesData);
+const InvoicesPage = lazy(PAGE_LOADERS.InvoicesPage);
 
 
 const API = axios.create({
@@ -74,7 +76,7 @@ const SHOW_OPERATIONS = false;
 // A "customer replied" notification opens ?view=tickets&ticket=<id>&phone=<phone>
 const LAUNCH_TICKET = LAUNCH_PARAMS.get("ticket") ? { ticketId: LAUNCH_PARAMS.get("ticket"), phone: LAUNCH_PARAMS.get("phone") || "" } : null;
 // Pages a person can be given (the server decides; this mirrors it for the menu).
-const ALL_PAGE_KEYS = ["tickets", "feedback", "products", ...(SHOW_OPERATIONS ? ["operations"] : []), "audit", "refills", "supply", "findings", "analytics", "activity", "settings"];
+const ALL_PAGE_KEYS = ["tickets", "feedback", "products", ...(SHOW_OPERATIONS ? ["operations"] : []), "audit", "refills", "supply", "findings", "analytics", "invoices", "activity", "settings"];
 const OPERATIONS_VIEWS = ["inventory", "clients", "brands", "performance", "leads", "routes", "demand", "import"];
 // Until the server answers /me, people keep what they had before roles existed.
 function defaultAccess(role, department) {
@@ -252,6 +254,7 @@ export default function App() {
     if (name === "closing-stock") return can("closing_stock");
     if (name === "supply-analytics") return can("supply") || can("analytics");
     if (name === "sale-data") return can("sales_data");
+    if (name === "invoices") return can("invoices");
     return ALL_PAGE_KEYS.includes(name) ? can(name) : false;
   };
   const view = viewAllowed(requestedView) ? requestedView : !isOwner ? "home" : can("tickets") ? "tickets" : "internal-chat";
@@ -282,6 +285,7 @@ export default function App() {
     ["closing-stock", "📝", "Closing Stock", "Count a location"],
     ["product-list", "🏷️", "Product List", "Products & prices"],
     ["sale-data", "📈", "Sale Data", "Sales by location"],
+    ["invoices", "🧾", "Invoices", "Make TRIPNINE invoices"],
     ["supply", "🍎", "Fruits Supply", "Orders & DCs"],
     ["packaged-supply", "🧃", "Direct Supply", "Packaged orders"],
     ["tickets", "🎫", "Support Tickets", "Customer issues"],
@@ -2074,6 +2078,13 @@ export default function App() {
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 17l5-5 4 4 8-8" /><path d="M14 8h6v6" /></svg>
             <span>Sale Data</span>
           </button>}
+          {can("invoices") && <button
+            className={`nav-item ${view === "invoices" ? "active" : ""}`}
+            onClick={() => setView("invoices")}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6M8 13h8M8 17h5" /></svg>
+            <span>Invoices</span>
+          </button>}
           <button
             className={`nav-item ${view === "call-log" ? "active" : ""}`}
             onClick={() => setView("call-log")}
@@ -2178,6 +2189,7 @@ export default function App() {
               {view === "analytics" && "Refund Analytics"}
               {view === "supply-analytics" && "Supply Analytics"}
               {view === "sale-data" && "Sale Data"}
+              {view === "invoices" && "Invoices"}
               {view === "internal-chat" && "Internal Chat"}
               {view === "employees" && "Employees & Access"}
               {view === "activity" && "Activity Log"}
@@ -2206,6 +2218,7 @@ export default function App() {
               {view === "call-log" && "Tasks and concerns sent to employees on WhatsApp · who has it and how long it takes"}
               {view === "analytics" && "Complaints, refunds and resolution · India time"}
               {view === "supply-analytics" && "Fruits Supply and Direct Supply (packaged) · by delivery date, India time"}
+              {view === "invoices" && "TRIPNINE invoices · booking Excel → invoice PDF"}
               {view === "sale-data" && "What the machines sold · per location, against the period before · from the Wendor reports"}
               {view === "internal-chat" && `${departmentChats.length} active ${selectedDepartment} conversations`}
               {view === "employees" && `${internalUsers.length} people with their own login`}
@@ -3148,6 +3161,7 @@ export default function App() {
         {/* ── ANALYTICS VIEW ──────────────────────────────────────────────── */}
         {keepPage("analytics") && <div className="kept-page" hidden={view !== "analytics"}><AnalyticsWorkspace token={token} /></div>}
         {view === "sale-data" && can("sales_data") && <SalesData token={token} />}
+        {view === "invoices" && can("invoices") && <InvoicesPage token={token} />}
         {keepPage("supply-analytics") && (can("supply") || can("analytics")) && <div className="kept-page" hidden={view !== "supply-analytics"}><SupplyAnalytics token={token} version={supplyVersion} /></div>}
         </Suspense>
       </main>
