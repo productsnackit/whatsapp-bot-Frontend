@@ -558,7 +558,7 @@ export default function AnalyticsWorkspace({ token }) {
 
   useEffect(() => {
     const timer = setTimeout(load, 0);
-    const refresh = setInterval(load, 5 * 60 * 1000);
+    const refresh = setInterval(() => { if (document.visibilityState === "visible" && document.body.dataset.view === "analytics") load(); }, 5 * 60 * 1000);
     return () => { clearTimeout(timer); clearInterval(refresh); };
   }, [load]);
 

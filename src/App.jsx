@@ -1035,7 +1035,8 @@ export default function App() {
 
   useEffect(() => {
     const first = setTimeout(refreshMe, 0);
-    const timer = setInterval(refreshMe, 60000);
+    // Only while the dashboard is on screen (a tab left open at night lets the database sleep).
+    const timer = setInterval(() => { if (document.visibilityState === "visible") refreshMe(); }, 60000);
     return () => { clearTimeout(first); clearInterval(timer); };
   }, [refreshMe]);
 
