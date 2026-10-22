@@ -142,7 +142,92 @@ function AttachmentList({ files, onRemove, currentUserName, isAdmin }) {
 
 // One box: what was found and what needs to be done. Older findings had the action plan apart.
 const detailsOf = (finding) => [finding.description || "", finding.action_plan && finding.action_plan !== finding.description ? `To do: ${finding.action_plan}` : ""].filter(Boolean).join("\n\n");
-const WA_TEXT = { SENT: "Sent on WhatsApp", FAILED: "WhatsApp not delivered", NO_PHONE: "No WhatsApp number" };
+// Who a task is with: a person, or a department (anyone in it can take it).
+const ownerText = (f) => f.assignee_name || (f.owner_department ? `${f.owner_department} team (not taken yet)` : "—");
+
+/* Forward a task to another employee or to a whole department, with a note. */
+function ForwardDialog({ finding, employees, departments, onForward, onClose }) {
+  const [mode, setMode] = useState("person");
+  const [assignee, setAssignee] = useState("");
+  const [department, setDepartment] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const teams = departments.filter((name) => employees.some((user) => user.department === name));
+  const submit = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      await onForward(finding, mode === "person" ? { assignee_id: assignee, note } : { department, note });
+    } catch (err) {
+      setError(err.response?.data?.error || "Could not forward it");
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="fnd-backdrop" onClick={onClose}>
+      <form className="fnd-modal fnd-forward" onClick={(event) => event.stopPropagation()} onSubmit={submit}>
+        <div className="fnd-modal-head">
+          <div><span className="fnd-ref">{finding.ref}</span><h3>Forward this task</h3><p className="fnd-sub">{finding.title} · now with {ownerText(finding)}</p></div>
+          <button type="button" className="fnd-close" onClick={onClose} aria-label="Close">×</button>
+        </div>
+        <div className="fnd-modal-body">
+          <div className="fnd-forward-mode" role="tablist">
+            <button type="button" className={mode === "person" ? "is-on" : ""} onClick={() => setMode("person")}>👤 To a person</button>
+            <button type="button" className={mode === "department" ? "is-on" : ""} onClick={() => setMode("department")}>👥 To a department</button>
+          </div>
+          {mode === "person" ? (
+            <label>Forward to *
+              <select value={assignee} onChange={(event) => setAssignee(event.target.value)} required>
+                <option value="">Choose an employee</option>
+                {departments.map((name) => {
+                  const people = employees.filter((user) => user.department === name && String(user.id) !== String(finding.assignee_id));
+                  return people.length ? <optgroup key={name} label={name}>{people.map((user) => <option key={user.id} value={String(user.id)}>{user.name}</option>)}</optgroup> : null;
+                })}
+              </select>
+            </label>
+          ) : (
+            <label>Forward to the department *
+              <select value={department} onChange={(event) => setDepartment(event.target.value)} required>
+                <option value="">Choose a department</option>
+                {teams.map((name) => <option key={name} value={name}>{name} ({employees.filter((user) => user.department === name).length} people)</option>)}
+              </select>
+              <small className="fnd-hint">Everyone in it gets a notification; the first to tap "Take it" gets the task.</small>
+            </label>
+          )}
+          <label>Note (optional)
+            <textarea rows={3} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Why it's going to them, or what they should do" />
+          </label>
+          {error && <div className="audit-error">{error}</div>}
+        </div>
+        <div className="fnd-modal-foot">
+          <button type="button" className="audit-btn" onClick={onClose}>Cancel</button>
+          <button type="submit" className="audit-btn audit-btn-primary" disabled={busy}>{busy ? "Forwarding…" : "↪ Forward"}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+/* The buttons for a task: the person it's with marks it In progress / Resolved and can forward
+   it; someone in the department it was forwarded to takes it; others verify and close. */
+function TaskActions({ f, me, onStatus, onForward, onTake, onVerify, onReopen }) {
+  const mine = Boolean(me.id) && String(f.assignee_id || "") === String(me.id);
+  const teamPool = !f.assignee_id && f.owner_department;
+  const canTake = teamPool && (me.department === f.owner_department || me.isAdmin);
+  const canForward = f.status !== "Closed" && (me.isAdmin || mine || f.created_by === me.name || canTake);
+  if (f.status === "Closed") return <button type="button" className="audit-btn" onClick={() => onReopen(f)}>Re-open</button>;
+  return (
+    <>
+      {canTake && <button type="button" className="audit-btn audit-btn-primary" onClick={() => onTake(f)}>🙋 Take it</button>}
+      {mine && f.status === "Open" && <button type="button" className="audit-btn fnd-btn-progress" onClick={() => onStatus(f, "In Progress")}>▶ In progress</button>}
+      {mine && <button type="button" className="audit-btn fnd-btn-good" onClick={() => onStatus(f, "Closed")}>✅ Resolved</button>}
+      {!mine && !canTake && <button type="button" className="audit-btn fnd-btn-good" onClick={() => onVerify(f)}>Verify & close</button>}
+      {canForward && <button type="button" className="audit-btn" onClick={() => onForward(f)}>↪ Forward</button>}
+    </>
+  );
+}
 
 const emptyForm = (department) => ({
   department: department || "Operations",
@@ -253,7 +338,7 @@ function FindingForm({ initial, departments, employees, locations, saving, error
             )}
             {fileError && <div className="audit-error">{fileError}</div>}
           </div>
-          {!editing && <p className="fnd-hint">The action owner gets it on WhatsApp (with Started / Done buttons) and as a phone notification.</p>}
+          {!editing && <p className="fnd-hint">The action owner gets a phone notification and sees it on their dashboard (My Home), where they mark it In progress / Resolved or forward it.</p>}
           {error && <div className="audit-error">{error}</div>}
         </div>
         <div className="fnd-modal-foot">
@@ -266,7 +351,7 @@ function FindingForm({ initial, departments, employees, locations, saving, error
 }
 
 /* ---------- Follow-up trail ---------- */
-function FollowUps({ finding, currentUserName, isAdmin, onAdd, onAttach, onRemoveFile, onClose }) {
+function FollowUps({ finding, currentUserName, isAdmin, onAdd, onAttach, onRemoveFile, onClose, actions }) {
   const [attaching, setAttaching] = useState(false);
   const [entry, setEntry] = useState({ date: today(), auditor: currentUserName || "", status: finding.status === "Open" ? "In Progress" : finding.status, notes: "" });
   const [saving, setSaving] = useState(false);
@@ -301,7 +386,7 @@ function FollowUps({ finding, currentUserName, isAdmin, onAdd, onAttach, onRemov
         <div className="fnd-modal-body">
           <div className="fnd-snapshot">
             <div><span>Department</span><b>{finding.department}</b></div>
-            <div><span>Action owner</span><b>{finding.assignee_name || "—"}</b></div>
+            <div><span>With</span><b>{ownerText(finding)}</b></div>
             <div><span>Due</span><b className={isOverdue(finding) ? "fnd-overdue-text" : ""}>{formatDate(finding.due_date)}{isOverdue(finding) ? " · overdue" : ""}</b></div>
             <div><span>Status</span><b><span className={`audit-pill fnd-tone-${STATUS_TONE[finding.status]}`}>{finding.status}</span></b></div>
             <div><span>Raised by</span><b>{finding.created_by || "—"}</b><small>{whenText(finding.created_at)}</small></div>
@@ -315,10 +400,8 @@ function FollowUps({ finding, currentUserName, isAdmin, onAdd, onAttach, onRemov
             )}
             {(finding.locations || []).length > 0 && <p><span>Location(s)</span>{finding.locations.map((name) => `📍 ${name}`).join("   ")}</p>}
             <p className="fnd-details-full"><span>Details & what needs to be done</span>{detailsOf(finding)}</p>
-            {finding.whatsapp_status && (
-              <p><span>WhatsApp</span>{finding.whatsapp_status === "SENT" ? `Sent${finding.whatsapp_delivery ? ` · ${finding.whatsapp_delivery}` : ""}` : `${WA_TEXT[finding.whatsapp_status] || "Not sent"}: ${finding.whatsapp_error || ""}`}</p>
-            )}
           </div>
+          {actions && <div className="fnd-task-actions">{actions}</div>}
 
           <div className="fnd-field">
             <span className="fnd-field-label">Files ({(finding.attachments || []).length})</span>
@@ -375,7 +458,8 @@ function FollowUps({ finding, currentUserName, isAdmin, onAdd, onAttach, onRemov
 }
 
 /* ---------- Page ---------- */
-export default function FindingsWorkspace({ token, isAdmin, currentUserName, currentUserId, internalUsers, departments, focus, version }) {
+export default function FindingsWorkspace({ token, isAdmin, currentUserName, currentUserId, currentUserDepartment, internalUsers, departments, focus, version }) {
+  const [forwarding, setForwarding] = useState(null); // finding being forwarded
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
   const [findings, setFindings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -465,7 +549,7 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
     && (riskFilter === "ALL" || f.risk === riskFilter)
     && (deptFilter === "ALL" || f.department === deptFilter)
     && (!onlyOverdue || isOverdue(f))
-    && (!onlyMine || String(f.assignee_id) === String(currentUserId))
+    && (!onlyMine || String(f.assignee_id) === String(currentUserId) || (!f.assignee_id && f.owner_department && f.owner_department === currentUserDepartment))
   );
   const filtersOn = query || statusFilter !== "ALL" || riskFilter !== "ALL" || deptFilter !== "ALL" || locFilter !== "ALL" || onlyOverdue || onlyMine;
   const clearFilters = () => { setSearch(""); setStatusFilter("ALL"); setRiskFilter("ALL"); setDeptFilter("ALL"); setLocFilter("ALL"); setOnlyOverdue(false); setOnlyMine(false); };
@@ -493,15 +577,43 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
     if (failed.length || skipped.length) notify([...failed, ...skipped].join(" · "), true);
     else notify(`${files.length} file${files.length === 1 ? "" : "s"} attached to ${finding.ref}`);
   };
-  const resendWhatsApp = async (finding) => {
+  // The person it's with: In progress / Resolved (a short note is asked for Resolved).
+  const ownerStatus = async (finding, status) => {
+    let notes = status === "In Progress" ? "Started." : "Resolved.";
+    if (status === "Closed") {
+      const typed = window.prompt(`${finding.ref}: what was done? (optional)`, "");
+      if (typed === null) return;
+      if (typed.trim()) notes = typed.trim();
+    }
     try {
-      const response = await API.post(`/findings/${finding.id}/whatsapp`, {}, { headers });
+      const response = await API.post(`/findings/${finding.id}/follow-ups`, { status, notes, date: today(), auditor: currentUserName }, { headers });
       replace(response.data);
-      notify(response.data.whatsapp_status === "SENT" ? `${finding.ref} sent to ${finding.assignee_name}'s WhatsApp` : `Not sent: ${response.data.whatsapp_error || "WhatsApp refused it"}`, response.data.whatsapp_status !== "SENT");
+      notify(status === "Closed" ? `${finding.ref} resolved · ${finding.created_by || "the person who raised it"} is told` : `${finding.ref} is in progress`);
     } catch (err) {
-      notify(err.response?.data?.error || "Could not send", true);
+      notify(err.response?.data?.error || "Could not update", true);
     }
   };
+  const forwardTask = async (finding, body) => {
+    const response = await API.post(`/findings/${finding.id}/forward`, body, { headers });
+    replace(response.data);
+    setForwarding(null);
+    notify(`${finding.ref} forwarded to ${response.data.assignee_name || `the ${response.data.owner_department} team`}`);
+  };
+  const takeTask = async (finding) => {
+    try {
+      const response = await API.post(`/findings/${finding.id}/take`, {}, { headers });
+      replace(response.data);
+      notify(`${finding.ref} is yours now`);
+    } catch (err) {
+      notify(err.response?.data?.error || "Could not take it", true);
+      load();
+    }
+  };
+  const me = { id: currentUserId, name: currentUserName, department: currentUserDepartment, isAdmin };
+  const taskActions = (f) => (
+    <TaskActions f={f} me={me} onStatus={ownerStatus} onForward={setForwarding} onTake={takeTask}
+      onVerify={(item) => quickStatus(item, "Closed")} onReopen={(item) => quickStatus(item, "Open")} />
+  );
 
   const removeFile = async (finding, index, file) => {
     if (!window.confirm(`Remove "${file.name}" from ${finding.ref}?`)) return;
@@ -519,30 +631,20 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
     setSaving(true);
     setFormError("");
     try {
-      const before = form.id ? findings.find((f) => f.id === form.id) : null;
-      const newOwner = !form.id || String(before?.assignee_id || "") !== String(form.assignee_id);
       const payload = {
         department: form.department, observed_on: dateOnly(form.observed_on), title: form.title, description: form.details.trim(),
         risk: form.risk, status: form.status, root_cause: form.root_cause || "", action_plan: "",
         assignee_id: form.assignee_id, due_date: dateOnly(form.due_date), locations: form.locations || [],
-        // With files, the WhatsApp goes once they're attached (so it can say how many and send them).
-        files_pending: files.length > 0,
       };
       const response = form.id
         ? await API.patch(`/findings/${form.id}`, payload, { headers })
         : await API.post("/findings", payload, { headers });
       replace(response.data);
       const failed = files.length ? await uploadFiles(response.data, files) : [];
-      let saved = response.data;
-      if (files.length && newOwner) {
-        setSaving("Sending on WhatsApp…");
-        saved = (await API.post(`/findings/${response.data.id}/whatsapp`, { reassigned: Boolean(form.id) }, { headers }).catch(() => ({ data: response.data }))).data;
-        replace(saved);
-      }
+      const saved = response.data;
       setEditing(null);
-      const wa = !newOwner ? "" : saved.whatsapp_status === "SENT" ? ` · sent to ${saved.assignee_name}'s WhatsApp` : ` · ${saved.assignee_name} notified (WhatsApp not sent: ${saved.whatsapp_error || "see the finding"})`;
       if (failed.length) notify(`${saved.ref} saved, but some files didn't attach: ${failed.join(" · ")}`, true);
-      else notify(form.id ? `${saved.ref} updated${wa}` : `${saved.ref} logged${wa}${files.length ? ` · ${files.length} file${files.length === 1 ? "" : "s"} attached` : ""}`, newOwner && saved.whatsapp_status !== "SENT");
+      else notify(form.id ? `${saved.ref} updated` : `${saved.ref} logged · ${saved.assignee_name} notified${files.length ? ` · ${files.length} file${files.length === 1 ? "" : "s"} attached` : ""}`);
     } catch (err) {
       setFormError(err.response?.data?.error || "Could not save. Check your connection and try again.");
     } finally {
@@ -652,7 +754,7 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
             </select>
           )}
           {!isAdmin && (
-            <label className="audit-check fnd-mine"><input type="checkbox" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} /> Assigned to me</label>
+            <label className="audit-check fnd-mine"><input type="checkbox" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} /> Mine & my team's</label>
           )}
           {filtersOn && <button type="button" className="audit-btn" onClick={clearFilters}>Clear</button>}
         </div>
@@ -716,14 +818,8 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
                         <span>{f.department}</span>
                         {(f.locations || []).length > 0 && <span>📍 {f.locations.join(", ")}</span>}
                         {(f.attachments || []).length > 0 && <button type="button" className="fnd-files-link" onClick={() => setFollowUpId(f.id)}>📎 {f.attachments.length} file{f.attachments.length === 1 ? "" : "s"}</button>}
-                        {f.whatsapp_status && f.status !== "Closed" && (
-                          <span className={f.whatsapp_status === "SENT" ? "fnd-wa-ok" : "fnd-wa-bad"} title={f.whatsapp_error || ""}>
-                            {f.whatsapp_status === "SENT" ? `✓ ${f.whatsapp_delivery === "read" ? "Read" : f.whatsapp_delivery === "delivered" ? "Delivered" : "Sent"} on WhatsApp` : `⚠ ${WA_TEXT[f.whatsapp_status] || "WhatsApp not sent"}`}
-                            {f.whatsapp_status !== "SENT" && <button type="button" className="fnd-files-link" onClick={() => resendWhatsApp(f)}> Send again</button>}
-                          </span>
-                        )}
                         <span>Observed {formatDate(f.observed_on)}</span>
-                        <span>Owner <b>{f.assignee_name || "—"}</b></span>
+                        <span>With <b>{ownerText(f)}</b></span>
                         <span className={overdue ? "fnd-overdue-text" : ""}>Due {formatDate(f.due_date)}</span>
                       </div>
                       {f.status === "Closed" ? (
@@ -737,9 +833,7 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
                     </div>
                     <div className="fnd-item-side">
                       <button type="button" className="audit-btn" onClick={() => setFollowUpId(f.id)}>Follow-ups ({(f.follow_ups || []).length})</button>
-                      {f.status !== "Closed"
-                        ? <button type="button" className="audit-btn fnd-btn-good" onClick={() => quickStatus(f, "Closed")}>Verify & close</button>
-                        : <button type="button" className="audit-btn" onClick={() => quickStatus(f, "Open")}>Re-open</button>}
+                      {taskActions(f)}
                       <button type="button" className="audit-btn" onClick={() => { setFormError(""); setEditing({ ...f, assignee_id: String(f.assignee_id || "") }); }}>Edit</button>
                       {isAdmin && <button type="button" className="audit-link-danger" onClick={() => remove(f)}>Delete</button>}
                     </div>
@@ -773,7 +867,10 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
         />
       )}
       {followUpFinding && (
-        <FollowUps key={followUpFinding.id} finding={followUpFinding} currentUserName={currentUserName} isAdmin={isAdmin} onAdd={addFollowUp} onAttach={attachToFinding} onRemoveFile={removeFile} onClose={() => setFollowUpId(null)} />
+        <FollowUps key={followUpFinding.id} finding={followUpFinding} currentUserName={currentUserName} isAdmin={isAdmin} onAdd={addFollowUp} onAttach={attachToFinding} onRemoveFile={removeFile} onClose={() => setFollowUpId(null)} actions={taskActions(followUpFinding)} />
+      )}
+      {forwarding && (
+        <ForwardDialog finding={forwarding} employees={internalUsers} departments={departments} onForward={forwardTask} onClose={() => setForwarding(null)} />
       )}
     </div>
   );

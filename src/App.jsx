@@ -2388,6 +2388,7 @@ export default function App() {
             isAdmin={isAdmin}
             currentUserName={currentUserName}
             currentUserId={currentUserId}
+            currentUserDepartment={currentUserDepartment}
             internalUsers={internalUsers}
             departments={departments}
             focus={findingsFocus}

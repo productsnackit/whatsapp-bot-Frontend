@@ -5823,3 +5823,10 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 .fnd-details-full { white-space: pre-line; }
 .fnd-wa-ok { color: #15803d; font-weight: 600; }
 .fnd-wa-bad { color: #b45309; font-weight: 600; }
+/* Internal Audit: task buttons and Forward */
+.fnd-btn-progress { border-color: #93c5fd; color: #1d4ed8; }
+.fnd-task-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+.fnd-forward { max-width: 520px; }
+.fnd-forward-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px; border-radius: 12px; background: var(--surface-2); }
+.fnd-forward-mode button { padding: 9px; border: 0; border-radius: 9px; background: transparent; color: var(--text-secondary); font: inherit; font-weight: 700; cursor: pointer; }
+.fnd-forward-mode button.is-on { background: var(--surface); color: var(--text-primary); box-shadow: 0 1px 4px rgba(0,0,0,.1); }
