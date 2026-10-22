@@ -140,6 +140,10 @@ function AttachmentList({ files, onRemove, currentUserName, isAdmin }) {
   );
 }
 
+// One box: what was found and what needs to be done. Older findings had the action plan apart.
+const detailsOf = (finding) => [finding.description || "", finding.action_plan && finding.action_plan !== finding.description ? `To do: ${finding.action_plan}` : ""].filter(Boolean).join("\n\n");
+const WA_TEXT = { SENT: "Sent on WhatsApp", FAILED: "WhatsApp not delivered", NO_PHONE: "No WhatsApp number" };
+
 const emptyForm = (department) => ({
   department: department || "Operations",
   observed_on: today(),
@@ -156,7 +160,7 @@ const emptyForm = (department) => ({
 
 /* ---------- Log / edit a finding ---------- */
 function FindingForm({ initial, departments, employees, locations, saving, error, onSave, onClose, onRemoveFile, currentUserName, isAdmin }) {
-  const [form, setForm] = useState(initial);
+  const [form, setForm] = useState(() => ({ ...initial, details: detailsOf(initial) }));
   const [files, setFiles] = useState([]); // new files, sent after the finding is saved
   const [fileError, setFileError] = useState("");
   const addFiles = (list) => {
@@ -198,14 +202,13 @@ function FindingForm({ initial, departments, employees, locations, saving, error
           <label>Finding / non-conformance *
             <input value={form.title} onChange={set("title")} placeholder="Short statement of what's wrong" required />
           </label>
-          <label>What was observed (evidence) *
-            <textarea rows={3} value={form.description} onChange={set("description")} placeholder="What you saw, where, which SOP was missed, photos or records checked…" required />
+          <label>Details & what needs to be done *
+            <textarea rows={5} value={form.details} onChange={set("details")} required
+              placeholder={"What you saw (where, which SOP was missed, what was checked) and what the person must do to fix it.\ne.g. 3 expired packets in slot 304 at Bitgo. Remove all expired stock today, check every slot, send a photo."} />
+            <small className="fnd-hint">This is what the action owner sees on their phone and on WhatsApp.</small>
           </label>
-          <label>Root cause
+          <label>Root cause <small className="fnd-hint">(optional)</small>
             <textarea rows={2} value={form.root_cause || ""} onChange={set("root_cause")} placeholder="Why did it happen? e.g. no training, missed schedule, unclear SOP" />
-          </label>
-          <label>Corrective & preventive action plan *
-            <textarea rows={3} value={form.action_plan} onChange={set("action_plan")} placeholder="Steps to fix it now and stop it happening again" required />
           </label>
           <div className="fnd-grid fnd-grid-3">
             <label>Action owner *
@@ -250,7 +253,7 @@ function FindingForm({ initial, departments, employees, locations, saving, error
             )}
             {fileError && <div className="audit-error">{fileError}</div>}
           </div>
-          {!editing && <p className="fnd-hint">The action owner gets a notification on their phone.</p>}
+          {!editing && <p className="fnd-hint">The action owner gets it on WhatsApp (with Started / Done buttons) and as a phone notification.</p>}
           {error && <div className="audit-error">{error}</div>}
         </div>
         <div className="fnd-modal-foot">
@@ -311,7 +314,10 @@ function FollowUps({ finding, currentUserName, isAdmin, onAdd, onAttach, onRemov
               <div><span>Open for</span><b>{finding.created_at ? tookText(finding.created_at) : "—"}</b></div>
             )}
             {(finding.locations || []).length > 0 && <p><span>Location(s)</span>{finding.locations.map((name) => `📍 ${name}`).join("   ")}</p>}
-            <p><span>Action plan</span>{finding.action_plan}</p>
+            <p className="fnd-details-full"><span>Details & what needs to be done</span>{detailsOf(finding)}</p>
+            {finding.whatsapp_status && (
+              <p><span>WhatsApp</span>{finding.whatsapp_status === "SENT" ? `Sent${finding.whatsapp_delivery ? ` · ${finding.whatsapp_delivery}` : ""}` : `${WA_TEXT[finding.whatsapp_status] || "Not sent"}: ${finding.whatsapp_error || ""}`}</p>
+            )}
           </div>
 
           <div className="fnd-field">
@@ -487,6 +493,16 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
     if (failed.length || skipped.length) notify([...failed, ...skipped].join(" · "), true);
     else notify(`${files.length} file${files.length === 1 ? "" : "s"} attached to ${finding.ref}`);
   };
+  const resendWhatsApp = async (finding) => {
+    try {
+      const response = await API.post(`/findings/${finding.id}/whatsapp`, {}, { headers });
+      replace(response.data);
+      notify(response.data.whatsapp_status === "SENT" ? `${finding.ref} sent to ${finding.assignee_name}'s WhatsApp` : `Not sent: ${response.data.whatsapp_error || "WhatsApp refused it"}`, response.data.whatsapp_status !== "SENT");
+    } catch (err) {
+      notify(err.response?.data?.error || "Could not send", true);
+    }
+  };
+
   const removeFile = async (finding, index, file) => {
     if (!window.confirm(`Remove "${file.name}" from ${finding.ref}?`)) return;
     try {
@@ -503,19 +519,30 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
     setSaving(true);
     setFormError("");
     try {
+      const before = form.id ? findings.find((f) => f.id === form.id) : null;
+      const newOwner = !form.id || String(before?.assignee_id || "") !== String(form.assignee_id);
       const payload = {
-        department: form.department, observed_on: dateOnly(form.observed_on), title: form.title, description: form.description,
-        risk: form.risk, status: form.status, root_cause: form.root_cause || "", action_plan: form.action_plan,
+        department: form.department, observed_on: dateOnly(form.observed_on), title: form.title, description: form.details.trim(),
+        risk: form.risk, status: form.status, root_cause: form.root_cause || "", action_plan: "",
         assignee_id: form.assignee_id, due_date: dateOnly(form.due_date), locations: form.locations || [],
+        // With files, the WhatsApp goes once they're attached (so it can say how many and send them).
+        files_pending: files.length > 0,
       };
       const response = form.id
         ? await API.patch(`/findings/${form.id}`, payload, { headers })
         : await API.post("/findings", payload, { headers });
       replace(response.data);
       const failed = files.length ? await uploadFiles(response.data, files) : [];
+      let saved = response.data;
+      if (files.length && newOwner) {
+        setSaving("Sending on WhatsApp…");
+        saved = (await API.post(`/findings/${response.data.id}/whatsapp`, { reassigned: Boolean(form.id) }, { headers }).catch(() => ({ data: response.data }))).data;
+        replace(saved);
+      }
       setEditing(null);
-      if (failed.length) notify(`${response.data.ref} saved, but some files didn't attach: ${failed.join(" · ")}`, true);
-      else notify(form.id ? `${response.data.ref} updated` : `${response.data.ref} logged · ${response.data.assignee_name} notified${files.length ? ` · ${files.length} file${files.length === 1 ? "" : "s"} attached` : ""}`);
+      const wa = !newOwner ? "" : saved.whatsapp_status === "SENT" ? ` · sent to ${saved.assignee_name}'s WhatsApp` : ` · ${saved.assignee_name} notified (WhatsApp not sent: ${saved.whatsapp_error || "see the finding"})`;
+      if (failed.length) notify(`${saved.ref} saved, but some files didn't attach: ${failed.join(" · ")}`, true);
+      else notify(form.id ? `${saved.ref} updated${wa}` : `${saved.ref} logged${wa}${files.length ? ` · ${files.length} file${files.length === 1 ? "" : "s"} attached` : ""}`, newOwner && saved.whatsapp_status !== "SENT");
     } catch (err) {
       setFormError(err.response?.data?.error || "Could not save. Check your connection and try again.");
     } finally {
@@ -552,7 +579,7 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
   };
 
   const exportCsv = () => downloadCsv(`Snackit_Audit_Findings_${today()}.csv`, [
-    ["Ref", "Department", "Locations", "Observed", "Finding", "Evidence", "Risk", "Status", "Root cause", "Action plan", "Action owner", "Due", "Overdue", "Follow-ups", "Files", "Raised by", "Raised on", "Closed by", "Closed on", "Time taken"],
+    ["Ref", "Department", "Locations", "Observed", "Finding", "Details & what to do", "Risk", "Status", "Root cause", "Action plan", "Action owner", "Due", "Overdue", "Follow-ups", "Files", "Raised by", "Raised on", "Closed by", "Closed on", "Time taken"],
     ...filtered.map((f) => [f.ref, f.department, (f.locations || []).join("; "), dateOnly(f.observed_on), f.title, f.description, f.risk, f.status, f.root_cause, f.action_plan, f.assignee_name, dateOnly(f.due_date), isOverdue(f) ? "YES" : "NO", (f.follow_ups || []).length, (f.attachments || []).map((file) => file.url).join(" "), f.created_by, whenText(f.created_at), f.status === "Closed" ? f.closed_by || "" : "", f.status === "Closed" ? whenText(f.closed_at) : "", f.status === "Closed" && f.closed_at ? tookText(f.created_at, f.closed_at) : ""]),
   ]);
 
@@ -683,12 +710,18 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
                         {overdue && <span className="audit-pill fnd-tone-bad">Overdue</span>}
                       </div>
                       <button type="button" className="fnd-title" onClick={() => setFollowUpId(f.id)}>{f.title}</button>
-                      <p className="fnd-desc">{f.description}</p>
+                      <p className="fnd-desc">{detailsOf(f)}</p>
                       {f.root_cause && <p className="fnd-rca"><b>Root cause:</b> {f.root_cause}</p>}
                       <div className="fnd-meta">
                         <span>{f.department}</span>
                         {(f.locations || []).length > 0 && <span>📍 {f.locations.join(", ")}</span>}
                         {(f.attachments || []).length > 0 && <button type="button" className="fnd-files-link" onClick={() => setFollowUpId(f.id)}>📎 {f.attachments.length} file{f.attachments.length === 1 ? "" : "s"}</button>}
+                        {f.whatsapp_status && f.status !== "Closed" && (
+                          <span className={f.whatsapp_status === "SENT" ? "fnd-wa-ok" : "fnd-wa-bad"} title={f.whatsapp_error || ""}>
+                            {f.whatsapp_status === "SENT" ? `✓ ${f.whatsapp_delivery === "read" ? "Read" : f.whatsapp_delivery === "delivered" ? "Delivered" : "Sent"} on WhatsApp` : `⚠ ${WA_TEXT[f.whatsapp_status] || "WhatsApp not sent"}`}
+                            {f.whatsapp_status !== "SENT" && <button type="button" className="fnd-files-link" onClick={() => resendWhatsApp(f)}> Send again</button>}
+                          </span>
+                        )}
                         <span>Observed {formatDate(f.observed_on)}</span>
                         <span>Owner <b>{f.assignee_name || "—"}</b></span>
                         <span className={overdue ? "fnd-overdue-text" : ""}>Due {formatDate(f.due_date)}</span>

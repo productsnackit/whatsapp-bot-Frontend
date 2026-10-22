@@ -123,7 +123,8 @@ export default function MyHome({ token, name, department, pages, onOpen, onView,
                       {due && <span className={`mh-due ${item.overdue ? "is-bad" : item.due_soon ? "is-warn" : ""}`}>{due}</span>}
                     </span>
                     <b>{item.title}</b>
-                    {item.type === "audit" && item.action && <span className="mh-sub">To do: {item.action}</span>}
+                    {item.type === "audit" && item.action && <span className="mh-sub mh-details">{item.action}</span>}
+                    {item.files > 0 && <span className="mh-meta"><span>📎 {item.files} file{item.files === 1 ? "" : "s"}</span></span>}
                     <span className="mh-meta">
                       <span className="mh-status">{item.status}</span>
                       {item.from && <span>From {item.from}</span>}

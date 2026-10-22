@@ -5818,3 +5818,8 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 .fnd-closed-line b, .fnd-open-line b { font-weight: 700; }
 .fnd-snapshot small { display: block; font-size: 11.5px; color: var(--text-muted); font-weight: 500; }
 .fnd-took { color: #15803d; }
+.mh-details { -webkit-line-clamp: 4; white-space: pre-line; }
+.fnd-desc { white-space: pre-line; }
+.fnd-details-full { white-space: pre-line; }
+.fnd-wa-ok { color: #15803d; font-weight: 600; }
+.fnd-wa-bad { color: #b45309; font-weight: 600; }
