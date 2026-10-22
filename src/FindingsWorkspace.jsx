@@ -30,6 +30,16 @@ const formatDate = (value) => {
   const date = new Date(`${dateOnly(value)}T00:00:00`);
   return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
 };
+// How long from logged to closed (or open so far): "3 days 4 hrs", "5 hrs 20 min", "12 min".
+const tookText = (from, to) => {
+  const minutes = Math.max(0, Math.round((new Date(to || Date.now()) - new Date(from)) / 60000));
+  if (!from || Number.isNaN(minutes)) return "";
+  const days = Math.floor(minutes / 1440), hours = Math.floor((minutes % 1440) / 60), mins = minutes % 60;
+  if (days) return `${days} day${days === 1 ? "" : "s"}${hours ? ` ${hours} hr${hours === 1 ? "" : "s"}` : ""}`;
+  if (hours) return `${hours} hr${hours === 1 ? "" : "s"}${mins ? ` ${mins} min` : ""}`;
+  return `${mins} min`;
+};
+const whenText = (value) => (value ? new Date(value).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "");
 const isOverdue = (finding) => finding.status !== "Closed" && finding.due_date && dateOnly(finding.due_date) < today();
 
 function downloadCsv(filename, rows) {
@@ -291,6 +301,15 @@ function FollowUps({ finding, currentUserName, isAdmin, onAdd, onAttach, onRemov
             <div><span>Action owner</span><b>{finding.assignee_name || "—"}</b></div>
             <div><span>Due</span><b className={isOverdue(finding) ? "fnd-overdue-text" : ""}>{formatDate(finding.due_date)}{isOverdue(finding) ? " · overdue" : ""}</b></div>
             <div><span>Status</span><b><span className={`audit-pill fnd-tone-${STATUS_TONE[finding.status]}`}>{finding.status}</span></b></div>
+            <div><span>Raised by</span><b>{finding.created_by || "—"}</b><small>{whenText(finding.created_at)}</small></div>
+            {finding.status === "Closed" ? (
+              <>
+                <div><span>Closed by</span><b>{finding.closed_by || "—"}</b><small>{whenText(finding.closed_at)}</small></div>
+                <div><span>Time taken</span><b className="fnd-took">{finding.created_at && finding.closed_at ? tookText(finding.created_at, finding.closed_at) : "—"}</b></div>
+              </>
+            ) : (
+              <div><span>Open for</span><b>{finding.created_at ? tookText(finding.created_at) : "—"}</b></div>
+            )}
             {(finding.locations || []).length > 0 && <p><span>Location(s)</span>{finding.locations.map((name) => `📍 ${name}`).join("   ")}</p>}
             <p><span>Action plan</span>{finding.action_plan}</p>
           </div>
@@ -350,7 +369,7 @@ function FollowUps({ finding, currentUserName, isAdmin, onAdd, onAttach, onRemov
 }
 
 /* ---------- Page ---------- */
-export default function FindingsWorkspace({ token, isAdmin, currentUserName, currentUserId, internalUsers, departments, focus }) {
+export default function FindingsWorkspace({ token, isAdmin, currentUserName, currentUserId, internalUsers, departments, focus, version }) {
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
   const [findings, setFindings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -370,9 +389,6 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
   const [importResult, setImportResult] = useState(null);
   const [locationOptions, setLocationOptions] = useState([]);
   const [locFilter, setLocFilter] = useState("ALL");
-  // Opened from My Home: show that action's details and follow-ups.
-  const [focusSeen, setFocusSeen] = useState(null);
-  if (focus && focus !== focusSeen) { setFocusSeen(focus); if (focus.new) { setFormError(""); setEditing(emptyForm()); } else setFollowUpId(focus.id); }
 
   const notify = useCallback((message, isError = false) => {
     setToast({ message, isError });
@@ -391,14 +407,25 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
     }
   }, [headers]);
 
+  // Opened from My Home: show that action's details and follow-ups.
+  const [focusSeen, setFocusSeen] = useState(null);
+  if (focus && focus !== focusSeen) {
+    setFocusSeen(focus);
+    if (focus.new) { setFormError(""); setEditing(emptyForm()); } else { setFollowUpId(focus.id); if (!findings.some((f) => f.id === focus.id)) setTimeout(load, 0); }
+  }
+  // Fresh when opened, when someone logs or changes a finding (live update from the server),
+  // when the page comes back on screen, and every minute while it's on screen.
   useEffect(() => {
-    let active = true;
-    API.get("/findings", { headers })
-      .then((response) => { if (active) setFindings(Array.isArray(response.data) ? response.data : []); })
-      .catch((err) => { if (active) setLoadError(err.response?.data?.error || "Could not load audit findings."); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [headers]);
+    const timer = setTimeout(load, 0);
+    return () => clearTimeout(timer);
+  }, [load, version]);
+  useEffect(() => {
+    const onScreen = () => document.visibilityState === "visible" && document.body.dataset.view === "findings";
+    const every = setInterval(() => { if (onScreen()) load(); }, 60000);
+    const back = () => { if (onScreen()) load(); };
+    document.addEventListener("visibilitychange", back);
+    return () => { clearInterval(every); document.removeEventListener("visibilitychange", back); };
+  }, [load]);
 
   useEffect(() => {
     API.get("/findings/locations", { headers }).then((response) => setLocationOptions(Array.isArray(response.data) ? response.data : [])).catch(() => {});
@@ -525,8 +552,8 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
   };
 
   const exportCsv = () => downloadCsv(`Snackit_Audit_Findings_${today()}.csv`, [
-    ["Ref", "Department", "Locations", "Observed", "Finding", "Evidence", "Risk", "Status", "Root cause", "Action plan", "Action owner", "Due", "Overdue", "Follow-ups", "Files", "Logged by"],
-    ...filtered.map((f) => [f.ref, f.department, (f.locations || []).join("; "), dateOnly(f.observed_on), f.title, f.description, f.risk, f.status, f.root_cause, f.action_plan, f.assignee_name, dateOnly(f.due_date), isOverdue(f) ? "YES" : "NO", (f.follow_ups || []).length, (f.attachments || []).map((file) => file.url).join(" "), f.created_by]),
+    ["Ref", "Department", "Locations", "Observed", "Finding", "Evidence", "Risk", "Status", "Root cause", "Action plan", "Action owner", "Due", "Overdue", "Follow-ups", "Files", "Raised by", "Raised on", "Closed by", "Closed on", "Time taken"],
+    ...filtered.map((f) => [f.ref, f.department, (f.locations || []).join("; "), dateOnly(f.observed_on), f.title, f.description, f.risk, f.status, f.root_cause, f.action_plan, f.assignee_name, dateOnly(f.due_date), isOverdue(f) ? "YES" : "NO", (f.follow_ups || []).length, (f.attachments || []).map((file) => file.url).join(" "), f.created_by, whenText(f.created_at), f.status === "Closed" ? f.closed_by || "" : "", f.status === "Closed" ? whenText(f.closed_at) : "", f.status === "Closed" && f.closed_at ? tookText(f.created_at, f.closed_at) : ""]),
   ]);
 
   const importCsv = async (event) => {
@@ -666,6 +693,14 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
                         <span>Owner <b>{f.assignee_name || "—"}</b></span>
                         <span className={overdue ? "fnd-overdue-text" : ""}>Due {formatDate(f.due_date)}</span>
                       </div>
+                      {f.status === "Closed" ? (
+                        <div className="fnd-closed-line">
+                          ✅ Raised by <b>{f.created_by || "—"}</b>{f.created_at ? ` on ${whenText(f.created_at)}` : ""} · Closed by <b>{f.closed_by || "—"}</b>{f.closed_at ? ` on ${whenText(f.closed_at)}` : ""}
+                          {f.created_at && f.closed_at && <> · took <b>{tookText(f.created_at, f.closed_at)}</b></>}
+                        </div>
+                      ) : (
+                        <div className="fnd-open-line">Raised by <b>{f.created_by || "—"}</b>{f.created_at ? ` on ${whenText(f.created_at)} · open for ${tookText(f.created_at)}` : ""}</div>
+                      )}
                     </div>
                     <div className="fnd-item-side">
                       <button type="button" className="audit-btn" onClick={() => setFollowUpId(f.id)}>Follow-ups ({(f.follow_ups || []).length})</button>

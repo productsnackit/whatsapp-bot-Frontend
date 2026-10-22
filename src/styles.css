@@ -5813,3 +5813,8 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 /* Invoices page: the invoice maker fills the page */
 .inv-frame { display: block; width: 100%; height: calc(100vh - 150px); min-height: 600px; border: 1px solid var(--border); border-radius: 12px; background: #f5f6f8; }
 @media (max-width: 768px) { .inv-frame { height: calc(100vh - 190px); border-radius: 10px; } }
+.fnd-closed-line, .fnd-open-line { margin-top: 6px; font-size: 12.5px; color: var(--text-secondary); }
+.fnd-closed-line { padding: 6px 10px; border-radius: 8px; background: #f0fdf4; color: #166534; }
+.fnd-closed-line b, .fnd-open-line b { font-weight: 700; }
+.fnd-snapshot small { display: block; font-size: 11.5px; color: var(--text-muted); font-weight: 500; }
+.fnd-took { color: #15803d; }
