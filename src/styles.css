@@ -5890,3 +5890,31 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
   .fnd-controls:not(.show-filters) .audit-toolbar > .audit-btn:not(.fnd-filter-toggle) { display: none; }
   .fnd-controls .audit-toolbar > .audit-btn:not(.fnd-filter-toggle) { grid-column: 1 / -1; min-height: 44px; }
 }
+
+/* ── Office WhatsApp number (Admin Settings) and Office Leads ─────────────── */
+.ow-status { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid #bbf7d0; border-radius: 12px; background: #f0fdf4; margin-bottom: 12px; }
+.ow-status b { display: block; font-size: 15px; }
+.ow-status small { color: var(--text-muted); font-size: 12px; }
+.ow-dot { flex: none; width: 12px; height: 12px; border-radius: 50%; background: #16a34a; box-shadow: 0 0 0 4px rgba(22,163,74,.15); }
+.ow-toggle { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }
+.ow-steps { margin: 4px 0 12px 18px; display: grid; gap: 6px; font-size: 13px; color: var(--text-secondary); }
+.ol-page { display: grid; gap: 12px; }
+.ol-tabs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.ol-tabs button { flex: none; padding: 7px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-secondary); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.ol-tabs button.is-on { background: var(--obsidian); border-color: var(--obsidian); color: #fff; }
+.ol-search { width: 100%; max-width: 420px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; font: inherit; }
+.ol-list { display: grid; gap: 10px; }
+.ol-card { display: grid; gap: 8px; padding: 14px 16px; border: 1px solid var(--border); border-left: 4px solid #94a3b8; border-radius: 14px; background: var(--surface); }
+.ol-blue { border-left-color: #2563eb; } .ol-warn { border-left-color: #d97706; } .ol-purple { border-left-color: #7c3aed; } .ol-good { border-left-color: #16a34a; } .ol-bad { border-left-color: #dc2626; }
+.ol-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.ol-kind { font-size: 12px; font-weight: 700; color: var(--text-muted); }
+.ol-card h3 { font-size: 16px; font-weight: 800; }
+.ol-card h3 small { font-weight: 600; color: var(--text-secondary); font-size: 14px; }
+.ol-details { white-space: pre-line; color: var(--text-secondary); font-size: 14px; }
+.ol-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--text-muted); }
+.ol-meta a { color: #2563eb; font-weight: 700; text-decoration: none; }
+.ol-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.ol-actions select, .ol-actions input { min-height: 38px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 10px; font: inherit; font-size: 13px; background: var(--surface); }
+.ol-actions input { flex: 1 1 220px; }
+.ol-notes { list-style: none; display: grid; gap: 4px; font-size: 12.5px; color: var(--text-secondary); padding-top: 6px; border-top: 1px dashed var(--border); }
+@media (max-width: 768px) { .ol-actions select, .ol-actions input, .ol-actions .audit-btn { width: 100%; min-height: 44px; font-size: 16px; } }

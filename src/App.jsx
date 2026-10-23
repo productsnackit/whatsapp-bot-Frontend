@@ -10,6 +10,7 @@ import TicketChat from "./TicketChat.jsx";
 import ImageViewer from "./ImageViewer.jsx";
 import PhotoRetentionCard from "./PhotoRetentionCard.jsx";
 import InvoiceRetentionCard from "./InvoiceRetentionCard.jsx";
+import OfficeWhatsAppCard from "./OfficeWhatsAppCard.jsx";
 import CapaEscalationCard from "./CapaEscalationCard.jsx";
 import CapaOverdueCard from "./CapaOverdueCard.jsx";
 import SupplyBuyerCard from "./SupplyBuyerCard.jsx";
@@ -43,6 +44,7 @@ const PAGE_LOADERS = {
   ClosingStock: () => import("./ClosingStock.jsx"),
   SalesData: () => import("./SalesData.jsx"),
   InvoicesPage: () => import("./InvoicesPage.jsx"),
+  OfficeLeads: () => import("./OfficeLeads.jsx"),
 };
 const OperationsWorkspace = lazy(PAGE_LOADERS.OperationsWorkspace);
 const AuditWorkspace = lazy(PAGE_LOADERS.AuditWorkspace);
@@ -59,6 +61,7 @@ const ProductList = lazy(PAGE_LOADERS.ProductList);
 const ClosingStock = lazy(PAGE_LOADERS.ClosingStock);
 const SalesData = lazy(PAGE_LOADERS.SalesData);
 const InvoicesPage = lazy(PAGE_LOADERS.InvoicesPage);
+const OfficeLeads = lazy(PAGE_LOADERS.OfficeLeads);
 
 
 const API = axios.create({
@@ -68,7 +71,7 @@ const API = axios.create({
 // The installed app (see public/manifest.webmanifest) opens with ?view=internal-chat
 const LAUNCH_PARAMS = new URLSearchParams(window.location.search);
 // Notifications can also open straight into Internal Audit (?view=findings).
-const LAUNCH_VIEW = ["home", "internal-chat", "findings", "refills", "tickets", "call-log"].includes(LAUNCH_PARAMS.get("view")) ? LAUNCH_PARAMS.get("view") : null;
+const LAUNCH_VIEW = ["home", "internal-chat", "findings", "refills", "tickets", "call-log", "office-leads"].includes(LAUNCH_PARAMS.get("view")) ? LAUNCH_PARAMS.get("view") : null;
 // Tapping a chat notification opens ?view=internal-chat&chat=<id>&department=<dept>
 const LAUNCH_CHAT = LAUNCH_PARAMS.get("chat") ? { chatId: LAUNCH_PARAMS.get("chat"), department: LAUNCH_PARAMS.get("department") } : null;
 // The Operations pages (inventory, clients, brands, demand, imports…) are hidden: nothing feeds
@@ -77,7 +80,7 @@ const SHOW_OPERATIONS = false;
 // A "customer replied" notification opens ?view=tickets&ticket=<id>&phone=<phone>
 const LAUNCH_TICKET = LAUNCH_PARAMS.get("ticket") ? { ticketId: LAUNCH_PARAMS.get("ticket"), phone: LAUNCH_PARAMS.get("phone") || "" } : null;
 // Pages a person can be given (the server decides; this mirrors it for the menu).
-const ALL_PAGE_KEYS = ["tickets", "feedback", "products", ...(SHOW_OPERATIONS ? ["operations"] : []), "audit", "refills", "supply", "findings", "analytics", "invoices", "activity", "settings"];
+const ALL_PAGE_KEYS = ["tickets", "feedback", "products", ...(SHOW_OPERATIONS ? ["operations"] : []), "audit", "refills", "supply", "findings", "analytics", "invoices", "office_leads", "activity", "settings"];
 const OPERATIONS_VIEWS = ["inventory", "clients", "brands", "performance", "leads", "routes", "demand", "import"];
 // Until the server answers /me, people keep what they had before roles existed.
 function defaultAccess(role, department) {
@@ -256,6 +259,7 @@ export default function App() {
     if (name === "supply-analytics") return can("supply") || can("analytics");
     if (name === "sale-data") return can("sales_data");
     if (name === "invoices") return can("invoices");
+    if (name === "office-leads") return can("office_leads");
     return ALL_PAGE_KEYS.includes(name) ? can(name) : false;
   };
   const view = viewAllowed(requestedView) ? requestedView : !isOwner ? "home" : can("tickets") ? "tickets" : "internal-chat";
@@ -288,6 +292,7 @@ export default function App() {
     ["product-list", "🏷️", "Product List", "Products & prices"],
     ["sale-data", "📈", "Sale Data", "Sales by location"],
     ["invoices", "🧾", "Invoices", "Make TRIPNINE invoices"],
+    ["office-leads", "📩", "Office Leads", "Enquiries from the office WhatsApp"],
     ["supply", "🍎", "Fruits Supply", "Orders & DCs"],
     ["packaged-supply", "🧃", "Direct Supply", "Packaged orders"],
     ["tickets", "🎫", "Support Tickets", "Customer issues"],
@@ -2082,6 +2087,13 @@ export default function App() {
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 17l5-5 4 4 8-8" /><path d="M14 8h6v6" /></svg>
             <span>Sale Data</span>
           </button>}
+          {can("office_leads") && <button
+            className={`nav-item ${view === "office-leads" ? "active" : ""}`}
+            onClick={() => setView("office-leads")}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.6A8.4 8.4 0 1 1 21 11.5z" /><path d="M9 11h6M12 8v6" /></svg>
+            <span>Office Leads</span>
+          </button>}
           {can("invoices") && <button
             className={`nav-item ${view === "invoices" ? "active" : ""}`}
             onClick={() => setView("invoices")}
@@ -2194,6 +2206,7 @@ export default function App() {
               {view === "supply-analytics" && "Supply Analytics"}
               {view === "sale-data" && "Sale Data"}
               {view === "invoices" && "Invoices"}
+              {view === "office-leads" && "Office Leads"}
               {view === "internal-chat" && "Internal Chat"}
               {view === "employees" && "Employees & Access"}
               {view === "activity" && "Activity Log"}
@@ -2223,6 +2236,7 @@ export default function App() {
               {view === "analytics" && "Complaints, refunds and resolution · India time"}
               {view === "supply-analytics" && "Fruits Supply and Direct Supply (packaged) · by delivery date, India time"}
               {view === "invoices" && "TRIPNINE invoices · booking Excel → invoice PDF"}
+              {view === "office-leads" && "Enquiries from the office WhatsApp number: product listing, machine rental and sale, direct supply"}
               {view === "sale-data" && "What the machines sold · per location, against the period before · from the Wendor reports"}
               {view === "internal-chat" && `${departmentChats.length} active ${selectedDepartment} conversations`}
               {view === "employees" && `${internalUsers.length} people with their own login`}
@@ -2322,6 +2336,7 @@ export default function App() {
             <button type="button" className="admin-settings-save" onClick={saveAdminProfile}>Save admin settings</button>
             <PhotoRetentionCard api={API} headers={authHeaders()} />
             <InvoiceRetentionCard api={API} headers={authHeaders()} />
+            <OfficeWhatsAppCard api={API} headers={authHeaders()} />
             <TicketAlertsCard api={API} headers={authHeaders()} />
             <AttentionContactsCard api={API} headers={authHeaders()} />
             <CapaEscalationCard api={API} headers={authHeaders()} />
@@ -3170,6 +3185,7 @@ export default function App() {
         {keepPage("analytics") && <div className="kept-page" hidden={view !== "analytics"}><AnalyticsWorkspace token={token} /></div>}
         {view === "sale-data" && can("sales_data") && <SalesData token={token} />}
         {view === "invoices" && can("invoices") && <InvoicesPage token={token} />}
+        {view === "office-leads" && can("office_leads") && <OfficeLeads token={token} />}
         {keepPage("supply-analytics") && (can("supply") || can("analytics")) && <div className="kept-page" hidden={view !== "supply-analytics"}><SupplyAnalytics token={token} version={supplyVersion} /></div>}
         </Suspense>
       </main>
