@@ -5830,3 +5830,63 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 .fnd-forward-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px; border-radius: 12px; background: var(--surface-2); }
 .fnd-forward-mode button { padding: 9px; border: 0; border-radius: 9px; background: transparent; color: var(--text-secondary); font: inherit; font-weight: 700; cursor: pointer; }
 .fnd-forward-mode button.is-on { background: var(--surface); color: var(--text-primary); box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+
+/* ── Internal Audit on phones: compact top, filters behind a button, full-screen task ── */
+.fnd-filter-toggle { display: none; }
+.fnd-head-status { padding: 1px 8px; border-radius: 999px; font-family: inherit; font-size: 11px; font-weight: 700; }
+.fnd-modal-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 20px; border-top: 1px solid var(--border); background: var(--surface); }
+@media (max-width: 768px) {
+  /* Numbers: three small tiles a row */
+  .fnd-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .fnd-kpis > * { padding: 9px 10px; border-left-width: 3px; border-radius: 12px; }
+  .fnd-kpis span { font-size: 10.5px; line-height: 1.2; }
+  .fnd-kpis b { font-size: 19px; }
+  .fnd-kpis small { display: none; }
+  /* Filters: search + a Filters button; the rest only when opened */
+  .fnd-controls { padding: 12px; }
+  .fnd-controls .audit-toolbar { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+  .fnd-controls .audit-toolbar > * { width: 100%; }
+  .fnd-controls .audit-toolbar input { grid-column: 1; min-height: 44px; font-size: 16px; }
+  .fnd-filter-toggle { display: inline-flex; grid-column: 2; align-items: center; justify-content: center; white-space: nowrap; min-height: 44px; }
+  .fnd-controls .audit-toolbar select, .fnd-controls .fnd-mine { display: none; grid-column: 1 / -1; min-height: 44px; font-size: 16px; }
+  .fnd-controls.show-filters .audit-toolbar select, .fnd-controls .fnd-mine { display: flex; }
+  .fnd-controls.show-filters .audit-toolbar select { display: block; }
+  .fnd-controls .fnd-mine { align-items: center; gap: 8px; font-size: 14px; min-height: 36px; }
+  .fnd-controls-foot { gap: 8px; padding-top: 10px; }
+  .fnd-controls:not(.show-filters) .fnd-risk-matrix { display: none; }
+  .fnd-actions { width: 100%; display: grid; grid-template-columns: 1fr; }
+  .fnd-actions > *:not(.audit-btn-primary) { display: none; }
+  .fnd-actions .audit-btn-primary { min-height: 46px; font-size: 15px; }
+  /* Task cards: big buttons, two a row */
+  .fnd-item { padding: 14px; gap: 12px; }
+  .fnd-item-side { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .fnd-item-side .audit-btn { min-height: 44px; font-size: 14px; justify-content: center; }
+  .fnd-item-side .audit-link-danger { grid-column: 1 / -1; }
+  .fnd-meta { gap: 4px 10px; }
+  /* The task: full screen, buttons fixed at the bottom */
+  .fnd-backdrop { padding: 0; place-items: stretch; }
+  .fnd-modal { width: 100%; max-height: none; height: 100dvh; border-radius: 0; }
+  .fnd-modal-head { padding: calc(12px + env(safe-area-inset-top)) 16px 12px; }
+  .fnd-modal-head h3 { font-size: 18px; line-height: 1.3; }
+  .fnd-modal-head .fnd-sub { font-size: 12px; opacity: .75; }
+  .fnd-modal-body { flex: 1; padding: 14px 16px; gap: 14px; }
+  .fnd-snapshot { grid-template-columns: 1fr 1fr; gap: 12px 10px; padding: 12px; }
+  .fnd-snapshot b { font-size: 14px; }
+  .fnd-snapshot p { font-size: 14px; }
+  .fnd-details-full { font-size: 15px !important; line-height: 1.5; }
+  .fnd-modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); box-shadow: 0 -6px 16px rgba(15, 23, 42, .06); }
+  .fnd-modal-actions .audit-btn { min-height: 48px; font-size: 15px; justify-content: center; }
+  .fnd-modal-actions .audit-btn:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .fnd-modal-foot { padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); }
+  .fnd-modal-foot .audit-btn { flex: 1; min-height: 46px; }
+  /* Add an update: just outcome + note (date and name are filled in) */
+  .fnd-followup-form .fnd-grid-3 { grid-template-columns: 1fr; }
+  .fnd-followup-form .fnd-grid-3 > label:nth-child(1), .fnd-followup-form .fnd-grid-3 > label:nth-child(2) { display: none; }
+  .fnd-followup-form button[type="submit"] { width: 100%; min-height: 46px; }
+  .fnd-modal-body input, .fnd-modal-body select, .fnd-modal-body textarea { font-size: 16px; min-height: 44px; }
+  .fnd-forward-mode button { min-height: 44px; }
+}
+@media (max-width: 768px) {
+  .fnd-controls:not(.show-filters) .audit-toolbar > .audit-btn:not(.fnd-filter-toggle) { display: none; }
+  .fnd-controls .audit-toolbar > .audit-btn:not(.fnd-filter-toggle) { grid-column: 1 / -1; min-height: 44px; }
+}

@@ -377,9 +377,9 @@ function FollowUps({ finding, currentUserName, isAdmin, onAdd, onAttach, onRemov
       <div className="fnd-modal" onClick={(event) => event.stopPropagation()}>
         <div className="fnd-modal-head">
           <div>
-            <span className="fnd-ref">{finding.ref}</span>
-            <h3>Follow-up & verification</h3>
-            <p className="fnd-sub">{finding.title}</p>
+            <span className="fnd-ref">{finding.ref} · <span className={`fnd-head-status fnd-tone-${STATUS_TONE[finding.status]}`}>{finding.status}</span></span>
+            <h3>{finding.title}</h3>
+            <p className="fnd-sub">Follow-up & verification</p>
           </div>
           <button type="button" className="fnd-close" onClick={onClose} aria-label="Close">×</button>
         </div>
@@ -401,7 +401,7 @@ function FollowUps({ finding, currentUserName, isAdmin, onAdd, onAttach, onRemov
             {(finding.locations || []).length > 0 && <p><span>Location(s)</span>{finding.locations.map((name) => `📍 ${name}`).join("   ")}</p>}
             <p className="fnd-details-full"><span>Details & what needs to be done</span>{detailsOf(finding)}</p>
           </div>
-          {actions && <div className="fnd-task-actions">{actions}</div>}
+
 
           <div className="fnd-field">
             <span className="fnd-field-label">Files ({(finding.attachments || []).length})</span>
@@ -415,7 +415,7 @@ function FollowUps({ finding, currentUserName, isAdmin, onAdd, onAttach, onRemov
           </div>
 
           <form className="fnd-followup-form" onSubmit={submit}>
-            <h4>Record a follow-up check</h4>
+            <h4>Add an update</h4>
             <div className="fnd-grid fnd-grid-3">
               <label>Check date<input type="date" value={entry.date} onChange={(e) => setEntry((p) => ({ ...p, date: e.target.value }))} required /></label>
               <label>Checked by<input value={entry.auditor} onChange={(e) => setEntry((p) => ({ ...p, auditor: e.target.value }))} placeholder="Your name" /></label>
@@ -452,6 +452,7 @@ function FollowUps({ finding, currentUserName, isAdmin, onAdd, onAttach, onRemov
             </ol>
           ) : <p className="audit-empty">No follow-up checks yet.</p>}
         </div>
+        {actions && <div className="fnd-modal-actions">{actions}</div>}
       </div>
     </div>
   );
@@ -470,7 +471,9 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
   const [riskFilter, setRiskFilter] = useState("ALL");
   const [deptFilter, setDeptFilter] = useState("ALL");
   const [onlyOverdue, setOnlyOverdue] = useState(false);
-  const [onlyMine, setOnlyMine] = useState(false);
+  // On a phone, employees start with their own (and their team's) tasks.
+  const [onlyMine, setOnlyMine] = useState(() => !isAdmin && typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches);
+  const [showFilters, setShowFilters] = useState(false);
   const [editing, setEditing] = useState(null);
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -732,9 +735,12 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
         </button>
       </div>
 
-      <section className="audit-card fnd-controls">
+      <section className={`audit-card fnd-controls ${showFilters ? "show-filters" : ""}`}>
         <div className="audit-toolbar">
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search finding, department, owner, root cause or ref" />
+          <button type="button" className="audit-btn fnd-filter-toggle" onClick={() => setShowFilters((value) => !value)}>
+            {showFilters ? "Hide filters" : `Filters${filtersOn ? " · on" : ""}`}
+          </button>
           <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} aria-label="Status">
             <option value="ALL">All statuses</option>
             {STATUSES.map(([value]) => <option key={value}>{value}</option>)}
