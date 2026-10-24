@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 /* Admin page: each person's login, role and the pages they can open.
-   Passwords are never shown; "Reset password" gives a new one once. */
+   Passwords are never shown; "Reset password" gives a new one once, and "Reset passwords &
+   download" gives the ticked people new ones in an Excel to share. */
 
 const ROLE_TONES = { director: "red", admin: "red", support: "blue", quality: "green", operations: "amber", staff: "grey", viewer: "purple" };
 
@@ -126,6 +127,9 @@ export default function EmployeesAccess({ api, headers, departments, currentUser
   const [credentials, setCredentials] = useState(null);
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [resetPick, setResetPick] = useState(null); // ids ticked for "Reset passwords & download"
+  const [busy, setBusy] = useState("");
+  const [note, setNote] = useState(null);
   const authorization = headers.Authorization;
 
   const load = useCallback(async () => {
@@ -165,6 +169,41 @@ export default function EmployeesAccess({ api, headers, departments, currentUser
     setCredentials({ ...response.data.credentials, title: `New password for ${person.name}` });
   };
 
+  // Excel downloads: the login list (no passwords, they can't be read), or new passwords for the ticked people.
+  const download = async (kind) => {
+    setBusy(kind);
+    setNote(null);
+    try {
+      const response = kind === "list"
+        ? await api.get("/internal/users/logins.xlsx", { ...config, responseType: "blob" })
+        : await api.post("/internal/users/reset-passwords.xlsx", { ids: [...resetPick] }, { ...config, responseType: "blob" });
+      const name = `snackit-${kind === "list" ? "logins" : "new-passwords"}-${new Date().toLocaleDateString("en-CA")}.xlsx`;
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(response.data);
+      link.download = name;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+      if (kind === "reset") {
+        setNote({ ok: `New passwords made for ${resetPick.size} ${resetPick.size === 1 ? "person" : "people"} and downloaded. Their old passwords no longer work. Keep the file private.` });
+        setResetPick(null);
+        await afterChange();
+      }
+    } catch (err) {
+      let message = "Could not download";
+      try { message = JSON.parse(await err.response.data.text()).error || message; } catch { /* not JSON */ }
+      setNote({ error: message });
+    } finally {
+      setBusy("");
+    }
+  };
+  const startReset = () => { setNote(null); setResetPick(new Set(people.filter((person) => String(person.id) !== String(currentUserId)).map((person) => String(person.id)))); };
+  const toggleReset = (id) => setResetPick((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const confirmReset = () => {
+    if (!resetPick.size) return;
+    if (!window.confirm(`Make new passwords for ${resetPick.size} ${resetPick.size === 1 ? "person" : "people"}? Their old passwords stop working and they're logged out until they use the new one (or WhatsApp OTP).`)) return;
+    download("reset");
+  };
+
   const remove = async (person) => {
     if (!window.confirm(`Delete ${person.name}? They'll lose access immediately. Their chat messages stay.`)) return;
     await api.delete(`/internal/users/${person.id}`, config);
@@ -186,8 +225,39 @@ export default function EmployeesAccess({ api, headers, departments, currentUser
           <h2>Employees & access</h2>
           <p>Everyone logs in with their own account. Their role decides which pages they can open, and every change they make is recorded in the Activity log.</p>
         </div>
-        <button type="button" className="ea-add" onClick={() => setEditing("new")}>+ Add employee</button>
+        <div className="ea-hero-btns">
+          <button type="button" className="ea-excel" disabled={Boolean(busy)} onClick={() => download("list")}>{busy === "list" ? "Downloading…" : "⬇ Logins (Excel)"}</button>
+          <button type="button" className="ea-excel" disabled={Boolean(busy)} onClick={() => (resetPick ? setResetPick(null) : startReset())}>🔑 Reset passwords & download</button>
+          <button type="button" className="ea-add" onClick={() => setEditing("new")}>+ Add employee</button>
+        </div>
       </div>
+
+      {note?.ok && <div className="ea-note is-ok">{note.ok}</div>}
+      {note?.error && <div className="ea-note is-bad">{note.error}</div>}
+
+      {resetPick && (
+        <div className="ea-reset">
+          <div className="ea-reset-head">
+            <div>
+              <b>Reset passwords & download</b>
+              <small>Old passwords can't be shown (they're stored scrambled). Tick who should get a new password; the Excel has their username + new password to share. Your own password isn't changed.</small>
+            </div>
+            <div className="ea-reset-quick">
+              <button type="button" onClick={startReset}>Tick all</button>
+              <button type="button" onClick={() => setResetPick(new Set())}>Untick all</button>
+            </div>
+          </div>
+          <div className="ea-reset-list">
+            {people.filter((person) => String(person.id) !== String(currentUserId)).map((person) => (
+              <label key={person.id}><input type="checkbox" checked={resetPick.has(String(person.id))} onChange={() => toggleReset(String(person.id))} /> {person.name} <small>{person.username}</small></label>
+            ))}
+          </div>
+          <div className="ea-reset-actions">
+            <button type="button" onClick={() => setResetPick(null)} disabled={Boolean(busy)}>Cancel</button>
+            <button type="button" className="primary" disabled={!resetPick.size || Boolean(busy)} onClick={confirmReset}>{busy === "reset" ? "Making passwords…" : `Reset ${resetPick.size} & download Excel`}</button>
+          </div>
+        </div>
+      )}
 
       {credentials && <Credentials credentials={credentials} title={credentials.title} onClose={() => setCredentials(null)} />}
 

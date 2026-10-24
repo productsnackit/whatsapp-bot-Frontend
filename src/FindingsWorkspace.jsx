@@ -122,6 +122,43 @@ function LocationPicker({ value, options, onChange }) {
   );
 }
 
+/* CC: people who should know about the task (like CC on an email). Search and tick employees. */
+function CcPicker({ value, employees, exclude, onChange }) {
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const chosen = value || [];
+  const query = search.trim().toLowerCase();
+  const people = employees.filter((user) => String(user.id) !== String(exclude || ""));
+  const shown = people.filter((user) => !query || `${user.name} ${user.department} ${user.role}`.toLowerCase().includes(query));
+  const nameOf = (id) => employees.find((user) => String(user.id) === id)?.name || "Former employee";
+  const toggle = (id) => onChange(chosen.includes(id) ? chosen.filter((item) => item !== id) : [...chosen, id]);
+  return (
+    <div className="fnd-locs">
+      {chosen.length > 0 && (
+        <div className="fnd-loc-chips">
+          {chosen.map((id) => <span key={id}>👁 {nameOf(id)}<button type="button" aria-label={`Remove ${nameOf(id)}`} onClick={() => toggle(id)}>×</button></span>)}
+        </div>
+      )}
+      <input value={search} onChange={(e) => { setSearch(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} placeholder="Search a name to keep in CC (optional)…" />
+      {open && (
+        <div className="fnd-loc-list">
+          {shown.slice(0, 80).map((user) => {
+            const id = String(user.id);
+            return (
+              <label key={id} className={chosen.includes(id) ? "is-on" : ""}>
+                <input type="checkbox" checked={chosen.includes(id)} onChange={() => toggle(id)} /> {user.name} <small className="fnd-hint">· {user.department}</small>
+              </label>
+            );
+          })}
+          {!shown.length && <p>No one matches “{search}”.</p>}
+          <button type="button" className="fnd-loc-done" onClick={() => { setOpen(false); setSearch(""); }}>Done</button>
+        </div>
+      )}
+    </div>
+  );
+}
+const ccNames = (f) => (f.cc || []).map((person) => person.name).join(", ");
+
 /* Files on a finding: open, and remove (the person who attached it, or an admin). */
 function AttachmentList({ files, onRemove, currentUserName, isAdmin }) {
   if (!files?.length) return null;
@@ -241,11 +278,12 @@ const emptyForm = (department) => ({
   assignee_id: "",
   due_date: "",
   locations: [],
+  cc: [],
 });
 
 /* ---------- Log / edit a finding ---------- */
 function FindingForm({ initial, departments, employees, locations, saving, error, onSave, onClose, onRemoveFile, currentUserName, isAdmin }) {
-  const [form, setForm] = useState(() => ({ ...initial, details: detailsOf(initial) }));
+  const [form, setForm] = useState(() => ({ ...initial, details: detailsOf(initial), cc: (initial.cc || []).map((person) => String(person?.id ?? person)) }));
   const [files, setFiles] = useState([]); // new files, sent after the finding is saved
   const [fileError, setFileError] = useState("");
   const addFiles = (list) => {
@@ -317,6 +355,10 @@ function FindingForm({ initial, departments, employees, locations, saving, error
                 {STATUSES.map(([value, hint]) => <option key={value} value={value}>{value}: {hint}</option>)}
               </select>
             </label>
+          </div>
+          <div className="fnd-field">
+            <span className="fnd-field-label">CC <small className="fnd-hint">(optional: they can see it and are told when it's started, forwarded or resolved)</small></span>
+            <CcPicker value={form.cc} employees={employees} exclude={form.assignee_id} onChange={(next) => setForm((prev) => ({ ...prev, cc: next }))} />
           </div>
           <div className="fnd-field">
             <span className="fnd-field-label">Attach files <small>(photos, PDF, Excel, Word · up to {MAX_FILE_MB} MB each, 10 per finding)</small></span>
@@ -398,6 +440,7 @@ function FollowUps({ finding, currentUserName, isAdmin, onAdd, onAttach, onRemov
             ) : (
               <div><span>Open for</span><b>{finding.created_at ? tookText(finding.created_at) : "—"}</b></div>
             )}
+            {(finding.cc || []).length > 0 && <p><span>CC</span>{finding.cc.map((person) => `👁 ${person.name}`).join("   ")}</p>}
             {(finding.locations || []).length > 0 && <p><span>Location(s)</span>{finding.locations.map((name) => `📍 ${name}`).join("   ")}</p>}
             <p className="fnd-details-full"><span>Details & what needs to be done</span>{detailsOf(finding)}</p>
           </div>
@@ -546,13 +589,14 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
 
   const query = search.trim().toLowerCase();
   const filtered = findings.filter((f) =>
-    (!query || [f.ref, f.department, f.title, f.description, f.assignee_name, f.root_cause, f.action_plan, ...(f.locations || [])].some((v) => String(v || "").toLowerCase().includes(query)))
+    (!query || [f.ref, f.department, f.title, f.description, f.assignee_name, f.root_cause, f.action_plan, ...(f.locations || []), ccNames(f)].some((v) => String(v || "").toLowerCase().includes(query)))
     && (locFilter === "ALL" || (f.locations || []).includes(locFilter))
     && (statusFilter === "ALL" || f.status === statusFilter)
     && (riskFilter === "ALL" || f.risk === riskFilter)
     && (deptFilter === "ALL" || f.department === deptFilter)
     && (!onlyOverdue || isOverdue(f))
-    && (!onlyMine || String(f.assignee_id) === String(currentUserId) || (!f.assignee_id && f.owner_department && f.owner_department === currentUserDepartment))
+    && (!onlyMine || String(f.assignee_id) === String(currentUserId) || (!f.assignee_id && f.owner_department && f.owner_department === currentUserDepartment)
+      || (f.cc || []).some((person) => String(person.id) === String(currentUserId)))
   );
   const filtersOn = query || statusFilter !== "ALL" || riskFilter !== "ALL" || deptFilter !== "ALL" || locFilter !== "ALL" || onlyOverdue || onlyMine;
   const clearFilters = () => { setSearch(""); setStatusFilter("ALL"); setRiskFilter("ALL"); setDeptFilter("ALL"); setLocFilter("ALL"); setOnlyOverdue(false); setOnlyMine(false); };
@@ -638,6 +682,7 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
         department: form.department, observed_on: dateOnly(form.observed_on), title: form.title, description: form.details.trim(),
         risk: form.risk, status: form.status, root_cause: form.root_cause || "", action_plan: "",
         assignee_id: form.assignee_id, due_date: dateOnly(form.due_date), locations: form.locations || [],
+        cc: (form.cc || []).filter((id) => id !== String(form.assignee_id)),
       };
       const response = form.id
         ? await API.patch(`/findings/${form.id}`, payload, { headers })
@@ -760,7 +805,7 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
             </select>
           )}
           {!isAdmin && (
-            <label className="audit-check fnd-mine"><input type="checkbox" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} /> Mine & my team's</label>
+            <label className="audit-check fnd-mine"><input type="checkbox" checked={onlyMine} onChange={(e) => setOnlyMine(e.target.checked)} /> Mine, my team's & CC</label>
           )}
           {filtersOn && <button type="button" className="audit-btn" onClick={clearFilters}>Clear</button>}
         </div>
@@ -826,6 +871,7 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
                         {(f.attachments || []).length > 0 && <button type="button" className="fnd-files-link" onClick={() => setFollowUpId(f.id)}>📎 {f.attachments.length} file{f.attachments.length === 1 ? "" : "s"}</button>}
                         <span>Observed {formatDate(f.observed_on)}</span>
                         <span>With <b>{ownerText(f)}</b></span>
+                        {(f.cc || []).length > 0 && <span>CC <b>{ccNames(f)}</b></span>}
                         <span className={overdue ? "fnd-overdue-text" : ""}>Due {formatDate(f.due_date)}</span>
                       </div>
                       {f.status === "Closed" ? (
