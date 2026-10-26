@@ -7,7 +7,7 @@ import axios from "axios";
 const API = axios.create({ baseURL: "https://whatsapp-bot-backend-b3nb.onrender.com" });
 const STATUSES = ["New", "Contacted", "Quoted", "Won", "Lost"];
 const TONE = { New: "blue", Contacted: "warn", Quoted: "purple", Won: "good", Lost: "bad" };
-const KIND_ICON = { "List a product": "🛒", "Rent a machine": "🏢", "Buy a machine": "🤝", "Direct supply": "🍎" };
+const KIND_ICON = { "List a product": "🛒", "Rent a machine": "🏢", "Buy a machine": "🤝", "Direct supply": "🍎", "Talk to our team": "💬" };
 const when = (value) => new Date(value).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
 export default function OfficeLeads({ token }) {
