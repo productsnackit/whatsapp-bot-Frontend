@@ -80,12 +80,12 @@ const SHOW_OPERATIONS = false;
 // A "customer replied" notification opens ?view=tickets&ticket=<id>&phone=<phone>
 const LAUNCH_TICKET = LAUNCH_PARAMS.get("ticket") ? { ticketId: LAUNCH_PARAMS.get("ticket"), phone: LAUNCH_PARAMS.get("phone") || "" } : null;
 // Pages a person can be given (the server decides; this mirrors it for the menu).
-const ALL_PAGE_KEYS = ["tickets", "feedback", "products", ...(SHOW_OPERATIONS ? ["operations"] : []), "audit", "refills", "supply", "findings", "analytics", "invoices", "office_leads", "activity", "settings"];
+const ALL_PAGE_KEYS = ["chat", "tickets", "feedback", "products", ...(SHOW_OPERATIONS ? ["operations"] : []), "audit", "refills", "supply", "findings", "analytics", "invoices", "office_leads", "activity", "settings"];
 const OPERATIONS_VIEWS = ["inventory", "clients", "brands", "performance", "leads", "routes", "demand", "import"];
 // Until the server answers /me, people keep what they had before roles existed.
 function defaultAccess(role, department) {
   if (role === "admin") return { accessRole: "admin", roleLabel: "Owner", pages: ALL_PAGE_KEYS, readOnly: false, isAdmin: true };
-  const pages = department === "Operations" ? ["operations", "audit", "refills", "supply", "findings"] : department === "Audit" ? ["audit", "refills", "findings"] : ["findings"];
+  const pages = [...(department === "Operations" ? ["operations", "audit", "refills", "supply", "findings"] : department === "Audit" ? ["audit", "refills", "findings"] : ["findings"]), "chat"];
   return { accessRole: "staff", roleLabel: "Staff", pages, readOnly: false, isAdmin: false };
 }
 function readStoredAccess() {
@@ -251,7 +251,8 @@ export default function App() {
   const viewAllowed = (name) => {
     if (OPERATIONS_VIEWS.includes(name)) return canAccessOperations;
     if (["employees", "admin-settings"].includes(name)) return isAdmin;
-    if (["home", "internal-chat", "call-log"].includes(name)) return true;
+    if (["home", "call-log"].includes(name)) return true;
+    if (name === "internal-chat") return can("chat");
     if (name === "packaged-supply") return can("supply");
     if (name === "live-stock") return can("live_stock");
     if (name === "product-list") return can("product_list");
@@ -263,6 +264,10 @@ export default function App() {
     return ALL_PAGE_KEYS.includes(name) ? can(name) : false;
   };
   const view = viewAllowed(requestedView) ? requestedView : !isOwner ? "home" : can("tickets") ? "tickets" : "internal-chat";
+  // Internal Chat is ticked per person (Employees & access); without it, chats aren't loaded or shown.
+  const canChat = can("chat");
+  const canChatRef = useRef(canChat);
+  canChatRef.current = canChat;
   // Pages that stay loaded in the background refresh only while they're the page on screen.
   useEffect(() => { document.body.dataset.view = view; }, [view]);
   // Like app tabs: once opened, these pages stay loaded (hidden) so going back is instant;
@@ -1202,10 +1207,11 @@ export default function App() {
   const fetchInternalData = useCallback(async () => {
     if (!token) return;
     try {
+      const chatToo = canChatRef.current;
       const [usersRes, chatsRes, repliesRes] = await Promise.all([
         API.get("/internal/users", { headers: authHeaders() }),
-        API.get("/internal/chats", { headers: authHeaders() }),
-        API.get("/internal/saved-replies", { headers: authHeaders() }),
+        chatToo ? API.get("/internal/chats", { headers: authHeaders() }) : { data: [] },
+        chatToo ? API.get("/internal/saved-replies", { headers: authHeaders() }) : { data: [] },
       ]);
 
       setInternalUsers(Array.isArray(usersRes.data) ? usersRes.data : []);
@@ -1469,7 +1475,7 @@ export default function App() {
     });
 
     socket.on("internal-chat-updated", ({ chat, notification }) => {
-      if (!chat) return;
+      if (!chat || !canChatRef.current) return;
       setInternalChats((prev) => {
         const exists = prev.some((item) => String(item.id) === String(chat.id));
         const isIncoming = notification && notification.sourceUser !== currentUserName;
@@ -1505,7 +1511,7 @@ export default function App() {
     });
 
     socket.on("internal-notification", (notification) => {
-      if (!notification || notification.sourceUser === currentUserName) return;
+      if (!notification || notification.sourceUser === currentUserName || !canChatRef.current) return;
       const mentionedCurrentUser = (notification.mentionUserIds || []).map(String).includes(String(currentUserId));
       const selectedCurrentUser = !notification.notifyAll && (notification.recipientIds || []).map(String).includes(String(currentUserId));
       if (mentionedCurrentUser || selectedCurrentUser) playInternalMentionAlert();
@@ -1897,10 +1903,10 @@ export default function App() {
       {!(view === "internal-chat" && mobileChatPane === "conversation") && !activeChat && (
         <nav className="mobile-tabbar" aria-label="Main">
           <button type="button" className={view === "home" ? "is-on" : ""} onClick={() => setView("home")}><span aria-hidden="true">🏠</span>Home</button>
-          <button type="button" className={view === "internal-chat" ? "is-on" : ""} onClick={() => { setMobileChatPane("list"); setView("internal-chat"); }}>
+          {canChat && <button type="button" className={view === "internal-chat" ? "is-on" : ""} onClick={() => { setMobileChatPane("list"); setView("internal-chat"); }}>
             <span aria-hidden="true">💬</span>Chats
             {internalChats.some((chat) => Number(chat.unread || 0) > 0) && <i className="mobile-tabbar-dot" />}
-          </button>
+          </button>}
           <button type="button" className={`mobile-tabbar-new ${newSheet ? "is-on" : ""}`} onClick={() => setNewSheet("menu")}><span aria-hidden="true">＋</span>New</button>
           {can("findings") && <button type="button" className={view === "findings" ? "is-on" : ""} onClick={() => setView("findings")}><span aria-hidden="true">📋</span>Audit</button>}
           <button type="button" className={mobileNavOpen ? "is-on" : ""} onClick={() => setMobileNavOpen(true)}><span aria-hidden="true">☰</span>Menu</button>
@@ -1920,9 +1926,9 @@ export default function App() {
                 {can("findings") && <button type="button" onClick={() => { setNewSheet(null); setFindingsFocus({ new: true, at: Date.now() }); setView("findings"); }}>
                   <span>📋</span><b>Report an audit issue</b><small>Something wrong that needs a corrective action</small>
                 </button>}
-                <button type="button" onClick={() => setNewSheet("people")}>
+                {canChat && <button type="button" onClick={() => setNewSheet("people")}>
                   <span>💬</span><b>Message a colleague</b><small>Start a one-to-one chat</small>
-                </button>
+                </button>}
                 {can("closing_stock") && <button type="button" onClick={() => { setNewSheet(null); setView("closing-stock"); }}>
                   <span>📝</span><b>Enter closing stock</b><small>Count a location's stock</small>
                 </button>}
@@ -2108,13 +2114,13 @@ export default function App() {
             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" /></svg>
             <span>Call Log</span>
           </button>
-          <button
+          {canChat && <button
             className={`nav-item ${view === "internal-chat" ? "active" : ""}`}
             onClick={() => setView("internal-chat")}
           >
             {Icon.chat}
             <span>Internal Chat</span>
-          </button>
+          </button>}
           {isAdmin && <button
             className={`nav-item ${view === "employees" ? "active" : ""}`}
             onClick={() => setView("employees")}

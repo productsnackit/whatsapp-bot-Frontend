@@ -140,7 +140,7 @@ export default function MyHome({ token, name, department, pages, onOpen, onView,
         {shown.length > list.length && <button type="button" className="mh-more" onClick={() => setShowAll(true)}>Show all {shown.length}</button>}
       </section>
 
-      <section className="mh-card" id="mh-messages">
+      {pages.some((page) => page.view === "internal-chat") && <section className="mh-card" id="mh-messages">
         <div className="mh-card-head">
           <h3>Unread messages</h3>
           <button type="button" className="mh-link" onClick={() => onView("internal-chat")}>All chats ›</button>
@@ -163,7 +163,7 @@ export default function MyHome({ token, name, department, pages, onOpen, onView,
             </li>
           ))}
         </ul>
-      </section>
+      </section>}
 
       {pages.length > 0 && (
         <section className="mh-card">
