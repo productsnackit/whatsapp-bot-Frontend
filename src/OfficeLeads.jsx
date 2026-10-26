@@ -44,7 +44,7 @@ export default function OfficeLeads({ token }) {
   const leads = data?.leads || [];
   const query = search.trim().toLowerCase();
   const shown = leads.filter((lead) => (filter === "all" || (filter === "open" ? !["Won", "Lost"].includes(lead.status) : lead.status === filter))
-    && (!query || [lead.ref, lead.name, lead.wa_name, lead.company, lead.city, lead.details, lead.phone, lead.kind].some((value) => String(value || "").toLowerCase().includes(query))));
+    && (!query || [lead.ref, lead.name, lead.wa_name, lead.company, lead.city, lead.details, lead.phone, lead.kind, lead.email].some((value) => String(value || "").toLowerCase().includes(query))));
   const count = (status) => leads.filter((lead) => lead.status === status).length;
 
   return (
@@ -56,7 +56,7 @@ export default function OfficeLeads({ token }) {
           <button type="button" key={key} className={filter === key ? "is-on" : ""} onClick={() => setFilter(key)}>{label}</button>
         ))}
       </div>
-      <input className="ol-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, company, city, phone…" />
+      <input className="ol-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, company, city, phone, email…" />
       {!data && !error && <p className="audit-empty">Loading…</p>}
       {data && !shown.length && <p className="audit-empty">{leads.length ? "No leads here." : "No leads yet. They appear here when people answer the office bot's questions."}</p>}
       <div className="ol-list">
@@ -71,6 +71,7 @@ export default function OfficeLeads({ token }) {
             <div className="ol-meta">
               {lead.city && <span>📍 {lead.city}</span>}
               <a href={`https://wa.me/${lead.phone}`} target="_blank" rel="noreferrer">💬 +{lead.phone}</a>
+              {lead.email && <a href={`mailto:${lead.email}`}>📧 {lead.email}</a>}
               <a href={`tel:+${lead.phone}`}>📞 Call</a>
               <span>{when(lead.created_at)}</span>
             </div>

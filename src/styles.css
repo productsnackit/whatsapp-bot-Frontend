@@ -5918,6 +5918,9 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 /* ── Office WhatsApp number (Admin Settings) and Office Leads ─────────────── */
 .ow-status { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid #bbf7d0; border-radius: 12px; background: #f0fdf4; margin-bottom: 12px; }
 .ow-status b { display: block; font-size: 15px; }
+.ow-address-row { flex-wrap: wrap; }
+.ow-address { display: grid; gap: 8px; justify-items: end; flex: 1 1 320px; }
+.ow-address textarea { width: 100%; min-width: 0; padding: 9px 11px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text-primary); font: inherit; font-size: 13px; resize: vertical; box-sizing: border-box; }
 .ow-status small { color: var(--text-muted); font-size: 12px; }
 .ow-dot { flex: none; width: 12px; height: 12px; border-radius: 50%; background: #16a34a; box-shadow: 0 0 0 4px rgba(22,163,74,.15); }
 .ow-toggle { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; }

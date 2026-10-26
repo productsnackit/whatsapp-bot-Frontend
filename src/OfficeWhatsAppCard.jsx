@@ -23,6 +23,7 @@ export default function OfficeWhatsAppCard({ api, headers }) {
   const [message, setMessage] = useState(null);
   const [busy, setBusy] = useState("");
   const [fbReady, setFbReady] = useState(false);
+  const [address, setAddress] = useState(null); // samples address being edited (null = not edited)
   const session = useRef({}); // phone_number_id / waba_id from the signup window
   const authorization = headers.Authorization;
   const config = { headers: { Authorization: authorization } };
@@ -137,6 +138,13 @@ export default function OfficeWhatsAppCard({ api, headers }) {
                 <div className="pr-presets">
                   {[4, 12, 24, 48].map((hours) => <button type="button" key={hours} className={data.pause_hours === hours ? "on" : ""} disabled={Boolean(busy)} onClick={() => update({ pause_hours: hours })}>{hours} h</button>)}
                 </div>
+              </div>
+            </div>
+            <div className="pr-row ow-address-row">
+              <div className="pr-label"><strong>Address for product samples</strong><small>Sent to people who choose "List your product", with {data.product_email || "product@snackit.in"} for their product details. Empty: the bot says the team will share the address.</small></div>
+              <div className="pr-control ow-address">
+                <textarea rows={3} value={address ?? data.samples_address ?? ""} onChange={(event) => setAddress(event.target.value)} placeholder={"Snackit office address\ne.g. #12, 2nd floor, … Bengaluru 560001"} />
+                <button type="button" className="admin-settings-save" disabled={Boolean(busy) || address === null || address === (data.samples_address || "")} onClick={async () => { await update({ samples_address: address }); setAddress(null); }}>Save address</button>
               </div>
             </div>
           </div>
