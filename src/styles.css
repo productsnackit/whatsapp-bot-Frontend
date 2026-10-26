@@ -5820,6 +5820,10 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
 .fnd-files { list-style: none; display: grid; gap: 6px; }
 .fnd-files li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 10px 6px 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
 .fnd-files-new li { border-style: dashed; background: var(--surface-2); }
+.fnd-files li > .fnd-file { flex: 1; }
+.fnd-download { flex: none; padding: 6px 10px; border: 1px solid #bfdbfe; border-radius: 8px; background: #eff6ff; color: #1d4ed8; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.fnd-download:disabled, .fnd-download-all:disabled { opacity: .6; cursor: default; }
+.fnd-download-all { justify-self: start; margin-bottom: 6px; padding: 7px 12px; border: 1px solid #bfdbfe; border-radius: 9px; background: #eff6ff; color: #1d4ed8; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
 .fnd-file { display: flex; align-items: center; gap: 10px; min-width: 0; color: var(--text-primary); text-decoration: none; }
 .fnd-file img, .fnd-file-icon { flex: none; width: 44px; height: 44px; border-radius: 8px; object-fit: cover; }
 .fnd-file-icon { display: grid; place-items: center; background: var(--surface-2); font-size: 22px; }

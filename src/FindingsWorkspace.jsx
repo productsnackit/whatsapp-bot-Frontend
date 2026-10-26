@@ -160,20 +160,48 @@ function CcPicker({ value, employees, exclude, onChange }) {
 const ccNames = (f) => (f.cc || []).map((person) => person.name).join(", ");
 
 /* Files on a finding: open, and remove (the person who attached it, or an admin). */
+// Saves a file with its own name (fetched, so the browser doesn't just open it); opens it if that fails.
+async function downloadFile(file) {
+  try {
+    const response = await fetch(file.url);
+    if (!response.ok) throw new Error(String(response.status));
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(await response.blob());
+    link.download = file.name || "file";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(link.href), 10000);
+  } catch {
+    window.open(file.url, "_blank", "noopener");
+  }
+}
+
 function AttachmentList({ files, onRemove, currentUserName, isAdmin }) {
+  const [busy, setBusy] = useState(""); // url being downloaded, or "all"
   if (!files?.length) return null;
+  const save = async (file) => { setBusy(file.url); await downloadFile(file); setBusy(""); };
+  const saveAll = async () => {
+    setBusy("all");
+    for (const file of files) await downloadFile(file);
+    setBusy("");
+  };
   return (
-    <ul className="fnd-files">
-      {files.map((file, index) => (
-        <li key={`${file.url}-${index}`}>
-          <a href={file.url} target="_blank" rel="noreferrer" className="fnd-file">
-            {file.kind === "image" ? <img src={file.url.replace("/image/upload/", "/image/upload/c_fill,w_96,h_96,q_auto,f_auto/")} alt="" /> : <span className="fnd-file-icon">{fileIcon(file)}</span>}
-            <span><b>{file.name}</b><small>{fileSize(file.size || 0)}{file.by ? ` · ${file.by}` : ""}</small></span>
-          </a>
-          {onRemove && (isAdmin || file.by === currentUserName) && <button type="button" className="audit-link-danger" onClick={() => onRemove(index, file)}>Remove</button>}
-        </li>
-      ))}
-    </ul>
+    <>
+      {files.length > 1 && <button type="button" className="fnd-download-all" disabled={Boolean(busy)} onClick={saveAll}>{busy === "all" ? "Downloading…" : `⬇ Download all (${files.length})`}</button>}
+      <ul className="fnd-files">
+        {files.map((file, index) => (
+          <li key={`${file.url}-${index}`}>
+            <a href={file.url} target="_blank" rel="noreferrer" className="fnd-file">
+              {file.kind === "image" ? <img src={file.url.replace("/image/upload/", "/image/upload/c_fill,w_96,h_96,q_auto,f_auto/")} alt="" /> : <span className="fnd-file-icon">{fileIcon(file)}</span>}
+              <span><b>{file.name}</b><small>{fileSize(file.size || 0)}{file.by ? ` · ${file.by}` : ""}</small></span>
+            </a>
+            <button type="button" className="fnd-download" disabled={Boolean(busy)} onClick={() => save(file)}>{busy === file.url ? "…" : "⬇ Download"}</button>
+            {onRemove && (isAdmin || file.by === currentUserName) && <button type="button" className="audit-link-danger" onClick={() => onRemove(index, file)}>Remove</button>}
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
