@@ -37,7 +37,7 @@ function Login({ onDone }) {
   return (
     <div className="cp-login">
       <form className="cp-login-card" onSubmit={submit}>
-        <div className="cp-login-brand"><span className="sv-logo is-big">S</span><b>Snackit</b><small>Office supplies, delivered</small></div>
+        <div className="cp-login-brand"><img className="cp-login-logo" src="/logo.png" alt="Snackit · When hunger strikes" /></div>
         <h1>Log in to order</h1>
         <p>Use the username and password Snackit gave you.</p>
         <label>Username<input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" autoCapitalize="none" placeholder="e.g. inks.priya" required /></label>
@@ -163,7 +163,7 @@ export default function ClientPortal() {
   const header = ({ count, openCart, search, setSearch, showCart }) => (
     <header className="sv-top">
       <div className="sv-top-row">
-        <div className="sv-brand"><span className="sv-logo">S</span><div><b>Snackit</b><small>{data?.company.name || ""}</small></div></div>
+        <div className="sv-brand"><img className="sv-logo-img" src="/brand-mark.png" alt="" /><div><b>Snackit</b><small>{data?.company.name || ""}</small></div></div>
         <nav className="cp-tabs-top" aria-label="Sections">{tabs.map(([key, icon, label]) => <button type="button" key={key} className={tab === key ? "is-on" : ""} onClick={() => setTab(key)}>{icon} {label}</button>)}</nav>
         {tab === "shop" && showCart && <button type="button" className="sv-cart-btn" onClick={openCart}>🛒<span>Cart</span>{count > 0 && <i>{count}</i>}</button>}
       </div>

@@ -25,7 +25,7 @@ export default function PublicOrder({ token }) {
   const header = ({ count, openCart, search, setSearch, showCart }) => (
     <header className="sv-top">
       <div className="sv-top-row">
-        <div className="sv-brand"><span className="sv-logo">S</span><div><b>{data?.seller || "Snackit"}</b><small>{data ? data.company.name : "Order page"}</small></div></div>
+        <div className="sv-brand"><img className="sv-logo-img" src="/brand-mark.png" alt="" /><div><b>Snackit</b><small>{data ? data.company.name : "Order page"}</small></div></div>
         {showCart && <button type="button" className="sv-cart-btn" onClick={openCart}>🛒<span>Cart</span>{count > 0 && <i>{count}</i>}</button>}
       </div>
       {data?.rounds.length > 0 && setSearch && <div className="sv-search"><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search for fruits, snacks, drinks…" /></div>}

@@ -154,7 +154,7 @@ export default function ShopView({ data, onPlace, renderHeader, askName = true, 
   }
 
   if (!data.rounds.length) {
-    return <div className="sv">{header}<div className="sv-msg"><b>No delivery date is open right now</b><span>Snackit opens the next delivery date soon. For anything urgent, message {data.seller} on WhatsApp.</span></div></div>;
+    return <div className="sv">{header}<div className="sv-msg"><b>No delivery date is open right now</b><span>Snackit opens the next delivery date soon. For anything urgent, message Snackit on WhatsApp.</span></div></div>;
   }
 
   return (
