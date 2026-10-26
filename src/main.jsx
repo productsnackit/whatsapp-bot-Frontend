@@ -7,6 +7,8 @@ import App from './App.jsx'
 const orderToken = new URLSearchParams(window.location.search).get('order')
 // The stock buyer's link (/?buy=<token>) opens his page for that delivery date.
 const buyToken = new URLSearchParams(window.location.search).get('buy')
+// Company admins' own login and shop (/?shop): ClientPortal.jsx.
+const shopPortal = new URLSearchParams(window.location.search).has('shop')
 
 // iPhone Safari only shows :active (pressed) styles once the page listens for touches.
 document.addEventListener('touchstart', () => {}, { passive: true })
@@ -20,6 +22,8 @@ if ('serviceWorker' in navigator) {
 const root = createRoot(document.getElementById('root'))
 if (buyToken) {
   import('./PublicBuyer.jsx').then(({ default: PublicBuyer }) => root.render(<StrictMode><PublicBuyer token={buyToken} /></StrictMode>))
+} else if (shopPortal) {
+  import('./ClientPortal.jsx').then(({ default: ClientPortal }) => root.render(<StrictMode><ClientPortal /></StrictMode>))
 } else if (orderToken) {
   import('./PublicOrder.jsx').then(({ default: PublicOrder }) => root.render(<StrictMode><PublicOrder token={orderToken} /></StrictMode>))
 } else if (localStorage.getItem('userRole') === 'refiller' && localStorage.getItem('token')) {

@@ -3,6 +3,7 @@ import axios from "axios";
 import { Box } from "./SupplyFrame.jsx";
 import { DeliveryTab, Accounts, SellerSettings } from "./SupplyBilling.jsx";
 import SupplyReports from "./SupplyReports.jsx";
+import ClientLogins from "./ClientLogins.jsx";
 
 /* Direct Supply: one page of always-open boxes. The top half is the delivery date you pick
    (orders → master sheet → buying → delivery & billing); the bottom half is the business
@@ -999,6 +1000,7 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0, segment =
       {page === "setup" && (
         <div className="ds-grid">
           <Companies headers={headers} companies={companies} onAdd={addCompany} onUpdate={(company, patch) => call("company", () => API.patch(`/supply/companies/${company.id}`, patch, { headers }))} className="ds-span-12" />
+          <ClientLogins headers={headers} companies={companies} className="ds-span-12" />
           <Vendors vendors={overview.vendors || []} onAdd={addVendor} onUpdate={(vendor, patch) => call("vendor", () => API.patch(`/supply/vendors/${vendor.id}`, patch, { headers }))} className="ds-span-12" />
           <SellingPrices headers={headers} companies={companies} version={overview} onChanged={() => loadRound(roundId)} />
           <Items
