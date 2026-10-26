@@ -342,21 +342,48 @@ function Companies({ companies, onAdd, onUpdate, headers, className }) {
 }
 
 /* ---------- Items (names the master sheet uses) ---------- */
-function Items({ products, units, onUpdate, onMerge }) {
+// An item's photo, shown on the companies' order page. Tap to add or change it.
+function ItemPhoto({ product, onPhoto }) {
+  const [busy, setBusy] = useState(false);
+  const pick = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      setBusy(true);
+      await onPhoto(product, { name: file.name, type: file.type, data: reader.result });
+      setBusy(false);
+    };
+    reader.readAsDataURL(file);
+  };
+  const src = product.image_url ? product.image_url.replace("/image/upload/", "/image/upload/c_fill,w_96,h_96,q_auto,f_auto/") : null;
+  return (
+    <div className="ds-photo">
+      <label className={`ds-photo-pick ${busy ? "is-busy" : ""}`} title={src ? "Change photo" : "Add a photo for the order page"}>
+        {busy ? "…" : src ? <img src={src} alt="" /> : "📷"}
+        <input type="file" accept="image/*" hidden onChange={(event) => { pick(event.target.files?.[0]); event.target.value = ""; }} />
+      </label>
+      {src && !busy && <button type="button" className="ds-photo-x" onClick={() => onPhoto(product, null)} aria-label={`Remove ${product.name} photo`}>×</button>}
+    </div>
+  );
+}
+
+function Items({ products, units, onUpdate, onMerge, onPhoto }) {
   const [query, setQuery] = useState("");
   const [merging, setMerging] = useState(null);
   const q = query.trim().toLowerCase();
   const shown = products.filter((product) => !q || `${product.name} ${(product.aliases || []).join(" ")} ${product.category || ""}`.toLowerCase().includes(q));
   const noPrice = products.filter((product) => product.sell_price == null).length;
+  const noPhoto = products.filter((product) => !product.image_url).length;
   return (
-    <Box id="ds-items" icon="🏷️" tone="slate" title="Items" sub={`${products.length} items${noPrice ? ` · ${noPrice} without a selling price` : ""}`}
+    <Box id="ds-items" icon="🏷️" tone="slate" title="Items" sub={`${products.length} items${noPrice ? ` · ${noPrice} without a selling price` : ""}${noPhoto ? ` · ${noPhoto} without a photo (shown on the order page)` : ""}`}
       actions={<input className="ds-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search items" />}>
       <div className="ds-table-wrap is-tall">
         <table className="ds-table">
-          <thead><tr><th>Item</th><th title="Fruits go to Fruits Supply, packaged items to Direct Supply">Supply</th><th>Unit</th><th>Category</th><th title="Printed on the delivery challan">HSN</th><th title="So '2 box' adds to pieces">Pcs per box</th><th>Sell price (₹)</th><th>Other spellings</th><th /></tr></thead>
+          <thead><tr><th title="Shown on the companies' order page">Photo</th><th>Item</th><th title="Fruits go to Fruits Supply, packaged items to Direct Supply">Supply</th><th>Unit</th><th>Category</th><th title="Printed on the delivery challan">HSN</th><th title="So '2 box' adds to pieces">Pcs per box</th><th>Sell price (₹)</th><th>Other spellings</th><th /></tr></thead>
           <tbody>
             {shown.map((product) => (
               <tr key={product.id}>
+                <td><ItemPhoto product={product} onPhoto={onPhoto} /></td>
                 <td><input defaultValue={product.name} onBlur={(event) => event.target.value.trim() !== product.name && onUpdate(product, { name: event.target.value })} /></td>
                 <td><select value={product.segment || "packaged"} onChange={(event) => onUpdate(product, { segment: event.target.value })} aria-label={`${product.name} supply`}><option value="fruits">🍎 Fruits</option><option value="packaged">📦 Packaged</option></select></td>
                 <td><select value={product.unit} onChange={(event) => onUpdate(product, { unit: event.target.value })}>{units.map((unit) => <option key={unit}>{unit}</option>)}</select></td>
@@ -978,6 +1005,7 @@ export default function SupplyWorkspace({ token, isAdmin, version = 0, segment =
             products={overview.products}
             units={units}
             onUpdate={(product, patch) => call("item", () => API.patch(`/supply/products/${product.id}`, patch, { headers }))}
+            onPhoto={(product, file) => call("item", () => (file ? API.post(`/supply/products/${product.id}/image`, { file }, { headers }) : API.delete(`/supply/products/${product.id}/image`, { headers })), file ? `Photo added for ${product.name}` : "Photo removed")}
             onMerge={(product, intoId) => window.confirm(`Merge "${product.name}" into "${overview.products.find((item) => item.id === intoId)?.name}"? Their quantities will be added together from now on.`) && call("merge", () => API.post("/supply/products/merge", { from_id: product.id, into_id: intoId }, { headers }), "Items merged")}
           />
           <Box id="ds-settings" icon="⚙️" tone="slate" title="Master settings" sub="Your logo, stamp, business details and DC number, used on every delivery challan and invoice" className="ds-span-12">
