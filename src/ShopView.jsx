@@ -8,6 +8,14 @@ import { qtyText, longDay } from "./shopUtils.js";
 
 const stepOf = (unit) => (unit === "kg" || unit === "l" ? 0.5 : 1);
 const blankExtra = () => ({ name: "", qty: "", unit: "pcs" });
+// The shop's own font (only these pages load it, not the dashboard).
+if (typeof document !== "undefined" && !document.getElementById("sv-font")) {
+  const font = document.createElement("link");
+  font.id = "sv-font";
+  font.rel = "stylesheet";
+  font.href = "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap";
+  document.head.appendChild(font);
+}
 const dayLabel = (value) => new Date(`${value}T00:00:00`).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
 const thumb = (url, size) => (url && url.includes("/image/upload/") ? url.replace("/image/upload/", `/image/upload/c_pad,b_white,w_${size},h_${size},q_auto,f_auto/`) : url);
 const ICONS = [[/apple|banana|orange|grape|mango|papaya|guava|pomegranate|kiwi|pear|melon|fruit|berry|pineapple|chikoo|sapota/i, "🍎"], [/milk|curd|dahi|paneer|butter|cheese|dairy/i, "🥛"], [/juice|drink|water|soda|cola|beverage|tea|coffee/i, "🧃"], [/chip|namkeen|snack|biscuit|cookie|nuts|bhujia|mixture/i, "🍪"], [/bread|bun|cake|rusk/i, "🍞"], [/chocolate|candy|sweet/i, "🍫"], [/egg/i, "🥚"], [/veg|tomato|onion|potato|carrot|cucumber/i, "🥕"]];
@@ -41,6 +49,30 @@ function Stepper({ item, qty, onChange, wide }) {
       <input inputMode="decimal" value={qty} onChange={(event) => onChange(event.target.value.replace(/[^\d.]/g, ""), true)} aria-label={`${item.name} quantity in ${item.unit}`} />
       <button type="button" onClick={() => onChange((Number(qty) || 0) + step)} aria-label={`More ${item.name}`}>+</button>
     </div>
+  );
+}
+
+// One square item tile: photo, name, last quantity, ADD → stepper.
+function Tile({ item, qty, onQty }) {
+  const on = qty !== undefined;
+  const inCart = Number(qty) > 0;
+  return (
+    <article className={`sv-tile ${inCart ? "is-in" : ""}`}>
+      <div className="sv-tile-img">
+        <ItemImage item={item} />
+        {item.usual && <span className="sv-badge">★ Usual</span>}
+        {inCart && <span className="sv-incart">✓ {qtyText(qty)} {item.unit}</span>}
+      </div>
+      <div className="sv-tile-body">
+        <b className="sv-name">{item.name}</b>
+        <span className="sv-unit">{item.last_qty ? `Last time ${qtyText(item.last_qty)} ${item.last_unit || item.unit}` : `Sold per ${item.unit}`}</span>
+        <div className="sv-tile-foot">
+          {on
+            ? <Stepper item={item} qty={qty} onChange={(value, typed) => onQty(item, value, typed)} wide />
+            : <button type="button" className="sv-add" onClick={() => onQty(item, item.last_qty && (item.last_unit || item.unit) === item.unit ? item.last_qty : 1)}><span>ADD</span><i aria-hidden="true">+</i></button>}
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -157,44 +189,70 @@ export default function ShopView({ data, onPlace, renderHeader, askName = true, 
     return <div className="sv">{header}<div className="sv-msg"><b>No delivery date is open right now</b><span>Snackit opens the next delivery date soon. For anything urgent, message Snackit on WhatsApp.</span></div></div>;
   }
 
+  const usual = items.filter((item) => item.usual);
+  const browsing = shelf === "all" && !q;
+  const categoryList = shelves.filter(([key]) => !["all", "usual"].includes(key));
+  const sections = browsing
+    ? categoryList.map(([key, label, icon]) => [key, `${icon} ${label}`, items.filter((item) => (item.category || "More items") === key)]).filter(([, , list]) => list.length)
+    : [[shelf, q ? `Results for “${search.trim()}”` : shelf === "usual" ? "★ Your usual" : `${shelves.find(([key]) => key === shelf)?.[2] || ""} ${shelf}`, shown]];
+  const firstName = String(data.me?.name || data.company.contact_name || "").trim().split(/\s+/)[0];
+  const hour = new Date().getHours();
+  const hello = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  const usualOut = usual.filter((item) => !(Number(cart[item.id]) > 0));
+  const addUsual = () => setCart((current) => {
+    const next = { ...current };
+    for (const item of usual) if (!(Number(next[item.id]) > 0)) next[item.id] = qtyText((item.last_unit || item.unit) === item.unit && item.last_qty ? item.last_qty : 1);
+    return next;
+  });
+  const tile = (item) => <Tile key={item.id} item={item} qty={cart[item.id]} onQty={setQty} />;
+
   return (
     <div className="sv">
       {header}
+      {browsing && (
+        <section className="sv-hero">
+          <div className="sv-hero-text">
+            <span className="sv-hero-kicker">{hello}{firstName ? `, ${firstName}` : ""} 👋</span>
+            <h1>Everything {data.company.name} needs, delivered.</h1>
+            <p>Fresh fruits, snacks and drinks for your office. Add what you need, pick a delivery day, and we take care of the rest.</p>
+            <div className="sv-hero-chips">
+              <span>🚚 Next delivery <b>{dayLabel(data.rounds[0].delivery_date)}</b></span>
+              <span>🛍️ <b>{items.length}</b> items</span>
+              {usual.length > 0 && <span>★ <b>{usual.length}</b> you order often</span>}
+            </div>
+          </div>
+          <div className="sv-hero-art" aria-hidden="true"><span>🍎</span><span>🥤</span><span>🍪</span><span>🍌</span><span>🥛</span></div>
+        </section>
+      )}
       <nav className="sv-shelves" aria-label="Categories">
         {shelves.map(([key, label, icon]) => (
-          <button type="button" key={key} className={shelf === key && !q ? "is-on" : ""} onClick={() => { setShelf(key); setSearch(""); }}>
-            <span className="sv-shelf-icon" aria-hidden="true">{icon}</span>{label}
+          <button type="button" key={key} className={shelf === key && !q ? "is-on" : ""} onClick={() => { setShelf(key); setSearch(""); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+            <span className="sv-shelf-icon" aria-hidden="true">{icon}</span><span className="sv-shelf-label">{label}</span>
           </button>
         ))}
       </nav>
 
       <main className="sv-main">
-        <h2 className="sv-heading">{q ? `Results for “${search.trim()}”` : shelves.find(([key]) => key === shelf)?.[1] === "All" ? "All items" : shelves.find(([key]) => key === shelf)?.[1]}<small>{shown.length} item{shown.length === 1 ? "" : "s"}</small></h2>
-        <div className="sv-grid">
-          {shown.map((item) => {
-            const qty = cart[item.id];
-            const on = qty !== undefined;
-            return (
-              <article key={item.id} className={`sv-tile ${Number(qty) > 0 ? "is-in" : ""}`}>
-                <div className="sv-tile-img">
-                  <ItemImage item={item} />
-                  {item.usual && <span className="sv-badge">⭐ Usual</span>}
-                </div>
-                <div className="sv-tile-body">
-                  <b className="sv-name">{item.name}</b>
-                  <span className="sv-unit">{item.last_qty ? `Last: ${qtyText(item.last_qty)} ${item.last_unit || item.unit}` : `Sold in ${item.unit}`}</span>
-                  <div className="sv-tile-foot">
-                    <span className="sv-per">per {item.unit}</span>
-                    {on
-                      ? <Stepper item={item} qty={qty} onChange={(value, typed) => setQty(item, value, typed)} />
-                      : <button type="button" className="sv-add" onClick={() => setQty(item, item.last_qty && (item.last_unit || item.unit) === item.unit ? item.last_qty : 1)}>ADD</button>}
-                  </div>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-        {!shown.length && <div className="sv-empty"><b>Nothing found</b><span>You can add any item by name in the cart, under “Something else?”.</span></div>}
+        {browsing && usual.length > 0 && (
+          <section className="sv-section sv-usual">
+            <div className="sv-section-head">
+              <div><h2>★ Your usual</h2><small>What {data.company.name} orders most</small></div>
+              {usualOut.length > 0 && <button type="button" className="sv-usual-btn" onClick={addUsual}>Add all {usualOut.length} to cart</button>}
+            </div>
+            <div className="sv-row">{usual.map(tile)}</div>
+          </section>
+        )}
+        {sections.map(([key, title, list]) => (
+          <section key={key} className="sv-section">
+            <div className="sv-section-head">
+              <div><h2>{title}</h2><small>{list.length} item{list.length === 1 ? "" : "s"}</small></div>
+              {browsing && list.length > 10 && <button type="button" className="sv-see-all" onClick={() => { setShelf(key); window.scrollTo({ top: 0, behavior: "smooth" }); }}>See all ›</button>}
+            </div>
+            <div className="sv-grid">{(browsing ? list.slice(0, 10) : list).map(tile)}</div>
+          </section>
+        ))}
+        {!shown.length && <div className="sv-empty"><span className="sv-empty-icon">🔍</span><b>Nothing found</b><span>You can still add any item by name in the cart, under “Something else?”.</span></div>}
+        <footer className="sv-foot"><img src="/brand-mark.png" alt="" /> <span>Snackit · When hunger strikes</span></footer>
       </main>
 
       {count > 0 && (

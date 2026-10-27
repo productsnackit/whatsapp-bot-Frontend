@@ -36,18 +36,29 @@ function Login({ onDone }) {
   };
   return (
     <div className="cp-login">
-      <form className="cp-login-card" onSubmit={submit}>
-        <div className="cp-login-brand"><img className="cp-login-logo" src="/logo.png" alt="Snackit · When hunger strikes" /></div>
-        <h1>Log in to order</h1>
-        <p>Use the username and password Snackit gave you.</p>
-        <label>Username<input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" autoCapitalize="none" placeholder="e.g. inks.priya" required /></label>
-        <label>Password
-          <span className="cp-pass"><input type={show ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required /><button type="button" onClick={() => setShow((value) => !value)}>{show ? "Hide" : "Show"}</button></span>
-        </label>
-        {error && <div className="sv-error">{error}</div>}
-        <button type="submit" className="sv-place cp-login-btn" disabled={busy}><b>{busy ? "Logging in…" : "Log in"}</b></button>
-        <small className="cp-login-help">No login yet, or forgot your password? Ask your Snackit contact.</small>
-      </form>
+      <div className="cp-login-shell">
+        <aside className="cp-login-side">
+          <img className="cp-login-logo" src="/logo.png" alt="Snackit · When hunger strikes" />
+          <h2>Your office pantry, sorted.</h2>
+          <ul>
+            <li><span>🍎</span><div><b>Fresh every delivery</b><small>Fruits, snacks, drinks and dairy for your team</small></div></li>
+            <li><span>🛒</span><div><b>Order in a minute</b><small>Tap ADD, pick a delivery day, done</small></div></li>
+            <li><span>🚚</span><div><b>Track every order</b><small>From placed to delivered at your door</small></div></li>
+          </ul>
+        </aside>
+        <form className="cp-login-card" onSubmit={submit}>
+          <img className="cp-login-mark" src="/brand-mark.png" alt="" />
+          <h1>Welcome back</h1>
+          <p>Log in with the username and password Snackit gave you.</p>
+          <label>Username<input value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" autoCapitalize="none" placeholder="e.g. inks.priya" required /></label>
+          <label>Password
+            <span className="cp-pass"><input type={show ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" placeholder="••••••••" required /><button type="button" onClick={() => setShow((value) => !value)}>{show ? "Hide" : "Show"}</button></span>
+          </label>
+          {error && <div className="sv-error">{error}</div>}
+          <button type="submit" className="sv-place cp-login-btn" disabled={busy}><b>{busy ? "Logging in…" : "Log in →"}</b></button>
+          <small className="cp-login-help">No login yet, or forgot your password? Ask your Snackit contact.</small>
+        </form>
+      </div>
     </div>
   );
 }
