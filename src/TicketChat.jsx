@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { downloadFile } from "./download.js";
+import DocViewer from "./DocViewer.jsx";
 
 /* Customer ticket chat for admin takeover: photos, videos, documents and voice
    notes both ways, delivery ticks, quick replies and WhatsApp's 24-hour window. */
@@ -94,6 +95,7 @@ function Ticks({ message }) {
 }
 
 function MediaBlock({ message, onOpenImage }) {
+  const [doc, setDoc] = useState(null);
   const { media_url: url, media_type: kind, file_name: name } = message;
   if (!url) return null;
   if (kind === "image" || kind === "sticker") {
@@ -102,10 +104,13 @@ function MediaBlock({ message, onOpenImage }) {
   if (kind === "video") return <video className="tc-media-video" src={url} controls preload="metadata" />;
   if (kind === "audio") return <audio className="tc-media-audio" src={url} controls preload="metadata" />;
   return (
-    <a className="tc-media-doc" href={url} target="_blank" rel="noreferrer" download={name || true}>
-      {Icons.file}
-      <span><b>{name || "Document"}</b><small>{(message.mime_type || "").split("/").pop()?.toUpperCase() || "FILE"} · Tap to open</small></span>
-    </a>
+    <>
+      <a className="tc-media-doc" href={url} target="_blank" rel="noreferrer" download={name || true} onClick={(event) => { event.preventDefault(); setDoc({ url, name, mime: message.mime_type }); }}>
+        {Icons.file}
+        <span><b>{name || "Document"}</b><small>{(message.mime_type || "").split("/").pop()?.toUpperCase() || "FILE"} · Tap to open</small></span>
+      </a>
+      {doc && <DocViewer file={doc} onClose={() => setDoc(null)} />}
+    </>
   );
 }
 

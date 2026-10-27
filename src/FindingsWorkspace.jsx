@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import ImageViewer from "./ImageViewer.jsx";
+import DocViewer from "./DocViewer.jsx";
 import { parseCsv } from "./csv.js";
 
 const API = axios.create({ baseURL: "https://whatsapp-bot-backend-b3nb.onrender.com" });
@@ -179,6 +181,8 @@ async function downloadFile(file) {
 
 function AttachmentList({ files, onRemove, currentUserName, isAdmin }) {
   const [busy, setBusy] = useState(""); // url being downloaded, or "all"
+  const [photo, setPhoto] = useState(null); // opened inside the dashboard, with ✕ to close
+  const [doc, setDoc] = useState(null);
   if (!files?.length) return null;
   const save = async (file) => { setBusy(file.url); await downloadFile(file); setBusy(""); };
   const saveAll = async () => {
@@ -192,7 +196,11 @@ function AttachmentList({ files, onRemove, currentUserName, isAdmin }) {
       <ul className="fnd-files">
         {files.map((file, index) => (
           <li key={`${file.url}-${index}`}>
-            <a href={file.url} target="_blank" rel="noreferrer" className="fnd-file">
+            <a href={file.url} target="_blank" rel="noreferrer" className="fnd-file" onClick={(event) => {
+              event.preventDefault();
+              if (file.kind === "image") setPhoto(files.filter((item) => item.kind === "image").findIndex((item) => item.url === file.url));
+              else setDoc(file);
+            }}>
               {file.kind === "image" ? <img src={file.url.replace("/image/upload/", "/image/upload/c_fill,w_96,h_96,q_auto,f_auto/")} alt="" /> : <span className="fnd-file-icon">{fileIcon(file)}</span>}
               <span><b>{file.name}</b><small>{fileSize(file.size || 0)}{file.by ? ` · ${file.by}` : ""}</small></span>
             </a>
@@ -201,6 +209,8 @@ function AttachmentList({ files, onRemove, currentUserName, isAdmin }) {
           </li>
         ))}
       </ul>
+      {photo !== null && photo >= 0 && <ImageViewer images={files.filter((item) => item.kind === "image").map((item) => ({ url: item.url, caption: item.name }))} index={photo} onIndex={setPhoto} onClose={() => setPhoto(null)} />}
+      {doc && <DocViewer file={doc} onClose={() => setDoc(null)} />}
     </>
   );
 }

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import MentionText, { MentionSuggestions, TaskLine } from "./MentionText.jsx";
 import { useMentionInput } from "./mentions.js";
+import ImageViewer from "./ImageViewer.jsx";
+import DocViewer from "./DocViewer.jsx";
 
 /* WhatsApp-style internal chat for phones. The desktop layout lives in App.jsx. */
 
@@ -123,6 +125,10 @@ function ChatRow({ chat, name, me, last, onOpen, onActions }) {
 
 function MessageBubble({ message, outgoing, showSender, onTap, repliedTo, taggedNames, canUpdate, onSetStatus }) {
   const reactions = Object.entries(message.reactions || {}).filter(([, users]) => users?.length);
+  // Photos and files open inside the app (with ✕ to close), never as a bare page with no way back.
+  const [photo, setPhoto] = useState(null);
+  const [doc, setDoc] = useState(null);
+  const photos = (message.attachments || []).filter((file) => file.type?.startsWith("image/") && file.dataUrl).map((file) => ({ url: file.dataUrl, caption: file.name }));
   return (
     <div className={`wa-msg ${outgoing ? "out" : "in"}`}>
       <div className={`wa-bubble wa-prio-${message.priority || "medium"}`} onClick={onTap} role="button" tabIndex={0}>
@@ -135,8 +141,8 @@ function MessageBubble({ message, outgoing, showSender, onTap, repliedTo, tagged
         )}
         {message.attachments?.map((file, index) => (
           file.type?.startsWith("image/") && file.dataUrl
-            ? <a key={index} href={file.dataUrl} download={file.name} onClick={(e) => e.stopPropagation()}><img className="wa-image" src={file.dataUrl} alt={file.name} /></a>
-            : <a key={index} className="wa-file" href={file.dataUrl || undefined} download={file.name} onClick={(e) => e.stopPropagation()}>{Icons.file}<span>{file.name}</span></a>
+            ? <button type="button" key={index} className="wa-image-btn" onClick={(e) => { e.stopPropagation(); setPhoto(photos.findIndex((item) => item.url === file.dataUrl)); }}><img className="wa-image" src={file.dataUrl} alt={file.name} /></button>
+            : <button type="button" key={index} className="wa-file" onClick={(e) => { e.stopPropagation(); if (file.dataUrl) setDoc({ url: file.dataUrl, name: file.name, mime: file.type }); }}>{Icons.file}<span>{file.name}</span></button>
         ))}
         {message.text && <span className="wa-text"><MentionText text={message.text} names={taggedNames} /></span>}
         <span className="wa-meta">
@@ -146,6 +152,8 @@ function MessageBubble({ message, outgoing, showSender, onTap, repliedTo, tagged
         </span>
         {taggedNames.length > 0 && <TaskLine message={message} taggedNames={taggedNames} canUpdate={canUpdate} onSetStatus={onSetStatus} />}
       </div>
+      {photo !== null && photo >= 0 && <ImageViewer images={photos} index={photo} onIndex={setPhoto} onClose={() => setPhoto(null)} />}
+      {doc && <DocViewer file={doc} onClose={() => setDoc(null)} />}
       {reactions.length > 0 && (
         <div className="wa-reactions">{reactions.map(([emoji, users]) => <span key={emoji}>{emoji}{users.length > 1 ? ` ${users.length}` : ""}</span>)}</div>
       )}

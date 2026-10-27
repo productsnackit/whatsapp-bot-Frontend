@@ -6234,3 +6234,21 @@ button:not(:disabled):active, a:active, .nav-item:active, [role="button"]:active
   .cp-login-card { padding: 30px 22px 40px; border-radius: 26px 26px 0 0; margin-top: -18px; align-content: start; }
   .cp-login-mark { display: none; }
 }
+/* Photo / file viewers: the close button clears the phone's notch and is easy to tap. */
+.tc-lightbox { padding-top: calc(64px + env(safe-area-inset-top)); }
+.tc-lightbox-bar { padding-top: calc(12px + env(safe-area-inset-top)); background: linear-gradient(rgba(0, 0, 0, .55), transparent); }
+.tc-lightbox-bar span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tc-lightbox-bar button[aria-label="Close"], .iv-close { flex: none; display: grid; place-items: center; width: 42px; height: 42px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .16) !important; color: #fff; font-size: 20px !important; font-weight: 700; cursor: pointer; }
+.dv-body { display: grid; gap: 14px; width: min(900px, 100%); max-height: 100%; }
+.dv-frame { width: 100%; height: min(70vh, 900px); border: 0; border-radius: 10px; background: #fff; }
+.dv-card { display: grid; justify-items: center; gap: 8px; padding: 22px 18px; border-radius: 16px; background: #fff; color: #111827; text-align: center; }
+.dv-icon { font-size: 40px; }
+.dv-card b { font-size: 15px; word-break: break-word; }
+.dv-card small { color: #6b7280; font-size: 13px; }
+.dv-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 6px; }
+.dv-primary, .dv-secondary { padding: 11px 16px; border-radius: 12px; font: inherit; font-size: 14px; font-weight: 700; text-decoration: none; cursor: pointer; }
+.dv-primary { border: 0; background: #e8192c; color: #fff; }
+.dv-secondary { border: 1px solid #d1d5db; background: #fff; color: #111827; }
+@media (max-width: 760px) { .dv-frame { display: none; } .dv-body { align-self: center; } }
+.wa-image-btn { display: block; padding: 0; border: 0; background: none; cursor: pointer; }
+button.wa-file { width: 100%; border: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }

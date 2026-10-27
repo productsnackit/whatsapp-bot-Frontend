@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import ImageViewer from "./ImageViewer.jsx";
+import DocViewer from "./DocViewer.jsx";
 
 /* Call Log: any task or concern, assigned to an employee and sent to their WhatsApp
    (Processing / Resolved / Forward buttons). Tracks who had it, for how long, and how long
@@ -82,6 +83,7 @@ function FilePicker({ files, onChange, room = MAX_FILES }) {
 
 // Files already on the task: photos as thumbnails (open full screen), others as links.
 function Attachments({ task, onOpenPhoto }) {
+  const [doc, setDoc] = useState(null);
   const files = task.attachments || [];
   if (!files.length) return null;
   return (
@@ -89,8 +91,9 @@ function Attachments({ task, onOpenPhoto }) {
       {files.map((file, index) => file.kind === "image" ? (
         <button type="button" key={`${file.url}-${index}`} className="cl-attach-photo" onClick={() => onOpenPhoto(file.url)} title={`${file.name} · ${file.by}`}><img src={file.url} alt={file.name} loading="lazy" /></button>
       ) : (
-        <a key={`${file.url}-${index}`} className="cl-attach-file" href={file.url} target="_blank" rel="noreferrer" title={`Added by ${file.by}`}>📄 {file.name}</a>
+        <a key={`${file.url}-${index}`} className="cl-attach-file" href={file.url} target="_blank" rel="noreferrer" title={`Added by ${file.by}`} onClick={(event) => { event.preventDefault(); setDoc(file); }}>📄 {file.name}</a>
       ))}
+      {doc && <DocViewer file={doc} onClose={() => setDoc(null)} />}
     </div>
   );
 }
