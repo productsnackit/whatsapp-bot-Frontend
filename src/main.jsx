@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+import { startAutoUpdate } from './autoUpdate.js'
 
 // A company admin's order link (/?order=<token>) opens the public order page, not the dashboard.
 const orderToken = new URLSearchParams(window.location.search).get('order')
@@ -18,6 +19,9 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch((err) => console.log('Service worker registration failed:', err))
   })
 }
+
+// New versions reach phones and the home-screen app without closing it.
+startAutoUpdate()
 
 const root = createRoot(document.getElementById('root'))
 if (buyToken) {
