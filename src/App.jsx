@@ -1920,11 +1920,11 @@ export default function App() {
             {newSheet === "menu" ? (
               <>
                 <h3>What do you want to do?</h3>
-                <button type="button" onClick={() => { setNewSheet(null); setCallLogFocus({ new: true, at: Date.now() }); setView("call-log"); }}>
+                {/* "Give someone a task" is an Internal Audit task (owner, due date, CC, files); Call Log only for people without Internal Audit. */}
+                {can("findings") ? <button type="button" onClick={() => { setNewSheet(null); setFindingsFocus({ new: true, at: Date.now() }); setView("findings"); }}>
+                  <span>📋</span><b>Give someone a task</b><small>Internal Audit task: owner, due date, CC and files</small>
+                </button> : <button type="button" onClick={() => { setNewSheet(null); setCallLogFocus({ new: true, at: Date.now() }); setView("call-log"); }}>
                   <span>📞</span><b>Give someone a task</b><small>Goes to their WhatsApp; you see when it's done</small>
-                </button>
-                {can("findings") && <button type="button" onClick={() => { setNewSheet(null); setFindingsFocus({ new: true, at: Date.now() }); setView("findings"); }}>
-                  <span>📋</span><b>Report an audit issue</b><small>Something wrong that needs a corrective action</small>
                 </button>}
                 {canChat && <button type="button" onClick={() => setNewSheet("people")}>
                   <span>💬</span><b>Message a colleague</b><small>Start a one-to-one chat</small>
