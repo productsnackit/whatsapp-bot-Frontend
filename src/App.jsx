@@ -32,6 +32,7 @@ const PAGE_LOADERS = {
   OperationsWorkspace: () => import("./OperationsWorkspace.jsx"),
   AuditWorkspace: () => import("./AuditWorkspace.jsx"),
   FindingsWorkspace: () => import("./FindingsWorkspace.jsx"),
+  LocationTeams: () => import("./LocationTeams.jsx"),
   EmployeesAccess: () => import("./EmployeesAccess.jsx"),
   ActivityLog: () => import("./ActivityLog.jsx"),
   RefillWorkspace: () => import("./RefillWorkspace.jsx"),
@@ -49,6 +50,7 @@ const PAGE_LOADERS = {
 const OperationsWorkspace = lazy(PAGE_LOADERS.OperationsWorkspace);
 const AuditWorkspace = lazy(PAGE_LOADERS.AuditWorkspace);
 const FindingsWorkspace = lazy(PAGE_LOADERS.FindingsWorkspace);
+const LocationTeams = lazy(PAGE_LOADERS.LocationTeams);
 const EmployeesAccess = lazy(PAGE_LOADERS.EmployeesAccess);
 const ActivityLog = lazy(PAGE_LOADERS.ActivityLog);
 const RefillWorkspace = lazy(PAGE_LOADERS.RefillWorkspace);
@@ -261,6 +263,7 @@ export default function App() {
     if (name === "sale-data") return can("sales_data");
     if (name === "invoices") return can("invoices");
     if (name === "office-leads") return can("office_leads");
+    if (name === "location-teams") return can("audit") || can("findings") || can("refills");
     return ALL_PAGE_KEYS.includes(name) ? can(name) : false;
   };
   const view = viewAllowed(requestedView) ? requestedView : !isOwner ? "home" : can("tickets") ? "tickets" : "internal-chat";
@@ -290,6 +293,7 @@ export default function App() {
     ["internal-chat", "💬", "Internal Chat", "Team chats & tasks"],
     ["call-log", "📞", "Call Log", "Calls & tasks"],
     ["findings", "📋", "Internal Audit", "Findings & actions"],
+    ["location-teams", "📍", "Locations & teams", "Who looks after each site"],
     ["audit", "✅", "Refill Audit", "Machine checks"],
     ["refills", "🗓️", "Refill Schedule", "Refill plan"],
     ["live-stock", "📦", "Live Stock", "Stock per location"],
@@ -2069,6 +2073,13 @@ export default function App() {
             </svg>
             <span>Internal Audit</span>
           </button>}
+          {(can("audit") || can("findings") || can("refills")) && <button
+            className={`nav-item ${view === "location-teams" ? "active" : ""}`}
+            onClick={() => setView("location-teams")}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></svg>
+            <span>Locations & teams</span>
+          </button>}
 
           <div className="sidebar-divider" />
           <div className="sidebar-section-label">{can("analytics") || can("sales_data") ? "Insights" : "Team"}</div>
@@ -2201,6 +2212,7 @@ export default function App() {
               {view === "import" && "Bulk Imports"}
               {view === "audit" && "Refill Audit"}
               {view === "findings" && "Internal Audit"}
+              {view === "location-teams" && "Locations & teams"}
               {view === "refills" && "Refill Schedule"}
               {view === "live-stock" && "Live Stock"}
               {view === "product-list" && "Product List"}
@@ -2232,6 +2244,7 @@ export default function App() {
               {view === "import" && "Upload and audit machines, slots, clients, brands, and SKUs"}
               {view === "audit" && "Machine quality checks, refillers, sites and corrective actions"}
               {view === "findings" && "Audit findings, corrective actions, owners and follow-ups"}
+              {view === "location-teams" && "Refiller, area managers and helpers for every location · workload, cover and sales"}
               {view === "refills" && "Refill days per site (refillers go in their own order), WhatsApp reminders and photo proof"}
               {view === "live-stock" && "Stock at each client location · warehouse stock + DCs − Wendor sales"}
               {view === "product-list" && "Every product with its price · linked to Live Stock"}
@@ -2393,6 +2406,7 @@ export default function App() {
             department={currentUserDepartment}
             pages={homePages}
             onView={setView}
+            onNewTask={can("findings") ? (location) => { setFindingsFocus({ new: true, location, at: Date.now() }); setView("findings"); } : null}
             onOpen={(open) => {
               if (open.view === "internal-chat") return openChatFromNotification(open);
               if (open.view === "findings") setFindingsFocus({ id: open.id, at: Date.now() });
@@ -2416,6 +2430,15 @@ export default function App() {
             version={findingsVersion}
           />
           </div>
+        )}
+
+        {view === "location-teams" && (
+          <LocationTeams
+            token={token}
+            employees={internalUsers}
+            onOpenFinding={(id) => { setFindingsFocus({ id, at: Date.now() }); setView("findings"); }}
+            onNewTask={(location) => { setFindingsFocus({ new: true, location, at: Date.now() }); setView("findings"); }}
+          />
         )}
 
         {keepPage("audit") && canAccessAudit && (

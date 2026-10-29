@@ -3,6 +3,7 @@
    buttons for the pages they can open. Tapping anything takes them inside (myHome.js). */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import LocationCard from "./LocationCard.jsx";
 
 const API = axios.create({ baseURL: "https://whatsapp-bot-backend-b3nb.onrender.com" });
 
@@ -39,7 +40,10 @@ const ago = (iso, now) => {
   return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 };
 
-export default function MyHome({ token, name, department, pages, onOpen, onView, version }) {
+const money = (value) => (value == null ? "—" : `₹${Math.round(value).toLocaleString("en-IN")}`);
+
+export default function MyHome({ token, name, department, pages, onOpen, onView, onNewTask, version }) {
+  const [card, setCard] = useState(null); // location id for its card
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
@@ -139,6 +143,30 @@ export default function MyHome({ token, name, department, pages, onOpen, onView,
         </ul>
         {shown.length > list.length && <button type="button" className="mh-more" onClick={() => setShowAll(true)}>Show all {shown.length}</button>}
       </section>
+
+      {data?.locations?.length > 0 && (
+        <section className="mh-card" id="mh-locations">
+          <div className="mh-card-head">
+            <h3>My locations · {data.locations.length}</h3>
+            <button type="button" className="mh-link" onClick={() => onView("location-teams")}>All locations ›</button>
+          </div>
+          <ul className="mh-locs">
+            {data.locations.map((place) => {
+              const change = place.sales_prev_30d ? Math.round(((place.sales_30d - place.sales_prev_30d) / place.sales_prev_30d) * 100) : null;
+              const flags = [place.overdue_tasks && `⏰ ${place.overdue_tasks} late`, place.missed_refills && `⚠️ ${place.missed_refills} missed`, place.open_problems && `🔧 ${place.open_problems} problem${place.open_problems === 1 ? "" : "s"}`].filter(Boolean);
+              return (
+                <li key={place.id}>
+                  <button type="button" onClick={() => setCard(place.id)} className={flags.length ? "is-alert" : ""}>
+                    <span><b>📍 {place.name}{place.covering ? " · covering" : ""}</b><small>{place.refiller ? `🧑‍🔧 ${place.refiller}` : "No refiller"} · {place.open_tasks} open task{place.open_tasks === 1 ? "" : "s"}</small></span>
+                    <span className="mh-loc-right">{flags.length ? flags.map((flag) => <em key={flag}>{flag}</em>) : <em className="is-ok">All good</em>}<small>{money(place.sales_30d)}{change != null ? ` ${change >= 0 ? "▲" : "▼"}${Math.abs(change)}%` : ""}</small></span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
+      {card && <LocationCard token={token} locationId={card} onClose={() => setCard(null)} onOpenFinding={(id) => { setCard(null); onOpen({ view: "findings", id }); }} onNewTask={onNewTask ? (location) => { setCard(null); onNewTask(location); } : null} />}
 
       {pages.some((page) => page.view === "internal-chat") && <section className="mh-card" id="mh-messages">
         <div className="mh-card-head">

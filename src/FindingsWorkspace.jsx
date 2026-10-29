@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import ImageViewer from "./ImageViewer.jsx";
 import DocViewer from "./DocViewer.jsx";
+import LocationCard from "./LocationCard.jsx";
 import { parseCsv } from "./csv.js";
 
 const API = axios.create({ baseURL: "https://whatsapp-bot-backend-b3nb.onrender.com" });
@@ -320,7 +321,16 @@ const emptyForm = (department) => ({
 });
 
 /* ---------- Log / edit a finding ---------- */
-function FindingForm({ initial, departments, employees, locations, saving, error, onSave, onClose, onRemoveFile, currentUserName, isAdmin }) {
+// The people a location's team says should get a task there: main manager → action owner,
+// other managers → CC (only those who are employees). See Locations & teams.
+function teamFor(teams, locationName) {
+  const key = String(locationName || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const team = teams.find((row) => row.name.toLowerCase().replace(/[^a-z0-9]/g, "") === key);
+  const people = (team?.managers || []).filter((person) => person.user_id);
+  return { owner: people[0]?.user_id || "", cc: people.slice(1).map((person) => person.user_id), team };
+}
+
+function FindingForm({ initial, departments, employees, locations, teams = [], saving, error, onSave, onClose, onRemoveFile, currentUserName, isAdmin }) {
   const [form, setForm] = useState(() => ({ ...initial, details: detailsOf(initial), cc: (initial.cc || []).map((person) => String(person?.id ?? person)) }));
   const [files, setFiles] = useState([]); // new files, sent after the finding is saved
   const [fileError, setFileError] = useState("");
@@ -332,6 +342,12 @@ function FindingForm({ initial, departments, employees, locations, saving, error
   };
   const set = (key) => (event) => setForm((prev) => ({ ...prev, [key]: event.target.value }));
   const editing = Boolean(initial.id);
+  // A new task opened for a location (e.g. from its card) before the teams had loaded: fill the
+  // action owner and CC from that location's team once they arrive (only once, only if empty).
+  if (!editing && !form.teamTried && teams.length && (form.locations || []).length && !form.assignee_id) {
+    const { owner, cc, team } = teamFor(teams, form.locations[0]);
+    setForm((prev) => ({ ...prev, teamTried: true, ...(team && owner ? { assignee_id: owner, cc: [...new Set([...(prev.cc || []), ...cc])].filter((id) => id !== owner), filledFrom: form.locations[0] } : {}) }));
+  }
 
   return (
     <div className="fnd-backdrop" onClick={onClose}>
@@ -358,7 +374,16 @@ function FindingForm({ initial, departments, employees, locations, saving, error
           </div>
           <div className="fnd-field">
             <span className="fnd-field-label">Location(s)</span>
-            <LocationPicker value={form.locations} options={locations} onChange={(next) => setForm((prev) => ({ ...prev, locations: next }))} />
+            <LocationPicker value={form.locations} options={locations} onChange={(next) => setForm((prev) => {
+              // A new task: the first location's team fills the action owner and CC (still changeable).
+              const added = next.find((name) => !(prev.locations || []).includes(name));
+              if (editing || !added) return { ...prev, locations: next };
+              const { owner, cc, team } = teamFor(teams, added);
+              if (!team) return { ...prev, locations: next };
+              const ccNext = [...new Set([...(prev.cc || []), ...cc])].filter((id) => id !== (prev.assignee_id || owner));
+              return { ...prev, locations: next, assignee_id: prev.assignee_id || owner, cc: ccNext, filledFrom: owner && !prev.assignee_id ? added : prev.filledFrom };
+            })} />
+            {form.filledFrom && <small className="fnd-hint">✨ Action owner and CC filled from {form.filledFrom}'s team. You can change them.</small>}
           </div>
           <label>Finding / non-conformance *
             <input value={form.title} onChange={set("title")} placeholder="Short statement of what's wrong" required />
@@ -431,7 +456,7 @@ function FindingForm({ initial, departments, employees, locations, saving, error
 }
 
 /* ---------- Follow-up trail ---------- */
-function FollowUps({ finding, currentUserName, isAdmin, onAdd, onAttach, onRemoveFile, onClose, actions }) {
+function FollowUps({ finding, currentUserName, isAdmin, onAdd, onAttach, onRemoveFile, onClose, actions, onLocation }) {
   const [attaching, setAttaching] = useState(false);
   const [entry, setEntry] = useState({ date: today(), auditor: currentUserName || "", status: finding.status === "Open" ? "In Progress" : finding.status, notes: "" });
   const [saving, setSaving] = useState(false);
@@ -479,7 +504,7 @@ function FollowUps({ finding, currentUserName, isAdmin, onAdd, onAttach, onRemov
               <div><span>Open for</span><b>{finding.created_at ? tookText(finding.created_at) : "—"}</b></div>
             )}
             {(finding.cc || []).length > 0 && <p><span>CC</span>{finding.cc.map((person) => `👁 ${person.name}`).join("   ")}</p>}
-            {(finding.locations || []).length > 0 && <p><span>Location(s)</span>{finding.locations.map((name) => `📍 ${name}`).join("   ")}</p>}
+            {(finding.locations || []).length > 0 && <p><span>Location(s)</span>{finding.locations.map((name) => <button type="button" key={name} className="fnd-loc-link" onClick={() => onLocation?.(name)}>📍 {name}</button>)}</p>}
             <p className="fnd-details-full"><span>Details & what needs to be done</span>{detailsOf(finding)}</p>
           </div>
 
@@ -562,6 +587,8 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [locationOptions, setLocationOptions] = useState([]);
+  const [teams, setTeams] = useState([]); // Locations & teams (who manages each location)
+  const [locationCard, setLocationCard] = useState(null); // location name
   const [locFilter, setLocFilter] = useState("ALL");
 
   const notify = useCallback((message, isError = false) => {
@@ -585,7 +612,16 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
   const [focusSeen, setFocusSeen] = useState(null);
   if (focus && focus !== focusSeen) {
     setFocusSeen(focus);
-    if (focus.new) { setFormError(""); setEditing(emptyForm()); } else { setFollowUpId(focus.id); if (!findings.some((f) => f.id === focus.id)) setTimeout(load, 0); }
+    if (focus.new) {
+      setFormError("");
+      const form = emptyForm();
+      // "Give a task for <location>" from a location card: that location and its team.
+      if (focus.location) {
+        const { owner, cc } = teamFor(teams, focus.location);
+        Object.assign(form, { locations: [focus.location], assignee_id: owner, cc, filledFrom: owner ? focus.location : null });
+      }
+      setEditing(form);
+    } else { setFollowUpId(focus.id); if (!findings.some((f) => f.id === focus.id)) setTimeout(load, 0); }
   }
   // Fresh when opened, when someone logs or changes a finding (live update from the server),
   // when the page comes back on screen, and every minute while it's on screen.
@@ -603,6 +639,7 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
 
   useEffect(() => {
     API.get("/findings/locations", { headers }).then((response) => setLocationOptions(Array.isArray(response.data) ? response.data : [])).catch(() => {});
+    API.get("/location-teams", { headers }).then((response) => setTeams(response.data?.locations || [])).catch(() => {});
   }, [headers]);
 
   const replace = (finding) => setFindings((prev) => {
@@ -905,7 +942,7 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
                       {f.root_cause && <p className="fnd-rca"><b>Root cause:</b> {f.root_cause}</p>}
                       <div className="fnd-meta">
                         <span>{f.department}</span>
-                        {(f.locations || []).length > 0 && <span>📍 {f.locations.join(", ")}</span>}
+                        {(f.locations || []).map((name) => <button type="button" key={name} className="fnd-loc-link" onClick={() => setLocationCard(name)}>📍 {name}</button>)}
                         {(f.attachments || []).length > 0 && <button type="button" className="fnd-files-link" onClick={() => setFollowUpId(f.id)}>📎 {f.attachments.length} file{f.attachments.length === 1 ? "" : "s"}</button>}
                         <span>Observed {formatDate(f.observed_on)}</span>
                         <span>With <b>{ownerText(f)}</b></span>
@@ -947,6 +984,7 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
           departments={departments}
           employees={internalUsers}
           locations={locationOptions}
+          teams={teams}
           saving={saving}
           error={formError}
           onSave={save}
@@ -957,7 +995,12 @@ export default function FindingsWorkspace({ token, isAdmin, currentUserName, cur
         />
       )}
       {followUpFinding && (
-        <FollowUps key={followUpFinding.id} finding={followUpFinding} currentUserName={currentUserName} isAdmin={isAdmin} onAdd={addFollowUp} onAttach={attachToFinding} onRemoveFile={removeFile} onClose={() => setFollowUpId(null)} actions={taskActions(followUpFinding)} />
+        <FollowUps key={followUpFinding.id} finding={followUpFinding} currentUserName={currentUserName} isAdmin={isAdmin} onAdd={addFollowUp} onAttach={attachToFinding} onRemoveFile={removeFile} onClose={() => setFollowUpId(null)} actions={taskActions(followUpFinding)} onLocation={setLocationCard} />
+      )}
+      {locationCard && (
+        <LocationCard token={token} locationName={locationCard} onClose={() => setLocationCard(null)}
+          onOpenFinding={(id) => { setLocationCard(null); setFollowUpId(id); }}
+          onNewTask={(name) => { setLocationCard(null); setFollowUpId(null); const { owner, cc } = teamFor(teams, name); setFormError(""); setEditing({ ...emptyForm(), locations: [name], assignee_id: owner, cc, filledFrom: owner ? name : null }); }} />
       )}
       {forwarding && (
         <ForwardDialog finding={forwarding} employees={internalUsers} departments={departments} onForward={forwardTask} onClose={() => setForwarding(null)} />
