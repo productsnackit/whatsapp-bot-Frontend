@@ -6354,3 +6354,8 @@ button.wa-file { width: 100%; border: 0; font: inherit; color: inherit; text-ali
 .lt, .lt-box, .lt-hero { text-align: left; }
 .lt-link { padding: 4px 6px; border: 0; border-radius: 8px; background: none; color: #b80f1f; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
 .lt-link:hover { background: #fff1f2; }
+/* Refund Analytics: managers under / on hover of a machine or location */
+.ax-loc-mgr { display: block; margin-top: 2px; color: var(--text-muted); font-size: 11.5px; font-weight: 600; }
+.ax-hover { display: inline-block; cursor: default; }
+.ax-machine-code { cursor: default; }
+.ax-tip span b { color: #111827; }

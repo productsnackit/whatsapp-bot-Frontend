@@ -67,7 +67,9 @@ function useTip() {
 
 function FloatingTip({ tip }) {
   if (!tip) return null;
-  return <div className="ax-tip ax-tip-float" style={{ left: tip.x, top: tip.y }} role="status">{tip.content}</div>;
+  // Kept inside the window (the card is up to 280px wide, centred on the pointer).
+  const left = Math.min(Math.max(tip.x, 150), (typeof window === "undefined" ? 1200 : window.innerWidth) - 150);
+  return <div className="ax-tip ax-tip-float" style={{ left, top: tip.y }} role="status">{tip.content}</div>;
 }
 
 function Delta({ value, goodWhen, suffix }) {
@@ -424,8 +426,61 @@ function ResolutionSpeed({ counts, median, within24 }) {
   );
 }
 
-function Locations({ rows, selected, onSelect }) {
+/* Who looks after a location (Locations & teams), for the hover card on machine IDs and
+   locations. Names here come from the machine list or what customers typed ("ClickTech 16th
+   floor"), so the team whose name the place starts with wins (the longest such name). */
+// Notes like "(less sales)" aren't part of the name.
+const teamKey = (text) => String(text || "").toLowerCase().replace(/\((?:[^)]*sales[^)]*)\)/g, "").replace(/[^a-z0-9]/g, "");
+// Other spellings in the machine list → the location's name in Locations & teams. Where a
+// place has several sites with the same managers (Greaves, Paychex, Alorica), the first one.
+const TEAM_ALIASES = {
+  techtronix: ["tektronix"], fluck: ["fluke"], caterpiller: ["caterpillar"], bluebrich: ["blubirch"], sangrila: ["shangrila"],
+  spainio: ["spanio"], siladecathlon: ["decathlonsila"], mouser1and2: ["mouser"], greavesnew: ["greaves", "greeves"],
+  paychexprimco: ["paychex"], alorica: [], aloricanitish: ["aloricabharti", "aloricabellandur", "alorical1", "alorica5th", "alorica6th"],
+  aloricamysureroad: ["aloricamysore"], millennialhostelmysurroad: ["millenialopalbluehostelmysore", "millennialopal"],
+  smartstream: ["smartstream"], refyne: ["refyne"], awfisebay: ["awfis"], sony: ["sony"], dealersocketsolera: [],
+  solera: ["dealersocketsolera"], sbs: ["savebyswitching"],
+};
+function teamFinder(teams) {
+  const keyed = (teams || []).flatMap((team) => {
+    const key = teamKey(team.name);
+    return [key, ...(TEAM_ALIASES[key] || [])].filter(Boolean).map((alias) => ({ key: alias, team }));
+  }).sort((a, b) => b.key.length - a.key.length);
+  return (name) => {
+    const place = teamKey(name);
+    if (!place) return null;
+    return keyed.find((item) => item.key === place || (item.key.length >= 3 && place.startsWith(item.key)))?.team || null;
+  };
+}
+function TeamTip({ name, team }) {
+  if (!team) return <><b>{name}</b><span>Not linked to a location in Locations & teams</span></>;
+  return (
+    <>
+      <b>📍 {team.name}</b>
+      {team.managers.length
+        ? team.managers.map((manager, index) => <span key={manager.name}>{index === 0 ? "👤 Manager" : "👥 Also"}: <b>{manager.acting}</b>{manager.covered_by ? ` (covering for ${manager.name})` : ""}</span>)
+        : <span>No manager set</span>}
+      <span>🧑‍🔧 Refiller: <b>{team.refiller?.name || "—"}</b></span>
+      {team.helpers && <span>Helpers: {team.helpers}</span>}
+    </>
+  );
+}
+// Hover (or tap) a name to see its managers.
+function useTeamTip(findTeam) {
+  const [tip, show, hide] = useTip();
+  const bind = (name) => ({
+    onMouseEnter: (event) => show(event, <TeamTip name={name} team={findTeam(name)} />),
+    onMouseMove: (event) => show(event, <TeamTip name={name} team={findTeam(name)} />),
+    onMouseLeave: hide,
+    onFocus: (event) => show(event, <TeamTip name={name} team={findTeam(name)} />),
+    onBlur: hide,
+  });
+  return [tip, bind];
+}
+
+function Locations({ rows, selected, onSelect, findTeam }) {
   const [showAll, setShowAll] = useState(false);
+  const [tip, bind] = useTeamTip(findTeam);
   if (!rows.length) return <p className="ax-empty">No complaints in this period.</p>;
   const max = Math.max(1, ...rows.map((row) => row.count));
   const shown = showAll ? rows : rows.slice(0, 8);
@@ -438,9 +493,10 @@ function Locations({ rows, selected, onSelect }) {
           {shown.map((row) => (
             <tr key={row.key} className={selected === row.key ? "is-selected" : ""}>
               <td>
-                <button type="button" className="ax-loc-name" onClick={() => onSelect(selected === row.key ? null : row.key)} title={selected === row.key ? "Clear this filter" : "Show only this location"}>
+                <button type="button" className="ax-loc-name" onClick={() => onSelect(selected === row.key ? null : row.key)} {...bind(row.name)}>
                   {row.name}
                 </button>
+                {findTeam(row.name)?.managers?.[0] && <small className="ax-loc-mgr">👤 {findTeam(row.name).managers.map((manager) => manager.acting).join(", ")}</small>}
               </td>
               <td>
                 <span className="ax-loc-bar">
@@ -457,13 +513,15 @@ function Locations({ rows, selected, onSelect }) {
       </table>
       </div>
       {rows.length > 8 && <button type="button" className="ax-link" onClick={() => setShowAll((value) => !value)}>{showAll ? "Show top 8" : `Show all ${rows.length} locations`}</button>}
+      <FloatingTip tip={tip} />
     </div>
   );
 }
 
 /* Complaints per machine (machine ID read from the payment screenshot): today, this month and
    all time, whatever period the page shows. */
-function Machines({ headers }) {
+function Machines({ headers, findTeam }) {
+  const [tip, bind] = useTeamTip(findTeam);
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [sort, setSort] = useState("month");
@@ -506,8 +564,8 @@ function Machines({ headers }) {
             <tbody>
               {shown.map((row) => (
                 <tr key={row.code}>
-                  <td><b className={row.location ? "ax-machine-code" : "ax-machine-code is-unknown"}>{row.code.toUpperCase()}</b></td>
-                  <td title={row.address || ""}>{row.location || <span className="ax-muted">Not in machine list</span>}</td>
+                  <td><b className={row.location ? "ax-machine-code" : "ax-machine-code is-unknown"} tabIndex={0} {...bind(row.location || row.code)}>{row.code.toUpperCase()}</b></td>
+                  <td>{row.location ? <span className="ax-hover" tabIndex={0} {...bind(row.location)}>{row.location}{findTeam(row.location)?.managers?.[0] && <small className="ax-loc-mgr">👤 {findTeam(row.location).managers.map((manager) => manager.acting).join(", ")}</small>}</span> : <span className="ax-muted">Not in machine list</span>}</td>
                   <td className={`is-num ${sort === "today" ? "is-sorted" : ""}`}>{row.today || <span className="ax-muted">0</span>}</td>
                   <td className={`is-num ${sort === "month" ? "is-sorted" : ""}`}>{row.month || <span className="ax-muted">0</span>}</td>
                   <td>
@@ -526,6 +584,7 @@ function Machines({ headers }) {
         </div>
       )}
       {!q && rows.length > 10 && <button type="button" className="ax-link" onClick={() => setShowAll((value) => !value)}>{showAll ? "Show top 10" : `Show all ${rows.length} machines`}</button>}
+      <FloatingTip tip={tip} />
     </div>
   );
 }
@@ -534,6 +593,14 @@ function Machines({ headers }) {
 
 export default function AnalyticsWorkspace({ token }) {
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
+  // Locations & teams, so hovering a machine or location shows its managers.
+  const [teams, setTeams] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    API.get("/location-teams", { headers }).then((response) => alive && setTeams(response.data?.locations || [])).catch(() => {});
+    return () => { alive = false; };
+  }, [headers]);
+  const findTeam = useMemo(() => teamFinder(teams), [teams]);
   const [preset, setPreset] = useState("30d");
   const [issue, setIssue] = useState("ALL");
   const [location, setLocation] = useState(null);
@@ -839,11 +906,11 @@ export default function AnalyticsWorkspace({ token }) {
             </ChartCard>
 
             <ChartCard span={12} title="Complaints by machine" subtitle="Machine ID read from the customer's payment screenshot · today, this month and all time (not limited to the period above)">
-              <Machines headers={headers} />
+              <Machines headers={headers} findTeam={findTeam} />
             </ChartCard>
 
             <ChartCard span={7} title="Top problem locations" subtitle="Click a location to filter the whole page">
-              <Locations rows={view.locationRows} selected={location} onSelect={setLocation} />
+              <Locations rows={view.locationRows} selected={location} onSelect={setLocation} findTeam={findTeam} />
             </ChartCard>
 
             <ChartCard
