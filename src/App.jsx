@@ -3004,11 +3004,11 @@ export default function App() {
                         <td data-label="Location"><SiteCell ticket={t} sites={sites} onSet={setTicketSite} /></td>
                         <td data-label="Machine ID">
                           {t.paid_machine ? (
-                            <span className={`machine-id ${t.paid_machine_location ? "" : "is-unknown"}`} title={t.paid_machine_location ? `Paid to this machine (from the payment screenshot): ${t.paid_machine_location}` : "Read from the screenshot, but this ID isn't in the machine list"}>
+                            <span className={`machine-id ${t.paid_machine_location ? "" : "is-unknown"} ${t.machine_source === "location" ? "is-from-location" : ""}`} title={t.machine_source === "location" ? `From the customer's location (the machine there): ${t.paid_machine_location || ""}. A machine ID on the payment screenshot replaces it.` : t.paid_machine_location ? `Paid to this machine (from the payment screenshot): ${t.paid_machine_location}` : "Read from the screenshot, but this ID isn't in the machine list"}>
                               <b>{String(t.paid_machine).toUpperCase()}</b>
-                              <small>{t.paid_machine_location || "Not in machine list"}</small>
+                              <small>{t.paid_machine_location || "Not in machine list"}{t.machine_source === "location" ? " · from location" : ""}</small>
                             </span>
-                          ) : <span className="na" title={t.upi_image ? "No machine ID found on the screenshot" : "No payment screenshot yet"}>—</span>}
+                          ) : <span className="na" title={t.site_name ? "The location has several machines (or none in the machine list), so which one isn't known" : t.upi_image ? "No machine ID found on the screenshot" : "No payment screenshot yet"}>{t.site_name ? "Several machines" : "—"}</span>}
                         </td>
                         <td data-label="Transaction ID"><TxnIdCell ticket={t} /></td>
                         <td data-label="Image">

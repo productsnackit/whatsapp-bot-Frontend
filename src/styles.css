@@ -6359,3 +6359,4 @@ button.wa-file { width: 100%; border: 0; font: inherit; color: inherit; text-ali
 .ax-hover { display: inline-block; cursor: default; }
 .ax-machine-code { cursor: default; }
 .ax-tip span b { color: #111827; }
+.machine-id.is-from-location b { color: #7c3aed; }
