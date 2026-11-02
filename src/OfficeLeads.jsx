@@ -8,6 +8,17 @@ const API = axios.create({ baseURL: "https://whatsapp-bot-backend-b3nb.onrender.
 const STATUSES = ["New", "Contacted", "Quoted", "Won", "Lost"];
 const TONE = { New: "blue", Contacted: "warn", Quoted: "purple", Won: "good", Lost: "bad" };
 const KIND_ICON = { "List a product": "🛒", "Rent a machine": "🏢", "Buy a machine": "🤝", "Direct supply": "🍎", "Talk to our team": "💬" };
+const isoDay = (date) => new Date(date.getTime() + 330 * 60000).toISOString().slice(0, 10); // India date
+const shift = (days) => isoDay(new Date(Date.now() + days * 86400000));
+// Quick ranges for the Excel: [label, from, to] (India dates).
+const RANGES = () => {
+  const today = shift(0);
+  const monday = (() => { const now = new Date(Date.now() + 330 * 60000); const back = (now.getUTCDay() + 6) % 7; return shift(-back); })();
+  const monthStart = `${today.slice(0, 7)}-01`;
+  const lastMonthEnd = isoDay(new Date(new Date(`${monthStart}T00:00:00+05:30`).getTime() - 86400000));
+  return [["Today", today, today], ["Yesterday", shift(-1), shift(-1)], ["This week", monday, today], ["Last 7 days", shift(-6), today],
+    ["This month", monthStart, today], ["Last month", `${lastMonthEnd.slice(0, 7)}-01`, lastMonthEnd], ["All", "", ""]];
+};
 const when = (value) => new Date(value).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 
 export default function OfficeLeads({ token }) {
@@ -17,6 +28,30 @@ export default function OfficeLeads({ token }) {
   const [filter, setFilter] = useState("open");
   const [search, setSearch] = useState("");
   const [notes, setNotes] = useState({});
+  const [excel, setExcel] = useState(null); // { from, to, status } while the download panel is open
+  const [downloading, setDownloading] = useState(false);
+  const download = async () => {
+    setDownloading(true);
+    setError("");
+    try {
+      const params = { ...(excel.from ? { from: excel.from } : {}), ...(excel.to ? { to: excel.to } : {}), ...(excel.status !== "all" ? { status: excel.status } : {}) };
+      const response = await API.get("/office-leads/export.xlsx", { headers, params, responseType: "blob" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(response.data);
+      link.download = `office-leads_${excel.from || "start"}_to_${excel.to || shift(0)}${excel.status !== "all" ? `_${excel.status.toLowerCase()}` : ""}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(link.href), 5000);
+      setExcel(null);
+    } catch (err) {
+      let message = "Could not download the Excel";
+      try { message = JSON.parse(await err.response.data.text()).error || message; } catch { /* not JSON */ }
+      setError(message);
+    } finally {
+      setDownloading(false);
+    }
+  };
   const load = useCallback(async () => {
     try {
       setData((await API.get("/office-leads", { headers })).data);
@@ -56,7 +91,36 @@ export default function OfficeLeads({ token }) {
           <button type="button" key={key} className={filter === key ? "is-on" : ""} onClick={() => setFilter(key)}>{label}</button>
         ))}
       </div>
-      <input className="ol-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, company, city, phone, email…" />
+      <div className="ol-toolbar">
+        <input className="ol-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, company, city, phone, email…" />
+        <button type="button" className="ol-excel-btn" onClick={() => setExcel(excel ? null : { from: shift(-6), to: shift(0), status: "all" })}>⬇ Download Excel</button>
+      </div>
+      {excel && (
+        <div className="ol-excel">
+          <div className="ol-excel-head"><b>Download leads as Excel</b><small>By the date the lead came in (India time). Both dates are included.</small></div>
+          <div className="ol-excel-quick">
+            {RANGES().map(([label, from, to]) => (
+              <button type="button" key={label} className={excel.from === from && excel.to === to ? "is-on" : ""} onClick={() => setExcel((current) => ({ ...current, from, to }))}>{label}</button>
+            ))}
+          </div>
+          <div className="ol-excel-fields">
+            <label>From<input type="date" value={excel.from} max={excel.to || undefined} onChange={(event) => setExcel((current) => ({ ...current, from: event.target.value }))} /></label>
+            <label>To<input type="date" value={excel.to} min={excel.from || undefined} max={shift(0)} onChange={(event) => setExcel((current) => ({ ...current, to: event.target.value }))} /></label>
+            <label>Status<select value={excel.status} onChange={(event) => setExcel((current) => ({ ...current, status: event.target.value }))}>
+              <option value="all">All statuses</option>
+              {STATUSES.map((name) => <option key={name}>{name}</option>)}
+            </select></label>
+          </div>
+          <p className="ol-excel-count">{(() => {
+            const n = leads.filter((lead) => { const d = isoDay(new Date(lead.created_at)); return (!excel.from || d >= excel.from) && (!excel.to || d <= excel.to) && (excel.status === "all" || lead.status === excel.status); }).length;
+            return `${n} lead${n === 1 ? "" : "s"} in this range · sheets: Leads (all details and notes) and Summary (per day, type and status)`;
+          })()}</p>
+          <div className="ol-excel-actions">
+            <button type="button" className="audit-btn" onClick={() => setExcel(null)}>Cancel</button>
+            <button type="button" className="ol-excel-go" disabled={downloading || (excel.from && excel.to && excel.from > excel.to)} onClick={download}>{downloading ? "Preparing…" : "⬇ Download"}</button>
+          </div>
+        </div>
+      )}
       {!data && !error && <p className="audit-empty">Loading…</p>}
       {data && !shown.length && <p className="audit-empty">{leads.length ? "No leads here." : "No leads yet. They appear here when people answer the office bot's questions."}</p>}
       <div className="ol-list">

@@ -6360,3 +6360,21 @@ button.wa-file { width: 100%; border: 0; font: inherit; color: inherit; text-ali
 .ax-machine-code { cursor: default; }
 .ax-tip span b { color: #111827; }
 .machine-id.is-from-location b { color: #7c3aed; }
+/* Office Leads: Excel by date */
+.ol-toolbar { display: flex; gap: 8px; align-items: center; }
+.ol-toolbar .ol-search { flex: 1; min-width: 0; }
+.ol-excel-btn { flex: none; padding: 10px 14px; border: 1px solid #bbf7d0; border-radius: 10px; background: #f0fdf4; color: #166534; font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.ol-excel { display: grid; gap: 12px; margin: 10px 0 14px; padding: 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: 0 6px 18px rgba(15, 23, 42, .06); }
+.ol-excel-head { display: grid; gap: 2px; }
+.ol-excel-head small { color: var(--text-muted); font-size: 12.5px; }
+.ol-excel-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+.ol-excel-quick button { padding: 7px 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface-2); color: var(--text-primary); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.ol-excel-quick button.is-on { border-color: #166534; background: #166534; color: #fff; }
+.ol-excel-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ol-excel-fields label { display: grid; gap: 5px; font-size: 12.5px; font-weight: 700; color: var(--text-secondary); }
+.ol-excel-fields input, .ol-excel-fields select { min-width: 0; padding: 9px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); font: inherit; font-size: 13.5px; }
+.ol-excel-count { margin: 0; color: var(--text-muted); font-size: 12.5px; }
+.ol-excel-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.ol-excel-go { padding: 10px 18px; border: 0; border-radius: 10px; background: #166534; color: #fff; font: inherit; font-size: 14px; font-weight: 800; cursor: pointer; }
+.ol-excel-go:disabled { opacity: .5; cursor: default; }
+@media (max-width: 640px) { .ol-excel-fields { grid-template-columns: 1fr 1fr; } .ol-excel-fields label:last-child { grid-column: 1 / -1; } .ol-toolbar { flex-wrap: wrap; } .ol-excel-btn { width: 100%; } }
