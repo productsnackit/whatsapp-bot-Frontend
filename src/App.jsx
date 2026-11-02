@@ -273,6 +273,8 @@ export default function App() {
   canChatRef.current = canChat;
   // Pages that stay loaded in the background refresh only while they're the page on screen.
   useEffect(() => { document.body.dataset.view = view; }, [view]);
+  // Mihika Dey gets her own pink (Barbie) dashboard; colours in styles.css under .theme-barbie.
+  useEffect(() => { document.documentElement.classList.toggle("theme-barbie", /mihika/i.test(currentUserName || "")); }, [currentUserName]);
   // Like app tabs: once opened, these pages stay loaded (hidden) so going back is instant;
   // they keep refreshing themselves. Forgotten when a different login is used.
   const [keptPages, setKeptPages] = useState({ token, pages: [] });

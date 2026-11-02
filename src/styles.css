@@ -6378,3 +6378,27 @@ button.wa-file { width: 100%; border: 0; font: inherit; color: inherit; text-ali
 .ol-excel-go { padding: 10px 18px; border: 0; border-radius: 10px; background: #166534; color: #fff; font: inherit; font-size: 14px; font-weight: 800; cursor: pointer; }
 .ol-excel-go:disabled { opacity: .5; cursor: default; }
 @media (max-width: 640px) { .ol-excel-fields { grid-template-columns: 1fr 1fr; } .ol-excel-fields label:last-child { grid-column: 1 / -1; } .ol-toolbar { flex-wrap: wrap; } .ol-excel-btn { width: 100%; } }
+
+/* ── Mihika Dey's pink (Barbie) dashboard: switched on in App.jsx by her name ── */
+html.theme-barbie {
+  --red:        #e0218a;
+  --red-dark:   #b5146c;
+  --red-glow:   rgba(224, 33, 138, 0.22);
+  --red-light:  #ffe8f4;
+  --red-mid:    rgba(224, 33, 138, 0.10);
+  --red-subtle: rgba(224, 33, 138, 0.06);
+  --obsidian:       #a3125f;
+  --obsidian-mid:   #b8176c;
+  --obsidian-edge:  #c92a7c;
+  --obsidian-line:  rgba(255,255,255,0.14);
+  --obsidian-hover: rgba(255,255,255,0.12);
+  --canvas:     #fff0f7;
+  --surface-2:  #fff6fa;
+  --surface-3:  #ffe9f3;
+  --border:     #f6cfe2;
+  --border-2:   #f9dceb;
+  --shadow-red: 0 0 0 3px rgba(224,33,138,0.18);
+  --shadow-red-glow: 0 4px 24px rgba(224,33,138,0.32);
+}
+html.theme-barbie body { background: var(--canvas); }
+html.theme-barbie .lc-head, html.theme-barbie .lc-avatar, html.theme-barbie .lt-avatar { background: var(--obsidian); }
