@@ -3010,7 +3010,12 @@ export default function App() {
                               <b>{String(t.paid_machine).toUpperCase()}</b>
                               <small>{t.paid_machine_location || "Not in machine list"}{t.machine_source === "location" ? " · from location" : ""}</small>
                             </span>
-                          ) : <span className="na" title={t.site_name ? "The location has several machines (or none in the machine list), so which one isn't known" : t.upi_image ? "No machine ID found on the screenshot" : "No payment screenshot yet"}>{t.site_name ? "Several machines" : "—"}</span>}
+                          ) : t.site_machines?.length ? (
+                            <span className="machine-id is-several" title={`Machines at ${t.site_name}: which one the customer used isn't known. Check the refund on each.\n${t.site_machines.map((m) => `${String(m.code).toUpperCase()} · ${m.location}`).join("\n")}`}>
+                              {t.site_machines.map((m) => <b key={m.code}>{String(m.code).toUpperCase()}</b>)}
+                              <small>{t.site_machines.length} machines here · which one isn't known</small>
+                            </span>
+                          ) : <span className="na" title={t.site_name ? "No machine at this location in the machine list" : t.upi_image ? "No machine ID found on the screenshot" : "No payment screenshot yet"}>{t.site_name ? "No machine listed" : "—"}</span>}
                         </td>
                         <td data-label="Transaction ID"><TxnIdCell ticket={t} /></td>
                         <td data-label="Image">
