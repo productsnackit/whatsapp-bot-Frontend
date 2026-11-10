@@ -4095,6 +4095,9 @@ button.wa-notify-banner { cursor: pointer; }
 .ea-editor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; }
 .ea-editor-grid label { display: grid; gap: 4px; color: var(--text-muted); font-size: 11.5px; font-weight: 700; }
 .ea-editor-grid input, .ea-editor-grid select { padding: 9px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text-primary); font: inherit; font-size: 13.5px; font-weight: 500; }
+.ea-editor-grid label.ea-wa-tasks { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; align-self: end; padding: 9px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-2); color: var(--text-primary); font-size: 13px; font-weight: 600; cursor: pointer; }
+.ea-editor-grid label.ea-wa-tasks input { width: 16px; height: 16px; padding: 0; accent-color: #16a34a; }
+.ea-editor-grid label.ea-wa-tasks small { flex-basis: 100%; color: #b45309; font-size: 11px; font-weight: 600; }
 .ea-section-title { color: var(--text-primary); font-size: 12.5px; font-weight: 800; }
 .ea-roles { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
 .ea-role { display: grid; gap: 3px; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 12px; background: var(--surface); font: inherit; text-align: left; cursor: pointer; }

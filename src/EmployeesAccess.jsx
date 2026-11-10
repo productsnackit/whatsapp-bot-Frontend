@@ -47,6 +47,7 @@ function AccessEditor({ person, options, departments, onSave, onCancel }) {
     username: person?.username || "",
     accessRole: person?.accessRole || "staff",
     pages: person?.pages || options.roles.staff.pages,
+    whatsappTasks: Boolean(person?.whatsappTasks),
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -68,7 +69,7 @@ function AccessEditor({ person, options, departments, onSave, onCancel }) {
     setSaving(true);
     setError("");
     try {
-      const payload = { name: draft.name, department: draft.department, role: draft.role, tags: draft.tags, phone: draft.phone, accessRole: draft.accessRole, pages: draft.pages };
+      const payload = { name: draft.name, department: draft.department, role: draft.role, tags: draft.tags, phone: draft.phone, accessRole: draft.accessRole, pages: draft.pages, whatsappTasks: draft.whatsappTasks };
       if (!isNew) payload.username = draft.username;
       await onSave(payload);
     } catch (err) {
@@ -85,6 +86,7 @@ function AccessEditor({ person, options, departments, onSave, onCancel }) {
         <label>Job title<input value={draft.role} onChange={(event) => setDraft({ ...draft, role: event.target.value })} placeholder="e.g. Support executive" /></label>
         <label>Tags<input value={draft.tags} onChange={(event) => setDraft({ ...draft, tags: event.target.value })} placeholder="comma separated" /></label>
         <label>WhatsApp number<input value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} placeholder="10-digit mobile, for Call Log tasks" inputMode="tel" /></label>
+        <label className="ea-wa-tasks" title="Internal Audit tasks given to them also come on WhatsApp, with Started / Done buttons"><input type="checkbox" checked={draft.whatsappTasks} onChange={(event) => setDraft({ ...draft, whatsappTasks: event.target.checked })} /> 📲 Tasks on WhatsApp{draft.whatsappTasks && !draft.phone.trim() ? <small>Add the WhatsApp number above too</small> : null}</label>
         {!isNew && <label>Username<input value={draft.username} onChange={(event) => setDraft({ ...draft, username: event.target.value })} /></label>}
       </div>
 
@@ -286,7 +288,7 @@ export default function EmployeesAccess({ api, headers, departments, currentUser
                   <span className="ea-avatar">{person.name.slice(0, 1).toUpperCase()}</span>
                   <div>
                     <h3>{person.name}{String(person.id) === String(currentUserId) ? " (you)" : ""}</h3>
-                    <p>{person.role} · {person.department} · <code>{person.username}</code>{person.phone ? ` · 📱 ${String(person.phone).replace(/^91(?=\d{10}$)/, "")}` : " · no WhatsApp number"}</p>
+                    <p>{person.role} · {person.department} · <code>{person.username}</code>{person.phone ? ` · 📱 ${String(person.phone).replace(/^91(?=\d{10}$)/, "")}` : " · no WhatsApp number"}{person.whatsappTasks ? " · 📲 tasks on WhatsApp" : ""}</p>
                     <small>{timeAgo(person.lastLoginAt)}</small>
                   </div>
                   <span className={`ea-badge ea-tone-${ROLE_TONES[person.accessRole]}`}>{person.roleLabel}</span>
