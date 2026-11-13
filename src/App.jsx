@@ -3201,7 +3201,7 @@ export default function App() {
           <div className="table-wrapper">
             <table>
               <thead>
-                <tr><th>#</th><th>Phone</th><th>Type</th><th>Date</th></tr>
+                <tr><th>#</th><th>Phone</th><th>Type</th><th>About</th><th>Date</th></tr>
               </thead>
               <tbody>
                 {products.map((p, i) => (
@@ -3209,6 +3209,7 @@ export default function App() {
                     <td><span className="row-num">{i + 1}</span></td>
                     <td><span className="phone-tag">{p.phone}</span></td>
                     <td><span className="type-tag">{p.type}</span></td>
+                    <td data-label="About">{p.topic ? <span className={`lead-topic ${p.topic === "Vending machine" ? "is-machine" : "is-products"}`}>{p.topic === "Vending machine" ? "🏧 Vending machine" : "📦 Products in machines"}</span> : <span className="na" title="Asked from now on; older enquiries didn't say">—</span>}</td>
                     <td className="date-cell">{p.created_at ? new Date(p.created_at).toLocaleString() : "—"}</td>
                   </tr>
                 ))}

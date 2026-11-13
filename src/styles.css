@@ -6406,3 +6406,7 @@ html.theme-barbie {
 }
 html.theme-barbie body { background: var(--canvas); }
 html.theme-barbie .lc-head, html.theme-barbie .lc-avatar, html.theme-barbie .lt-avatar { background: var(--obsidian); }
+/* Products: what a brand enquiry is about */
+.lead-topic { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.lead-topic.is-products { background: #ecfdf5; color: #047857; }
+.lead-topic.is-machine { background: #eff6ff; color: #1d4ed8; }
