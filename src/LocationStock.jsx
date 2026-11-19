@@ -48,6 +48,25 @@ function LocationView({ id, headers, notify, onBack, onChanged, version }) {
       setBusy(false);
     }
   };
+  // A DC for this location (PDF or photo): it goes here whatever its Bill To / Ship To says.
+  const uploadDc = async (files) => {
+    setBusy(true);
+    try {
+      for (const file of files) {
+        const data64 = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
+        const dc = (await API.post("/locstock/dcs", { file: { name: file.name, data: data64, type: file.type }, location_id: id }, { headers })).data;
+        notify(dc.status !== "added" ? `DC ${dc.ref || file.name}: ${dc.problem}. See the DCs tab.`
+          : dc.in_count ? `DC ${dc.ref || ""} saved to ${data.name}, but it's dated ${whenText(dc.dc_at || dc.created_at)}, before the closing stock of ${whenText(dc.closing_at)}, so that count already has it.`
+          : `DC ${dc.ref || ""} added to ${data.name}: ${dc.lines.length} items, ${num(dc.units)} units${dc.replaced ? " (moved here / replaced the earlier one)" : ""}`, dc.status !== "added" || dc.in_count);
+      }
+      await load();
+      onChanged();
+    } catch (err) {
+      notify(err.response?.data?.error || "Could not read the DC", true);
+    } finally {
+      setBusy(false);
+    }
+  };
   const save = async (body, message) => {
     try {
       await API.post(`/locstock/locations/${id}/moves`, body, { headers });
@@ -72,7 +91,11 @@ function LocationView({ id, headers, notify, onBack, onChanged, version }) {
         <button type="button" className="audit-btn" onClick={onBack}>← All locations</button>
         <h3 className="ls-title">{data.name}</h3>
         <small className="na">{data.machines.length ? `Machines: ${data.machines.join(", ")}` : "No Wendor machine linked (Settings) — sales aren't taken away yet"}</small>
-        <label className={`audit-btn audit-btn-primary ls-upload-btn ls-push-right ${busy ? "is-busy" : ""}`}>
+        <label className={`audit-btn ls-upload-btn ls-push-right ${busy ? "is-busy" : ""}`}>
+          {busy ? "Reading…" : `⬆ DC for ${data.name}`}
+          <input type="file" accept=".pdf,image/*" multiple hidden disabled={busy} onChange={(event) => { const files = [...(event.target.files || [])]; event.target.value = ""; if (files.length) uploadDc(files); }} />
+        </label>
+        <label className={`audit-btn audit-btn-primary ls-upload-btn ${busy ? "is-busy" : ""}`}>
           {busy ? "Reading…" : `⬆ Closing stock for ${data.name}`}
           <input type="file" accept=".xlsx,.xls,.csv" hidden disabled={busy} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) setStockFile({ file, date: "", max: new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10) }); }} />
         </label>
