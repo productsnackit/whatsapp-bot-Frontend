@@ -6410,3 +6410,8 @@ html.theme-barbie .lc-head, html.theme-barbie .lc-avatar, html.theme-barbie .lt-
 .lead-topic { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .lead-topic.is-products { background: #ecfdf5; color: #047857; }
 .lead-topic.is-machine { background: #eff6ff; color: #1d4ed8; }
+/* Live Stock: add a price on a location's page */
+.ls-link { padding: 0; border: 0; background: none; color: #b45309; font: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; }
+.ls-add-price { color: #b45309; border-color: #fcd34d; background: #fffbeb; white-space: nowrap; }
+.ls-count.ls-price-edit { white-space: nowrap; }
+.ls-count.ls-price-edit input { width: 90px !important; min-width: 90px; }

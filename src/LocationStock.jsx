@@ -25,6 +25,7 @@ function LocationView({ id, headers, notify, onBack, onChanged, version }) {
   const [editing, setEditing] = useState(null);
   const [value, setValue] = useState("");
   const [newItem, setNewItem] = useState({ name: "", qty: "" });
+  const [pricing, setPricing] = useState(null); // { item_id, value }: a price being added on this page
   const load = useCallback(() => API.get(`/locstock/locations/${id}`, { headers }).then((response) => setData(response.data)).catch(() => notify("Could not load the location", true)), [id, headers, notify]);
   // Reloads when anything changes on Live Stock (e.g. a DC uploaded at the top while this is open).
   useEffect(() => { const timer = setTimeout(load, 0); return () => clearTimeout(timer); }, [load, version]);
@@ -67,6 +68,18 @@ function LocationView({ id, headers, notify, onBack, onChanged, version }) {
       setBusy(false);
     }
   };
+  // A price for an item with none (used everywhere: all locations' stock values).
+  const savePrice = async (row) => {
+    try {
+      await API.patch(`/locstock/items/${row.item_id}`, { price: pricing.value }, { headers });
+      notify(`${row.name}: ₹${num(pricing.value)} saved`);
+      setPricing(null);
+      await load();
+      onChanged();
+    } catch (err) {
+      notify(err.response?.data?.error || "Could not save the price", true);
+    }
+  };
   const save = async (body, message) => {
     try {
       await API.post(`/locstock/locations/${id}/moves`, body, { headers });
@@ -81,7 +94,7 @@ function LocationView({ id, headers, notify, onBack, onChanged, version }) {
   };
 
   if (!data) return <p className="audit-empty">Loading…</p>;
-  const rows = data.items.filter((row) => (filter === "all" || (filter === "attention" ? row.status !== "ok" || row.short : row.available > 0))
+  const rows = data.items.filter((row) => (filter === "all" || (filter === "noprice" ? row.price == null : filter === "attention" ? row.status !== "ok" || row.short : row.available > 0))
     && (!query.trim() || row.name.toLowerCase().includes(query.trim().toLowerCase())));
   const t = data.totals;
 
@@ -111,7 +124,7 @@ function LocationView({ id, headers, notify, onBack, onChanged, version }) {
         </div>
       )}
       <div className="fnd-kpis ds-kpis ls-kpis">
-        <div className="fnd-kpi-blue"><span>Stock value</span><b>{rupees(t.value)}</b><small>{num(t.units)} units · {t.items} item{t.items === 1 ? "" : "s"}{t.no_price ? ` · ${t.no_price} without a price` : ""}</small></div>
+        <div className="fnd-kpi-blue"><span>Stock value</span><b>{rupees(t.value)}</b><small>{num(t.units)} units · {t.items} item{t.items === 1 ? "" : "s"}{t.no_price ? <> · <button type="button" className="ls-link" onClick={() => setFilter("noprice")}>{t.no_price} without a price</button></> : ""}</small></div>
         <div className="fnd-kpi-good"><span>Sold (out) value</span><b>{rupees(t.sold_value)}</b><small>since the closing stock · DCs in {rupees(t.dc_value)}</small></div>
         <div className={t.out ? "fnd-kpi-bad" : "fnd-kpi-good"}><span>Out of stock</span><b>{t.out}</b><small>{t.low} running low (under 2 days)</small></div>
         <div className="fnd-kpi-purple"><span>Sold per day</span><b>{num(t.per_day)}</b><small>last 7 days with sales</small></div>
@@ -128,7 +141,7 @@ function LocationView({ id, headers, notify, onBack, onChanged, version }) {
       <section className="audit-card">
         <div className="ls-tools">
           <div className="ds-tabs ls-mini-tabs">
-            {[["all", "All items"], ["stock", "In stock"], ["attention", "Out / low / missing"]].map(([key, label]) => <button key={key} type="button" className={filter === key ? "active" : ""} onClick={() => setFilter(key)}>{label}</button>)}
+            {[["all", "All items"], ["stock", "In stock"], ["attention", "Out / low / missing"], ...(data.items.some((row) => row.price == null) ? [["noprice", `No price (${data.items.filter((row) => row.price == null).length})`]] : [])].map(([key, label]) => <button key={key} type="button" className={filter === key ? "active" : ""} onClick={() => setFilter(key)}>{label}</button>)}
           </div>
           <input className="ds-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search item" aria-label="Search items" />
         </div>
@@ -140,7 +153,13 @@ function LocationView({ id, headers, notify, onBack, onChanged, version }) {
                 <tr key={row.item_id}>
                   <td><b>{row.name}</b>{row.short > 0 && <small className="ds-sub ds-short">sold {num(row.short)} more than was there — a DC or count is missing</small>}{row.adjust !== 0 && <small className="ds-sub">corrected {row.adjust > 0 ? "+" : ""}{num(row.adjust)}</small>}</td>
                   <td><b>{num(row.available)}</b></td>
-                  <td>{row.value != null ? <>{rupees(row.value)}<small className="ds-sub">@ ₹{num(row.price)}{row.price_from === "sales" ? " (machine price)" : row.price_from === "page" ? " (set)" : row.price_from === "list" ? "" : " (MRP)"}</small></> : <span className="na">no price</span>}</td>
+                  <td>{row.value != null ? <>{rupees(row.value)}<small className="ds-sub">@ ₹{num(row.price)}{row.price_from === "sales" ? " (machine price)" : row.price_from === "page" ? " (set)" : row.price_from === "list" ? "" : " (MRP)"}</small></> : pricing?.item_id === row.item_id ? (
+                    <span className="ls-count ls-price-edit">
+                      ₹<input type="number" min="0" step="0.01" value={pricing.value} autoFocus onChange={(event) => setPricing({ ...pricing, value: event.target.value })} onKeyDown={(event) => { if (event.key === "Enter" && pricing.value !== "") savePrice(row); if (event.key === "Escape") setPricing(null); }} placeholder="MRP" aria-label={`Price of ${row.name}`} />
+                      <button type="button" className="audit-btn audit-btn-primary" disabled={pricing.value === ""} onClick={() => savePrice(row)}>Save</button>
+                      <button type="button" className="audit-btn" onClick={() => setPricing(null)}>✕</button>
+                    </span>
+                  ) : <button type="button" className="audit-btn ls-add-price" onClick={() => setPricing({ item_id: row.item_id, value: "" })}>+ Add price</button>}</td>
                   <td>{row.counted ? <>{num(row.counted.qty)}<small className="ds-sub">{dayText(row.counted.at)}</small></> : <span className="na">—</span>}</td>
                   <td>{row.dc_in ? `+${num(row.dc_in)}` : "—"}</td>
                   <td>{row.sold ? `−${num(row.sold)}` : "—"}</td>
