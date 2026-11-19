@@ -288,7 +288,9 @@ export default function LiveStock({ token }) {
           return;
         } else {
           const dc = (await API.post("/locstock/dcs", body, { headers })).data;
-          notify(dc.status === "added" ? `DC ${dc.ref || ""} added: ${dc.lines.length} items, ${num(dc.units)} units${dc.replaced ? " (replaced the earlier one)" : ""}` : `DC ${dc.ref || ""}: ${dc.problem}. See the DCs tab.`, dc.status !== "added");
+          notify(dc.status !== "added" ? `DC ${dc.ref || ""}: ${dc.problem}. See the DCs tab.`
+            : dc.in_count ? `DC ${dc.ref || ""} saved to ${dc.location_name}, but it's dated ${whenText(dc.dc_at || dc.created_at)}, before ${dc.location_name}'s closing stock of ${whenText(dc.closing_at)}, so that count already has it and the stock doesn't change. If the closing stock was taken earlier, set its time.`
+            : `DC ${dc.ref || ""} added to ${dc.location_name}: ${dc.lines.length} items, ${num(dc.units)} units${dc.replaced ? " (replaced the earlier one)" : ""}`, dc.status !== "added" || dc.in_count);
           if (dc.status !== "added") setTab("dcs");
         }
       }

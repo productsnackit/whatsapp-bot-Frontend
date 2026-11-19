@@ -18,7 +18,7 @@ function Pill({ status }) {
 }
 
 /* ---------- One location ---------- */
-function LocationView({ id, headers, notify, onBack, onChanged }) {
+function LocationView({ id, headers, notify, onBack, onChanged, version }) {
   const [data, setData] = useState(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
@@ -26,7 +26,8 @@ function LocationView({ id, headers, notify, onBack, onChanged }) {
   const [value, setValue] = useState("");
   const [newItem, setNewItem] = useState({ name: "", qty: "" });
   const load = useCallback(() => API.get(`/locstock/locations/${id}`, { headers }).then((response) => setData(response.data)).catch(() => notify("Could not load the location", true)), [id, headers, notify]);
-  useEffect(() => { const timer = setTimeout(load, 0); return () => clearTimeout(timer); }, [load]);
+  // Reloads when anything changes on Live Stock (e.g. a DC uploaded at the top while this is open).
+  useEffect(() => { const timer = setTimeout(load, 0); return () => clearTimeout(timer); }, [load, version]);
 
   const [busy, setBusy] = useState(false);
   const [stockFile, setStockFile] = useState(null); // { file, date } waiting for its date
@@ -192,11 +193,11 @@ function LocationView({ id, headers, notify, onBack, onChanged }) {
 }
 
 /* ---------- All locations ---------- */
-export function LocationsTab({ headers, notify, overview, onChanged }) {
+export function LocationsTab({ headers, notify, overview, onChanged, version }) {
   const [locationId, setLocationId] = useState(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("tracked");
-  if (locationId) return <LocationView key={locationId} id={locationId} headers={headers} notify={notify} onChanged={onChanged} onBack={() => setLocationId(null)} />;
+  if (locationId) return <LocationView key={locationId} id={locationId} headers={headers} notify={notify} onChanged={onChanged} version={version} onBack={() => setLocationId(null)} />;
   if (!overview) return <p className="audit-empty">Loading locations…</p>;
 
   const all = overview.locations;
