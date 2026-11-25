@@ -55,7 +55,15 @@ function LocationView({ id, headers, notify, onBack, onChanged, version }) {
     try {
       for (const file of files) {
         const data64 = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
-        const dc = (await API.post("/locstock/dcs", { file: { name: file.name, data: data64, type: file.type }, location_id: id }, { headers })).data;
+        const result = (await API.post("/locstock/dcs", { file: { name: file.name, data: data64, type: file.type }, location_id: id }, { headers })).data;
+        // An Excel of several DCs: one message for all of them.
+        if (result.excel) {
+          const covered = result.dcs.filter((dc) => dc.in_count);
+          const units = result.dcs.filter((dc) => !dc.in_count).reduce((sum, dc) => sum + Number(dc.units || 0), 0);
+          notify(`${result.dcs.length} DC${result.dcs.length === 1 ? "" : "s"} from ${file.name} added to ${data.name}: ${result.dcs.map((dc) => dc.ref).join(", ")} · ${num(units)} units${covered.length ? ` · ${covered.map((dc) => dc.ref).join(", ")} dated before the closing stock, so already counted` : ""}`, covered.length > 0);
+          continue;
+        }
+        const dc = result;
         notify(dc.status !== "added" ? `DC ${dc.ref || file.name}: ${dc.problem}. See the DCs tab.`
           : dc.in_count ? `DC ${dc.ref || ""} saved to ${data.name}, but it's dated ${whenText(dc.dc_at || dc.created_at)}, before the closing stock of ${whenText(dc.closing_at)}, so that count already has it.`
           : `DC ${dc.ref || ""} added to ${data.name}: ${dc.lines.length} items, ${num(dc.units)} units${dc.replaced ? " (moved here / replaced the earlier one)" : ""}`, dc.status !== "added" || dc.in_count);
@@ -78,6 +86,17 @@ function LocationView({ id, headers, notify, onBack, onChanged, version }) {
       onChanged();
     } catch (err) {
       notify(err.response?.data?.error || "Could not save the price", true);
+    }
+  };
+  const removeDc = async (dc) => {
+    if (!window.confirm(`Delete DC ${dc.ref || `#${dc.id}`}? Its ${num(dc.units)} units are taken out of ${data.name}'s stock.`)) return;
+    try {
+      await API.delete(`/locstock/dcs/${dc.id}`, { headers });
+      notify(`DC ${dc.ref || ""} deleted`);
+      await load();
+      onChanged();
+    } catch {
+      notify("Could not delete the DC", true);
     }
   };
   const save = async (body, message) => {
@@ -106,7 +125,7 @@ function LocationView({ id, headers, notify, onBack, onChanged, version }) {
         <small className="na">{data.machines.length ? `Machines: ${data.machines.join(", ")}` : "No Wendor machine linked (Settings) — sales aren't taken away yet"}</small>
         <label className={`audit-btn ls-upload-btn ls-push-right ${busy ? "is-busy" : ""}`}>
           {busy ? "Reading…" : `⬆ DC for ${data.name}`}
-          <input type="file" accept=".pdf,image/*" multiple hidden disabled={busy} onChange={(event) => { const files = [...(event.target.files || [])]; event.target.value = ""; if (files.length) uploadDc(files); }} />
+          <input type="file" accept=".pdf,image/*,.xlsx,.xls,.csv" multiple hidden disabled={busy} onChange={(event) => { const files = [...(event.target.files || [])]; event.target.value = ""; if (files.length) uploadDc(files); }} />
         </label>
         <label className={`audit-btn audit-btn-primary ls-upload-btn ${busy ? "is-busy" : ""}`}>
           {busy ? "Reading…" : `⬆ Closing stock for ${data.name}`}
@@ -222,7 +241,7 @@ function LocationView({ id, headers, notify, onBack, onChanged, version }) {
                   ))}</td>
                   <td>{num(dc.units)}</td>
                   <td>{dc.in_count ? <span className="audit-pill fnd-tone-muted" title="Delivered before the latest closing stock, so it's already counted there">In closing stock</span> : <span className="audit-pill fnd-tone-good">Added</span>}</td>
-                  <td>{dc.file_url ? <a href={dc.file_url} target="_blank" rel="noreferrer">Open DC</a> : null}</td>
+                  <td className="ls-dc-actions">{dc.file_url ? <a href={dc.file_url} target="_blank" rel="noreferrer">{dc.source === "excel" ? "Excel" : "Open DC"}</a> : null}<button type="button" className="audit-btn" onClick={() => removeDc(dc)}>Delete</button></td>
                 </tr>
               ))}
             </tbody>

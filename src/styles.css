@@ -6415,3 +6415,5 @@ html.theme-barbie .lc-head, html.theme-barbie .lc-avatar, html.theme-barbie .lt-
 .ls-add-price { color: #b45309; border-color: #fcd34d; background: #fffbeb; white-space: nowrap; }
 .ls-count.ls-price-edit { white-space: nowrap; }
 .ls-count.ls-price-edit input { width: 90px !important; min-width: 90px; }
+.ls-dc-actions { white-space: nowrap; }
+.ls-dc-actions a { margin-right: 8px; }

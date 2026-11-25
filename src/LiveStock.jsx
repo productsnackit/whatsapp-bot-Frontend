@@ -287,7 +287,15 @@ export default function LiveStock({ token }) {
           setPending({ body, name: file.name, location_id: "", date: "", max: overview?.today });
           return;
         } else {
-          const dc = (await API.post("/locstock/dcs", body, { headers })).data;
+          const result = (await API.post("/locstock/dcs", body, { headers })).data;
+          if (result.excel) {
+            const waiting = result.dcs.filter((dc) => dc.status !== "added");
+            const places = [...new Set(result.dcs.map((dc) => dc.location_name).filter(Boolean))];
+            notify(`${result.dcs.length} DC${result.dcs.length === 1 ? "" : "s"} from ${file.name}${places.length ? ` added to ${places.join(", ")}` : ""}${waiting.length ? ` · ${waiting.length} need a location: see the DCs tab` : ""}`, waiting.length > 0);
+            if (waiting.length) setTab("dcs");
+            continue;
+          }
+          const dc = result;
           notify(dc.status !== "added" ? `DC ${dc.ref || ""}: ${dc.problem}. See the DCs tab.`
             : dc.in_count ? `DC ${dc.ref || ""} saved to ${dc.location_name}, but it's dated ${whenText(dc.dc_at || dc.created_at)}, before ${dc.location_name}'s closing stock of ${whenText(dc.closing_at)}, so that count already has it and the stock doesn't change. If the closing stock was taken earlier, set its time.`
             : `DC ${dc.ref || ""} added to ${dc.location_name}: ${dc.lines.length} items, ${num(dc.units)} units${dc.replaced ? " (replaced the earlier one)" : ""}`, dc.status !== "added" || dc.in_count);
@@ -335,7 +343,7 @@ export default function LiveStock({ token }) {
         <div className="ls-upload-btns">
           {uploadButton("wendor", "⬆ Sales report (Wendor / VendVitor)", ".xlsx,.xls,.csv")}
           {uploadButton("warehouse", "⬆ Closing stock", ".xlsx,.xls,.csv")}
-          {uploadButton("dc", "⬆ DC (PDF / photo)", ".pdf,image/*")}
+          {uploadButton("dc", "⬆ DC (PDF / photo / Excel)", ".pdf,image/*,.xlsx,.xls,.csv")}
         </div>
         {pending && (
           <div className="ls-warn ls-pending">
